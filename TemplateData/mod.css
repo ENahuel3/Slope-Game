@@ -1,0 +1,98 @@
+/* Slope mod: page chrome. The Unity canvas fills the viewport; the HUD
+   floats over the top edge and fades out while you play. */
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #231F20;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.webgl-content {
+    position: fixed;
+    inset: 0;
+}
+
+#gameContainer {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+}
+
+.hud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    color: #e8e8e8;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    user-select: none;
+}
+
+.hud.hidden {
+    opacity: 0;
+}
+
+.hud > * {
+    pointer-events: auto;
+}
+
+.hud-title {
+    font-weight: 800;
+    letter-spacing: 0.25em;
+    color: #00e676;
+    font-size: 15px;
+}
+
+.hud-sep {
+    width: 1px;
+    height: 16px;
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.hud-hint {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.hud-spacer {
+    flex: 1;
+    pointer-events: none;
+}
+
+.hud-timer {
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.hud-btn {
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+.hud-btn:hover {
+    background: rgba(0, 230, 118, 0.25);
+    border-color: #00e676;
+}
+
+@media (max-width: 600px) {
+    .hud-hint { display: none; }
+}

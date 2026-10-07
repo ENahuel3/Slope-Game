@@ -1,3 +1,5 @@
+> **This fork (branch `mod`)** strips the ads, analytics and promo banner from the page, blocks the game's own calls to the id.net / y8 / Unity Analytics backends (`TemplateData/mod.js`), adds a fullscreen button (or press **F**), a session timer and a proper HTML5 page shell, and fixes a stray token at the end of `unityloader41.js` that threw a `ReferenceError` on every load. Hosting instructions below are unchanged. The game itself is by Y8 Games / IDnet.
+
 
 # Slope Game </a>![Badge](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fcgolden15%2FSlope-Game%3Ftab%3Dreadme-ov-file&label=Visits&icon=github&color=%23198754&message=&style=flat&tz=US%2FEastern)
 
