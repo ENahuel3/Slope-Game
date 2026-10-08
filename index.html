@@ -17,7 +17,8 @@
 Modded fork of https://github.com/cgolden15/Slope-Game
 Changes vs upstream: ads, analytics and the promo banner are gone,
 the page is a proper HTML5 document, there is a fullscreen button
-(or press F), a session timer, and outbound calls to the id.net /
+(or press F), a session timer, a "Courses" selector that stacks 1-5
+random courses on top of each other, and outbound calls to the id.net /
 y8 ad + leaderboard backend are blocked (see TemplateData/mod.js).
 Slope game itself is by Y8 Games / IDnet, not by this fork.
 -->
@@ -31,6 +32,9 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
         <span class="hud-title">SLOPE</span>
         <span class="hud-sep"></span>
         <span class="hud-hint">&larr; &rarr; or A / D to steer</span>
+        <span class="hud-sep"></span>
+        <span class="hud-label" title="How many random courses are overlapped on top of each other">Courses</span>
+        <span id="hud-stack" class="hud-stack"></span>
         <span class="hud-spacer"></span>
         <span id="hud-timer" class="hud-timer" title="Time on this page">00:00</span>
         <button id="hud-fs" class="hud-btn" type="button" title="Fullscreen (F)">&#x26F6; Fullscreen</button>
