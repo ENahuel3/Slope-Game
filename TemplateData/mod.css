@@ -93,31 +93,58 @@ html, body {
     border-color: #00e676;
 }
 
-/* stacked-courses selector */
+/* stacked-courses input + rainbow toggle */
 .hud-label {
     font-size: 12px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     opacity: 0.8;
+    cursor: pointer;
 }
 
-.hud-stack {
-    display: inline-flex;
-    gap: 3px;
-}
-
-.hud-stack-btn {
-    min-width: 26px;
-    padding: 3px 0;
-    text-align: center;
+.hud-input {
+    width: 52px;
+    appearance: textfield;
+    -moz-appearance: textfield;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
     font-variant-numeric: tabular-nums;
+    padding: 3px 6px;
+    text-align: center;
 }
 
-.hud-stack-btn.active {
-    background: #00e676;
+.hud-input:focus {
+    outline: none;
     border-color: #00e676;
-    color: #000;
-    font-weight: 700;
+    background: rgba(0, 230, 118, 0.15);
+}
+
+.hud-badge {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: #00e676;
+    min-width: 0;
+}
+
+.hud-badge.on {
+    padding: 2px 8px;
+    border: 1px solid rgba(0, 230, 118, 0.5);
+    border-radius: 999px;
+}
+
+.hud-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.hud-check input {
+    accent-color: #00e676;
+    margin: 0;
 }
 
 @media (max-width: 600px) {
