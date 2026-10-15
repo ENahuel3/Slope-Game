@@ -5,19 +5,15 @@
  *    and injected <script> aimed at those hosts is failed locally before it
  *    leaves the browser. The game already handles "failed to load ads".
  *
- * 2. Stacked courses, built instantly at the start of every run. The game
- *    is a set of PlayMaker state machines, and Unity's SendMessage bridge can
- *    switch their states by name. A normal restart is the EventManager's
- *    "resetGame" state: it broadcasts "Reset Game", which moves the ball and
- *    the spawn point back to the origin and spawns a fresh start section.
- *    Nothing in that path despawns the old course; only the "death complete"
- *    broadcast three seconds after a game over does. So the mod builds a
- *    stack while the ball is still falling into the start tunnel: it asks the
- *    spawner (t_Spawner, "Check score" / "easy run" / "medium run" /
- *    "hard run" states) for a run of laps, then forces "resetGame", and
- *    repeats until N courses sit exactly on top of each other. The last one
- *    is the live course the game keeps extending; the hidden ones are what
- *    the rapid-Enter glitch used to leave behind, without dying for them.
+ * 2. Stacked courses, built instantly. The game is a set of PlayMaker state
+ *    machines, and Unity's SendMessage bridge can switch their states by
+ *    name. The mod spawns N-1 hidden courses directly (ball and spawn point
+ *    back to the origin, a start section, a few laps each), then triggers the
+ *    game's own restart state for the live course. Nothing on that path
+ *    despawns old blocks; only a game over's delayed "death complete" does.
+ *    When the ball dies the mod waits half a second, despawns the blocks
+ *    itself and rebuilds the stack in place, so there is no game-over screen
+ *    and no waiting: this is the rapid-Enter glitch without the Enter.
  *
  * 3. Rainbow neon: every fragment shader is rewritten at compile time so
  *    that green-hued output pixels get their hue replaced by a moving
@@ -225,50 +221,93 @@
     if (window.WebGL2RenderingContext) hookContext(WebGL2RenderingContext.prototype);
 
     // ======================================================================
-    // 2. Stacked courses: run-start detector + reset/lap builder
+    // Audio hook: the run's music track (a ~24 s buffer) is stopped at the
+    // instant the ball dies, for falls and crashes alike, and restarted on
+    // every restart. That is the earliest death signal there is.
     // ======================================================================
-    var LAPS_PER_COURSE = 15;      // laps pre-generated on every hidden course
-    var LAPS_PER_FRAME = 3;        // spread the spawning over a few frames
-    var RESET_TIMEOUT = 90;        // frames to wait for a forced reset to show up
+    var MUSIC_MIN_SECONDS = 10;
+    var musicStopped = false, musicStarted = false;   // flags for the frame being examined
+    if (window.AudioBufferSourceNode) {
+        var absStart = AudioBufferSourceNode.prototype.start, absStop = AudioBufferSourceNode.prototype.stop;
+        AudioBufferSourceNode.prototype.start = function () {
+            this.__slopeDur = this.buffer ? this.buffer.duration : 0;
+            if (this.__slopeDur >= MUSIC_MIN_SECONDS) musicStarted = true;
+            return absStart.apply(this, arguments);
+        };
+        AudioBufferSourceNode.prototype.stop = function () {
+            if (this.__slopeDur >= MUSIC_MIN_SECONDS) musicStopped = true;
+            return absStop.apply(this, arguments);
+        };
+    }
+
+    // ======================================================================
+    // 2. Stacked courses: instant builder + instant restart after a death
+    // ======================================================================
+    // Hidden courses are spawned directly: Sphere "Restart Game" puts the
+    // ball and the spawn point back at the origin, t_Spawner "spawn go tunnel
+    // run" drops a start section there, and each "Check score" generates one
+    // lap (the spawner's own per-speed-up path, so laps go easy -> medium ->
+    // hard like a real run). Only the last course goes through the normal
+    // EventManager "resetGame" restart, so the game's own state is clean.
+    // Hold-at-top: while building, the ball is lifted back to the start every
+    // few frames; a reset issued after the ball has landed kills it.
+    var LAPS_PER_COURSE = 8;       // laps pre-generated on every hidden course
+    var HOLD_EVERY = 6;            // frames between ball lifts during a build
+    var FINAL_SETTLE = 8;          // frames between the last lift and the final reset (lets its delayed destroySelf land first)
+    var RESET_TIMEOUT = 90;        // frames to wait for the final reset to show up
     var RESET_RETRIES = 3;
-    var SPAWNER = "t_Spawner", EVENT_MANAGER = "EventManager";
+    var DEATH_BEAT = 30;           // frames to show the death before the instant restart
+    var RESTART_GRACE = 15;        // a restart also stops the previous track a frame or two later
+    var SPAWNER = "t_Spawner", EVENT_MANAGER = "EventManager", SPHERE = "Sphere";
 
     var stacked = 1;              // courses currently in the world (our best estimate)
     var lastCourseCount = 0;      // start sections drawn in the last frame
     var pendingTarget = null;     // a Courses change made mid-run, applied next run
-    var builds = 0, resetsSent = 0;
+    var builds = 0, resetsSent = 0, deaths = 0, instantRestarts = 0;
+    var lastRestart = -1000;
     var frameNo = 0, debugLog = [];   // debugLog: last 40 decisions, for diagnostics
     function note(ev) { debugLog.push(frameNo + ':' + ev); if (debugLog.length > 40) debugLog.shift(); }
 
-    // build: null | { course, lapsDone, phase: "laps" | "wait", expect, since, tries }
+    // build: null | { phase: "course" | "laps" | "settle" | "final", hidden, laps, since, tries, lastLift }
     var build = null;
+    // dying: null | { phase: "beat" | "clear", since }
+    var dying = null;
 
     function setState(obj, state) {
         if (!game || typeof game.SendMessage !== "function") return false;
         try { game.SendMessage(obj, "SetState", state); return true; } catch (e) { note("SendMessage failed: " + e); return false; }
     }
-    function lapState(j) { return j < 5 ? "easy run" : (j < 10 ? "medium run" : "hard run"); }
+    function liftBall() { setState(SPHERE, "Restart Game"); build.lastLift = frameNo; }
     function startBuild(c) {
-        build = { course: 1, lapsDone: 0, phase: "laps", expect: c, since: frameNo, tries: 0 };
-        builds++; note("run start, building " + stackTarget + " courses");
+        // c courses exist already (1 at a run start, 0 after a clear); their
+        // start sections are at the origin, so they all become hidden layers
+        build = { phase: c > 0 ? "laps" : "course", hidden: c, laps: 0, since: frameNo, started: frameNo, tries: 0, lastLift: -1000 };
+        builds++; note("building " + stackTarget + " courses from " + c);
     }
-    function sendReset(c) {
+    function sendFinalReset() {
         resetsSent++; build.tries++;
         setState(EVENT_MANAGER, "resetGame");
-        build.phase = "wait"; build.expect = c + 1; build.since = frameNo;
+        build.phase = "final"; build.since = frameNo;
     }
     function stepBuild(c) {
-        if (build.phase === "laps") {
-            for (var k = 0; k < LAPS_PER_FRAME && build.lapsDone < LAPS_PER_COURSE; k++, build.lapsDone++) setState(SPAWNER, lapState(build.lapsDone));
-            if (build.lapsDone >= LAPS_PER_COURSE) { build.tries = 0; sendReset(c); }
-        } else if (c >= build.expect) {
-            stacked = build.course + 1;
-            note("course " + stacked + " up after " + (frameNo - build.since) + " frames");
-            if (stacked >= stackTarget) { note("stack complete"); build = null; }
-            else { build.course++; build.lapsDone = 0; build.phase = "laps"; }
+        if (build.phase === "course") {
+            liftBall();                                   // SpawnPos -> origin
+            setState(SPAWNER, "spawn go tunnel run");     // start section there
+            build.hidden++; build.laps = 0; build.phase = "laps";
+        } else if (build.phase === "laps") {
+            if (frameNo - build.lastLift >= HOLD_EVERY) liftBall();
+            if (build.laps < LAPS_PER_COURSE) { setState(SPAWNER, "Check score"); build.laps++; }
+            else if (build.hidden < stackTarget - 1) build.phase = "course";
+            else { build.phase = "settle"; build.since = frameNo; }
+        } else if (build.phase === "settle") {
+            if (frameNo - build.lastLift >= FINAL_SETTLE) { build.tries = 0; sendFinalReset(); }
+        } else if (c >= stackTarget) {                    // final
+            stacked = c;
+            note("stack of " + stacked + " complete in " + (frameNo - (build.started || build.since)) + " frames");
+            build = null;
         } else if (frameNo - build.since > RESET_TIMEOUT) {
-            if (build.tries < RESET_RETRIES) { note("reset not seen, retrying"); sendReset(c - 1); }
-            else { note("giving up at " + stacked); build = null; }
+            if (build.tries < RESET_RETRIES) { note("final reset not seen, retrying"); sendFinalReset(); }
+            else { note("giving up at " + c); stacked = c; build = null; }
         }
     }
 
@@ -276,17 +315,34 @@
         var c = 0;
         for (var i = 0; i < draws.length; i++) if (draws[i] === COURSE_BATCH) c++;
         var prev = lastCourseCount; lastCourseCount = c;
+        var restarted = musicStarted; if (restarted) lastRestart = frameNo;
+        var died = musicStopped && !musicStarted && frameNo - lastRestart > RESTART_GRACE;
+        musicStopped = musicStarted = false;
 
-        if (c === 0) {                                  // game over cleared the world, or menu
-            if (build) { note("world cleared mid-build"); build = null; }
+        if (dying) {
+            if (dying.phase === "beat") {
+                if (frameNo - dying.since >= DEATH_BEAT) {
+                    setState(SPAWNER, "DestroyBlocksPool");     // despawn every block (and pauses time; "start game" unpauses)
+                    dying.phase = "clear"; dying.since = frameNo;
+                }
+            } else if (c === 0 || frameNo - dying.since > 30) {
+                dying = null; stacked = 0;
+                if (pendingTarget !== null) { stackTarget = pendingTarget; pendingTarget = null; lsSet(KEY_STACK, stackTarget); }
+                startBuild(c);
+            }
+        } else if (build) {
+            stepBuild(c);
+        } else if (c === 0) {                           // game over cleared the world, or menu
             if (stacked !== 1) note("cleared");
             stacked = 1;
             if (pendingTarget !== null) { stackTarget = pendingTarget; pendingTarget = null; lsSet(KEY_STACK, stackTarget); }
-        } else if (prev === 0 && !build) {              // a run just started
+        } else if (prev === 0) {                        // a run just started (Enter at the menu / game over)
             stacked = 1;
             if (stackTarget > 1) startBuild(c);
-        } else if (build) {
-            stepBuild(c);
+        } else if (died && stackTarget > 1) {           // instant restart with the stack rebuilt
+            deaths++; instantRestarts++;
+            dying = { phase: "beat", since: frameNo };
+            note("death -> instant restart");
         }
         updateBadge();
     }
@@ -346,7 +402,7 @@
         var target = pendingTarget !== null ? pendingTarget : stackTarget;
         if (target <= 1 && stacked <= 1) { badgeEl.textContent = ""; badgeEl.classList.remove("on"); return; }
         var txt = "stack " + Math.min(stacked, Math.max(target, stacked)) + " / " + target;
-        if (build) txt += " \u2026";                      // building
+        if (build || dying) txt += " \u2026";             // building / restarting
         else if (pendingTarget !== null) txt += " (next run)";
         badgeEl.textContent = txt;
         badgeEl.classList.add("on");
@@ -356,7 +412,7 @@
         n = parseInt(n, 10);
         if (!(n >= 1)) n = 1;
         if (n > STACK_MAX) n = STACK_MAX;
-        if (lastCourseCount > 0 && !build && stacked > 1) {
+        if (dying || (lastCourseCount > 0 && !build && stacked > 1)) {
             // a run is in progress with a stack already built: apply on the next run
             pendingTarget = n;
         } else if (lastCourseCount > 0 && !build && n > 1) {
@@ -390,7 +446,7 @@
         courseBatches: function () { return lastCourseCount; },
         log: function () { return debugLog.slice(); },
         frame: function () { return frameNo; },
-        stats: function () { return { builds: builds, resetsSent: resetsSent, building: !!build, shaderPatched: shaderPatched, shaderFailed: shaderFailed, rainbow: rainbowOn }; },
+        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, instantRestarts: instantRestarts, building: !!build, dying: !!dying, shaderPatched: shaderPatched, shaderFailed: shaderFailed, rainbow: rainbowOn }; },
         setStack: setStackTarget,
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         init: function (gameInstance) {
