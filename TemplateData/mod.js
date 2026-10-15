@@ -121,8 +121,10 @@
     // ======================================================================
     // WebGL hooks shared by the stacker and the rainbow
     // ======================================================================
-    // Draw-call fingerprint of this build: a 5190-index draw is the start
-    // section's tunnel mesh, so it appears exactly once per stacked course.
+    // Draw-call fingerprint of this build: a 5190-index draw is the city
+    // skyline, which the game spawns once per restart (one second in) and
+    // which lives in the same pool as the blocks, so it is a reliable sign
+    // that the world has been cleared (count drops to 0) or is in a run.
     var COURSE_BATCH = 5190;
 
     var frameDraws = [];          // index counts of draws in the frame being rendered
@@ -248,27 +250,28 @@
     // run" drops a start section there, and each "Check score" generates one
     // lap (the spawner's own per-speed-up path, so laps go easy -> medium ->
     // hard like a real run). Only the last course goes through the normal
-    // EventManager "resetGame" restart, so the game's own state is clean.
+    // EventManager "resetGame" restart, so the game's own state is clean; the
+    // music restarting is the confirmation that it went through.
     // Hold-at-top: while building, the ball is lifted back to the start every
     // few frames; a reset issued after the ball has landed kills it.
     var LAPS_PER_COURSE = 8;       // laps pre-generated on every hidden course
     var HOLD_EVERY = 6;            // frames between ball lifts during a build
     var FINAL_SETTLE = 8;          // frames between the last lift and the final reset (lets its delayed destroySelf land first)
-    var RESET_TIMEOUT = 90;        // frames to wait for the final reset to show up
+    var RESET_TIMEOUT = 60;        // frames to wait for the final reset's music restart
     var RESET_RETRIES = 3;
     var DEATH_BEAT = 30;           // frames to show the death before the instant restart
     var RESTART_GRACE = 15;        // a restart also stops the previous track a frame or two later
     var SPAWNER = "t_Spawner", EVENT_MANAGER = "EventManager", SPHERE = "Sphere";
 
     var stacked = 1;              // courses currently in the world (our best estimate)
-    var lastCourseCount = 0;      // start sections drawn in the last frame
+    var lastCourseCount = 0;      // skyline draws in the last frame (0 = world cleared / menu)
     var pendingTarget = null;     // a Courses change made mid-run, applied next run
     var builds = 0, resetsSent = 0, deaths = 0, instantRestarts = 0;
     var lastRestart = -1000;
     var frameNo = 0, debugLog = [];   // debugLog: last 40 decisions, for diagnostics
     function note(ev) { debugLog.push(frameNo + ':' + ev); if (debugLog.length > 40) debugLog.shift(); }
 
-    // build: null | { phase: "course" | "laps" | "settle" | "final", hidden, laps, since, tries, lastLift }
+    // build: null | { phase: "course" | "laps" | "settle" | "final", hidden, laps, since, started, tries, lastLift }
     var build = null;
     // dying: null | { phase: "beat" | "clear", since }
     var dying = null;
@@ -278,22 +281,24 @@
         try { game.SendMessage(obj, "SetState", state); return true; } catch (e) { note("SendMessage failed: " + e); return false; }
     }
     function liftBall() { setState(SPHERE, "Restart Game"); build.lastLift = frameNo; }
-    function startBuild(c) {
-        // c courses exist already (1 at a run start, 0 after a clear); their
-        // start sections are at the origin, so they all become hidden layers
-        build = { phase: c > 0 ? "laps" : "course", hidden: c, laps: 0, since: frameNo, started: frameNo, tries: 0, lastLift: -1000 };
-        builds++; note("building " + stackTarget + " courses from " + c);
+    function startBuild(existing) {
+        // `existing` courses are already in the world with their start section
+        // at the origin (1 right after a restart, 0 after a clear); they become
+        // hidden layers under the ones built here
+        build = { phase: existing > 0 ? "laps" : "course", hidden: existing, laps: 0, since: frameNo, started: frameNo, tries: 0, lastLift: -1000 };
+        stacked = Math.max(existing, 1);
+        builds++; note("building " + stackTarget + " courses from " + existing);
     }
     function sendFinalReset() {
         resetsSent++; build.tries++;
         setState(EVENT_MANAGER, "resetGame");
         build.phase = "final"; build.since = frameNo;
     }
-    function stepBuild(c) {
+    function stepBuild(restarted) {
         if (build.phase === "course") {
             liftBall();                                   // SpawnPos -> origin
             setState(SPAWNER, "spawn go tunnel run");     // start section there
-            build.hidden++; build.laps = 0; build.phase = "laps";
+            build.hidden++; build.laps = 0; build.phase = "laps"; stacked = build.hidden;
         } else if (build.phase === "laps") {
             if (frameNo - build.lastLift >= HOLD_EVERY) liftBall();
             if (build.laps < LAPS_PER_COURSE) { setState(SPAWNER, "Check score"); build.laps++; }
@@ -301,20 +306,20 @@
             else { build.phase = "settle"; build.since = frameNo; }
         } else if (build.phase === "settle") {
             if (frameNo - build.lastLift >= FINAL_SETTLE) { build.tries = 0; sendFinalReset(); }
-        } else if (c >= stackTarget) {                    // final
-            stacked = c;
-            note("stack of " + stacked + " complete in " + (frameNo - (build.started || build.since)) + " frames");
+        } else if (restarted) {                           // final: the game restarted on its own path
+            stacked = build.hidden + 1;
+            note("stack of " + stacked + " complete in " + (frameNo - build.started) + " frames");
             build = null;
         } else if (frameNo - build.since > RESET_TIMEOUT) {
             if (build.tries < RESET_RETRIES) { note("final reset not seen, retrying"); sendFinalReset(); }
-            else { note("giving up at " + c); stacked = c; build = null; }
+            else { note("giving up at " + build.hidden); stacked = build.hidden; build = null; }
         }
     }
 
     function examineFrame(draws) {
         var c = 0;
         for (var i = 0; i < draws.length; i++) if (draws[i] === COURSE_BATCH) c++;
-        var prev = lastCourseCount; lastCourseCount = c;
+        lastCourseCount = c;
         var restarted = musicStarted; if (restarted) lastRestart = frameNo;
         var died = musicStopped && !musicStarted && frameNo - lastRestart > RESTART_GRACE;
         musicStopped = musicStarted = false;
@@ -326,19 +331,20 @@
                     dying.phase = "clear"; dying.since = frameNo;
                 }
             } else if (c === 0 || frameNo - dying.since > 30) {
-                dying = null; stacked = 0;
+                dying = null;
                 if (pendingTarget !== null) { stackTarget = pendingTarget; pendingTarget = null; lsSet(KEY_STACK, stackTarget); }
-                startBuild(c);
+                startBuild(0);
             }
         } else if (build) {
-            stepBuild(c);
+            stepBuild(restarted);
+        } else if (restarted) {                         // a run just started (Enter at the menu / game over)
+            stacked = 1;
+            if (pendingTarget !== null) { stackTarget = pendingTarget; pendingTarget = null; lsSet(KEY_STACK, stackTarget); }
+            if (stackTarget > 1) startBuild(1);
         } else if (c === 0) {                           // game over cleared the world, or menu
             if (stacked !== 1) note("cleared");
             stacked = 1;
             if (pendingTarget !== null) { stackTarget = pendingTarget; pendingTarget = null; lsSet(KEY_STACK, stackTarget); }
-        } else if (prev === 0) {                        // a run just started (Enter at the menu / game over)
-            stacked = 1;
-            if (stackTarget > 1) startBuild(c);
         } else if (died && stackTarget > 1) {           // instant restart with the stack rebuilt
             deaths++; instantRestarts++;
             dying = { phase: "beat", since: frameNo };
@@ -417,7 +423,7 @@
             pendingTarget = n;
         } else if (lastCourseCount > 0 && !build && n > 1) {
             // running on a single course: build right away (the ball goes back to the start)
-            stackTarget = n; lsSet(KEY_STACK, n); pendingTarget = null; startBuild(lastCourseCount);
+            stackTarget = n; lsSet(KEY_STACK, n); pendingTarget = null; startBuild(1);
         } else {
             stackTarget = n; lsSet(KEY_STACK, n); pendingTarget = null;
             if (build && stacked >= stackTarget) build = null;
