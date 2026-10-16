@@ -660,6 +660,7 @@
     }
     function watchSpawner() {
         var sp = spawnPos(); if (!sp) return;
+        if (!track.lastSpawn) { track.lastSpawn = sp; planNextLap(); return; }   // the start section is already built: its jump is the first kink
         if (track.lastSpawn) {
             var moved = Math.abs(sp[0] - track.lastSpawn[0]) + Math.abs(sp[1] - track.lastSpawn[1]) + Math.abs(sp[2] - track.lastSpawn[2]) > 0.01;
             if (moved) { track.moving = true; track.stillFrames = 0; }
