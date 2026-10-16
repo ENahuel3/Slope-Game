@@ -645,7 +645,7 @@
     // ---- per-run track state -------------------------------------------------
     function resetTrackRun() {
         track = { yawCmd: 0, segs: [{ yaw: 0, pos: [0, 0, 0] }], passed: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0,
-                  camYaw: 0, turnPending: pendingTurnNext, fallFrames: 0, shift: null, written: null };
+                  camYaw: 0, turnPending: pendingTurnNext, fallFrames: 0, shift: null, written: null, whip: null };
         pendingTurnNext = 0;
         note("track reset" + (track.turnPending ? " (turn pending)" : ""));
         ballPos = null; ballVel = [0, 0, 0];
@@ -658,7 +658,7 @@
             var dx = p[0] - k.pos[0], dz = p[2] - k.pos[2];
             var dist = Math.sqrt(dx * dx + dz * dz);
             var along = dx * Math.sin(prev.yaw) + dz * Math.cos(prev.yaw);
-            if (dist < 90 && along > -2) track.passed++; else break;
+            if (dist < 90 && along > -2) { track.passed++; track.whip = null; } else break;
         }
         return segs[track.passed].yaw;
     }
@@ -696,7 +696,7 @@
             var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
             var half = Math.min(track.shift.step, Math.PI / 2) / 2;
             var r = Math.max(2, 0.2 * Math.max(vh, 12)) * Math.sin(half) * 2;              // chord of the swing arc, along the old heading
-            var back = 18 * Math.sin(half) * 2 / 1.4142;                                     // close the 20-unit inter-lap gap for sharp turns
+            var back = 8 * Math.sin(half) * 2 / 1.4142;                                      // shorten the 20-unit inter-lap gap for sharp turns (no overlap with the jump)
             var b = track.shift.base, fw = track.shift.fwd, nf = track.shift.nfwd;
             var want = [b[0] + fw[0] * r - nf[0] * back, b[1], b[2] + fw[2] * r - nf[2] * back];
             var cur = track.written || b, d = [want[0] - cur[0], want[1] - cur[1], want[2] - cur[2]];
@@ -733,10 +733,12 @@
             var along = dx * Math.sin(last.from) + dz * Math.cos(last.from);
             var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
             var lift = ballVel[1] + Math.abs(ballVel[2] * Math.cos(last.from) + ballVel[0] * Math.sin(last.from));   // 0 while rolling the 45-degree descent
-            if ((along > 6 || lift > 3) && along < 45 && vh > 3) {
-                var want = [vh * fwd[0], vh * fwd[2]];
-                var K = last.turn ? 7 : 3, ax = K * (want[0] - ballVel[0]), az = K * (want[1] - ballVel[2]);
-                var m = Math.sqrt(ax * ax + az * az), cap = last.turn ? 320 : 60;
+            if (lift > 2 && !track.whip) track.whip = { since: performance.now() };                    // airborne off the jump lip: start the whip
+            if (track.whip && performance.now() - track.whip.since > 1500) track.whip = null;
+            if (track.whip && along > -2 && along < 60 && vh > 3) {
+                var speed = last.turn ? Math.max(vh, 28) : vh, want = [speed * fwd[0], speed * fwd[2]];
+                var K = last.turn ? 9 : 3, ax = K * (want[0] - ballVel[0]), az = K * (want[1] - ballVel[2]);
+                var m = Math.sqrt(ax * ax + az * az), cap = last.turn ? 360 : 60;
                 if (m > cap) { ax *= cap / m; az *= cap / m; }
                 gx += ax; gz += az;
                 if (last.turn) label = (last.yaw > last.from ? "turn →" : "← turn");
