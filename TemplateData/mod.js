@@ -517,8 +517,8 @@
         var f = heap32(); if (!f) return [];
         var out = [], n = f.length - vals.length, k;
         for (var i = 0; i < n; i++) {
-            if (Math.abs(f[i] - vals[0]) >= eps) continue;
-            for (k = 1; k < vals.length; k++) if (Math.abs(f[i + k] - vals[k]) >= eps) break;
+            if (!(Math.abs(f[i] - vals[0]) < eps)) continue;                     // NaN never matches
+            for (k = 1; k < vals.length; k++) if (!(Math.abs(f[i + k] - vals[k]) < eps)) break;
             if (k === vals.length) out.push(i);
         }
         return out;
@@ -571,7 +571,11 @@
     function resolveRig() {                   // the live rig record is the one that follows the ball once a run is on
         if (H.rig >= 0 || !H.rigCands) return;
         var f = heap32(); if (!f) return;
-        for (var i = 0; i < H.rigCands.length; i++) { var a = H.rigCands[i]; if (Math.abs(f[a + 4] - 5) > 0.02 || Math.abs(f[a + 5] - 6.482) > 0.02 || Math.abs(f[a + 6] + 4.737) > 0.02) { H.rig = a; note("rig record " + a); return; } }
+        for (var i = 0; i < H.rigCands.length; i++) {
+            var a = H.rigCands[i], x = f[a + 4], y = f[a + 5], z = f[a + 6];
+            if (!isFinite(x) || !isFinite(y) || !isFinite(z) || Math.abs(x) > 1e4 || Math.abs(y) > 1e4 || Math.abs(z) > 1e4) continue;
+            if (Math.abs(x - 5) > 0.02 || Math.abs(y - 6.482) > 0.02 || Math.abs(z + 4.737) > 0.02) { H.rig = a; note("rig record " + a); return; }
+        }
     }
     function writeGravity(x, y, z) {
         var f = heap32(); if (!f || !H.grav.length) return;
@@ -587,8 +591,11 @@
     }
     function spawnPos() {
         var f = heap32(); if (!f) return null;
-        if (H.spawnLive < 0) {                  // the live record is the one that has left the origin
-            for (var i = 0; i < H.spawn.length; i++) { var a = H.spawn[i]; if (f[a + 4] !== 0 || f[a + 5] !== 0 || f[a + 6] !== 0) { H.spawnLive = a; note("spawn point record " + a); break; } }
+        if (H.spawnLive < 0) {                  // the live record is the one that has left the origin (finite, plausible)
+            for (var i = 0; i < H.spawn.length; i++) {
+                var a = H.spawn[i], x = f[a + 4], y = f[a + 5], z = f[a + 6];
+                if (isFinite(x) && isFinite(y) && isFinite(z) && (x !== 0 || y !== 0 || z !== 0) && Math.abs(x) < 1e4 && Math.abs(y) < 1e4 && Math.abs(z) < 1e4) { H.spawnLive = a; note("spawn point record " + a); break; }
+            }
             if (H.spawnLive < 0) return null;
         }
         return [f[H.spawnLive + 4], f[H.spawnLive + 5], f[H.spawnLive + 6]];
