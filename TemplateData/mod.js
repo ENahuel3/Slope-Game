@@ -549,19 +549,29 @@
         for (var i = 0; i < objs.length; i++) { var v = f[(objs[i] + 24) >> 2]; if (isFinite(v) && Math.abs(v) > Math.abs(best)) best = v; }
         return best;
     }
+    // Live objects are allocated above the raw asset data that stays mapped in the heap,
+    // so matches below this float index are copies inside the data file, not the scene.
+    var LIVE_MIN = 3000000;
+    function liveOnly(list) { return list.filter(function (a) { return a >= LIVE_MIN; }); }
     function discoverHeap() {
         try {
             if (!H.grav.length) H.grav = findTriple(0, G0, 0);
             if (!H.ballCands.length) H.ballCands = findTriple(5, 10.5, -4);
             if (!H.spawn.length) {
-                var recs = nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4), f = heap32();
+                var recs = liveOnly(nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4)), f = heap32();
                 for (var i = 0; i < recs.length; i++) { var a = recs[i]; if (f[a + 4] === 0 && f[a + 5] === 0 && f[a + 6] === 0) H.spawn.push(a); }
             }
-            if (H.rig < 0) { var r = nearSeq([0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3); if (r.length) H.rig = r[0]; }
-            if (H.chase < 0) { var c = nearSeq([0.43559, 0, 0, 0.90015, 0, 3.056, -1.207], 3e-4); if (c.length) H.chase = c[0]; }
-            ["zforce", "SteerForceLeft", "SteerForceRight"].forEach(function (nm) { if (!H.vars[nm]) H.vars[nm] = findFsmFloats(nm); });
-            note("heap: gravity x" + H.grav.length + ", spawn recs " + H.spawn.length + ", rig " + (H.rig >= 0) + ", chase " + (H.chase >= 0) + ", vars z/L/R " + [H.vars.zforce, H.vars.SteerForceLeft, H.vars.SteerForceRight].map(function (v) { return v ? v.length : 0; }).join("/"));
+            if (!H.rigCands) H.rigCands = liveOnly(nearSeq([0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3));
+            if (H.chase < 0) { var c = liveOnly(nearSeq([0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4)); if (c.length) H.chase = c[c.length - 1]; }
+            ["zforce", "SteerForceLeft", "SteerForceRight"].forEach(function (nm) { if (!H.vars[nm]) H.vars[nm] = liveOnly(findFsmFloats(nm)); });
+            note("heap: gravity x" + H.grav.length + ", spawn recs " + H.spawn.length + ", rig cands " + H.rigCands.length + ", chase " + (H.chase >= 0) + ", vars z/L/R " + [H.vars.zforce, H.vars.SteerForceLeft, H.vars.SteerForceRight].map(function (v) { return v ? v.length : 0; }).join("/"));
         } catch (e) { note("heap scan failed: " + e); }
+    }
+    function trackReady() { return H.grav.length > 0 && H.spawn.length > 0 && H.rigCands && H.rigCands.length > 0 && H.chase >= 0; }
+    function resolveRig() {                   // the live rig record is the one that follows the ball once a run is on
+        if (H.rig >= 0 || !H.rigCands) return;
+        var f = heap32(); if (!f) return;
+        for (var i = 0; i < H.rigCands.length; i++) { var a = H.rigCands[i]; if (Math.abs(f[a + 4] - 5) > 0.02 || Math.abs(f[a + 5] - 6.482) > 0.02 || Math.abs(f[a + 6] + 4.737) > 0.02) { H.rig = a; note("rig record " + a); return; } }
     }
     function writeGravity(x, y, z) {
         var f = heap32(); if (!f || !H.grav.length) return;
@@ -572,8 +582,8 @@
         var f = heap32(); if (!f) return;
         var sy = Math.sin(yaw / 2), cy = Math.cos(yaw / 2);
         var q = [cy * PITCH_SX, sy * PITCH_CX, -sy * PITCH_SX, cy * PITCH_CX];
-        var list = H.spawnLive >= 0 ? [H.spawnLive] : H.spawn;
-        for (var i = 0; i < list.length; i++) { var a = list[i]; f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3]; }
+        if (H.spawnLive < 0) return;
+        var a = H.spawnLive; f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3];
     }
     function spawnPos() {
         var f = heap32(); if (!f) return null;
@@ -613,7 +623,7 @@
         track = { yawCmd: 0, yawTurnLeft: 0, segs: [{ s: -1e9, yaw: 0, pos: [0, 0, 0] }], lastSpawn: null, moving: false, stillFrames: 0, laps: 0,
                   camYaw: 0, lastKinkAt: -1e9, turnPending: 0 };
         ballPos = null; ballVel = [0, 0, 0];
-        writeSpawnYaw(0); writeRigYaw(0); writeChaseLocal(0, 3.056, -1.207);
+        writeSpawnYaw(0); writeRigYaw(0); writeChaseLocal(0, 3.056, -1.207);   // each is a no-op until its record is known
     }
     function segHeadingAt(p) {                // heading of the segment the ball is on, by progress along each segment's start
         var segs = track.segs, h = segs[0].yaw;
@@ -653,15 +663,17 @@
     function rotY(v, yaw) { var s = Math.sin(yaw), c = Math.cos(yaw); return [v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c]; }
 
     function stepTrack(playing) {
-        if (!H.grav.length || !H.spawn.length) return;
+        if (!trackReady()) return;
+        if (playing) resolveRig();
         if (gravityMode === "off" || !playing || !track) {
             if (gravWritten) writeGravity(0, G0, 0);
             if (track && gravityMode === "off") { writeSpawnYaw(0); writeRigYaw(0); }
             return;
         }
         trackBall(); watchSpawner();
+        if (H.spawnLive < 0) return;                                       // not until the live spawn record has shown itself
         writeSpawnYaw(track.yawCmd);                                       // whatever spawns next uses the commanded heading
-        if (!ballPos) return;
+        if (!ballPos || H.rig < 0) return;
         var h = segHeadingAt(ballPos);
         var fwd = [Math.sin(h), 0, Math.cos(h)], lat = [Math.cos(h), 0, -Math.sin(h)];
         // --- force compensation: the game pushes along world z / x, the course now runs along fwd / lat
@@ -873,7 +885,7 @@
         setGravity: setGravityMode,
         setTurn: function (dir) { if (track) track.turnPending = (dir < 0 ? -1 : 1) * Math.PI / 2; },
         heading: function () { return track && ballPos ? +(segHeadingAt(ballPos) * 180 / Math.PI).toFixed(1) : null; },
-        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yawCmd * 180 / Math.PI).toFixed(1) : null, camYaw: track ? +(track.camYaw * 180 / Math.PI).toFixed(1) : null, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, spawnPos: spawnPos(), rigPos: rigPos(), zforce: fsmFloat("zforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
+        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yawCmd * 180 / Math.PI).toFixed(1) : null, camYaw: track ? +(track.camYaw * 180 / Math.PI).toFixed(1) : null, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, spawnPos: spawnPos(), rigPos: rigPos(), zforce: fsmFloat("zforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
         openEditor: openPanel,
