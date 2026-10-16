@@ -43,6 +43,15 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
         <span class="hud-sep"></span>
         <label class="hud-label" for="hud-music" title="Soundtrack">Music</label>
         <select id="hud-music" class="hud-input hud-select" title="Soundtrack"></select>
+        <span class="hud-sep"></span>
+        <label class="hud-label" for="hud-gravity" title="Curves: gravity slowly tilts sideways and the view banks with it. Ramps: leaving the ground triggers a sudden gravity change until you land.">Gravity</label>
+        <select id="hud-gravity" class="hud-input hud-select" title="Gravity modifiers">
+            <option value="off">Off</option>
+            <option value="curves">Curves</option>
+            <option value="ramps">Ramps</option>
+            <option value="both">Curves + Ramps</option>
+        </select>
+        <span id="hud-gravity-badge" class="hud-gbadge"></span>
         <span class="hud-spacer"></span>
         <span id="hud-timer" class="hud-timer" title="Time on this page">00:00</span>
         <button id="hud-fs" class="hud-btn" type="button" title="Fullscreen (F)">&#x26F6; Fullscreen</button>

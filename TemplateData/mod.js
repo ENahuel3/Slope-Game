@@ -27,6 +27,9 @@
  *
  * 5. Community editor: typing "awesome" opens a box that asks Claude Code
  *    (via edit-server/) to change this mod; see edit-server/README.md.
+ *
+ * 6. Gravity modes (Curves / Ramps) by rewriting Unity's gravity vector in
+ *    the WebAssembly heap every frame, with the ball tracked the same way.
  */
 (function () {
     "use strict";
@@ -37,6 +40,7 @@
     var KEY_STACK = "slope-mod.stack";
     var KEY_RAINBOW = "slope-mod.rainbow";
     var KEY_MUSIC = "slope-mod.music";
+    var KEY_GRAVITY = "slope-mod.gravity";
     var STACK_MAX = 99;
 
     function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -49,6 +53,8 @@
         { id: "aria", name: "Aria Math (Phonk Remix)", file: "TemplateData/music/aria-math-phonk-remix.mp3" },
         { id: "billie", name: "Mort Jackson \u2013 Billie Jean", file: "TemplateData/music/mort-jackson-billie-jean.mp3" }
     ];
+    var GRAVITY_MODES = ["off", "curves", "ramps", "both"];
+    var gravityMode = (function () { var m = lsGet(KEY_GRAVITY); return GRAVITY_MODES.indexOf(m) >= 0 ? m : "off"; })();
     var musicId = (function () { var id = lsGet(KEY_MUSIC); return TRACKS.some(function (t) { return t.id === id; }) ? id : "original"; })();
 
     // ======================================================================
@@ -368,7 +374,7 @@
 
     var lastCourseCount = 0;      // skyline draws in the last frame (diagnostics)
     var builds = 0, resetsSent = 0, deaths = 0, restarts = 0;
-    var lastRestart = -1000;
+    var lastRestart = -1000, gameRunning = false;
     var frameNo = 0, debugLog = [];   // debugLog: last 40 decisions, for diagnostics
     function note(ev) { debugLog.push(frameNo + ':' + ev); if (debugLog.length > 40) debugLog.shift(); }
 
@@ -446,8 +452,10 @@
         var c = 0;
         for (var i = 0; i < draws.length; i++) if (draws[i] === COURSE_BATCH) c++;
         lastCourseCount = c;
-        var restarted = musicStarted; if (restarted) lastRestart = frameNo;
+        var restarted = musicStarted; if (restarted) { lastRestart = frameNo; gameRunning = true; resetGravityRun(); }
         var died = musicStopped && !musicStarted && frameNo - lastRestart > RESTART_GRACE;
+        if (died) gameRunning = false;
+        if (c === 0 && frameNo - lastRestart > 120) gameRunning = false;   // world cleared / menu
         musicStopped = musicStarted = false;
 
         if (restartSeq) {
@@ -466,10 +474,142 @@
         frameNo++;
         var draws = frameDraws; frameDraws = [];
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
+        try { stepGravity(gameRunning && !build && !restartSeq); } catch (e) { /* ditto */ }
         if (rainbowOn) { hue = (hue + 1 / 210) % 1; rainbowTime += 1 / 60; }   // hues scroll through a full cycle every 3.5 s
         requestAnimationFrame(frameLoop);
     }
     requestAnimationFrame(frameLoop);   // registered before Unity's loop, so it runs first each frame
+
+    // ======================================================================
+    // 6. Gravity: the game never exposes physics, but Unity's gravity vector
+    //    and the ball's position live at fixed places in the WebAssembly heap.
+    //    Both are found by value once the runtime is up (gravity is the
+    //    default 0,-9.81,0; the ball rests at its scene position 5,10.5,-4
+    //    in the menu) and gravity is rewritten every frame from then on.
+    //    Curves: a slow random sideways tilt (the view banks with it).
+    //    Ramps: when the ball leaves the ground, a sudden effect until it lands:
+    //    a side pull, low gravity or a slam.
+    // ======================================================================
+    var G0 = -9.8100004196167;
+    var gravAddrs = [], ballAddr = -1, ballCands = [];
+    var gravNow = [0, G0, 0], gravWritten = false;
+    var ballPos = null, ballVel = [0, 0, 0], ballT = 0, relHist = [];
+    var curve = { t: 0, p1: 0, p2: 0, p3: 0 };
+    var ramp = null;                 // { kind, until, since }
+    var rampCooldownUntil = 0, airborneFrames = 0, groundFrames = 0;
+    var gravDebug = { events: 0, lastRel: 0, lastKind: "" };
+    var canvasEl = null, gravBadge = null;
+
+    function heap32() { return game && game.Module ? game.Module.HEAPF32 : null; }
+    function heapU32() { return game && game.Module ? game.Module.HEAPU32 : null; }
+    function fbits(f) { var b = new Float32Array([f]); return new Uint32Array(b.buffer)[0]; }
+    function findTriple(a, b, c) {
+        var u = heapU32(); if (!u) return [];
+        var A = fbits(a), B = fbits(b), C = fbits(c), out = [];
+        for (var i = 0, n = u.length - 2; i < n; i++) if (u[i] === A && u[i + 1] === B && u[i + 2] === C) out.push(i);
+        return out;
+    }
+    function discoverHeap() {
+        try {
+            if (!gravAddrs.length) gravAddrs = findTriple(0, G0, 0);
+            if (ballAddr < 0 && !ballCands.length) ballCands = findTriple(5, 10.5, -4);
+            note("heap: gravity x" + gravAddrs.length + ", ball candidates " + ballCands.length);
+        } catch (e) { note("heap scan failed: " + e); }
+    }
+    function writeGravity(x, y, z) {
+        var f = heap32(); if (!f || !gravAddrs.length) return;
+        gravNow = [x, y, z];
+        for (var i = 0; i < gravAddrs.length; i++) { var a = gravAddrs[i]; f[a] = x; f[a + 1] = y; f[a + 2] = z; }
+        gravWritten = !(x === 0 && y === G0 && z === 0);
+    }
+    function trackBall() {
+        var f = heap32(); if (!f) return;
+        if (ballAddr < 0) {
+            // pick the first candidate that has moved away from the rest position
+            for (var i = 0; i < ballCands.length; i++) { var a = ballCands[i]; if (Math.abs(f[a] - 5) > 0.05 || Math.abs(f[a + 1] - 10.5) > 0.05 || Math.abs(f[a + 2] + 4) > 0.05) { ballAddr = a; note("ball tracked at " + a); break; } }
+            if (ballAddr < 0) return;
+        }
+        var now = performance.now();
+        var p = [f[ballAddr], f[ballAddr + 1], f[ballAddr + 2]];
+        if (!isFinite(p[0]) || !isFinite(p[1]) || !isFinite(p[2]) || Math.abs(p[0]) > 1e5) { ballAddr = -1; return; }
+        if (ballPos && ballT) {
+            var dt = Math.min(0.1, Math.max(0.004, (now - ballT) / 1000));
+            var v = [(p[0] - ballPos[0]) / dt, (p[1] - ballPos[1]) / dt, (p[2] - ballPos[2]) / dt];
+            ballVel = [ballVel[0] * 0.5 + v[0] * 0.5, ballVel[1] * 0.5 + v[1] * 0.5, ballVel[2] * 0.5 + v[2] * 0.5];
+        }
+        ballPos = p; ballT = now;
+    }
+    // vertical speed relative to the 45-degree descent: 0 when rolling, > 0 when launched off a ramp
+    function relLift() { return ballVel[1] + Math.abs(ballVel[2]); }
+
+    var RAMP_KINDS = [
+        { kind: "left", w: 3, g: function () { return [-14, G0, 0]; }, label: "← gravity" },
+        { kind: "right", w: 3, g: function () { return [14, G0, 0]; }, label: "gravity →" },
+        { kind: "floaty", w: 2, g: function () { return [0, -1.5, 0]; }, label: "low gravity" },
+        { kind: "slam", w: 2, g: function () { return [0, -45, 0]; }, label: "heavy gravity" }
+    ];
+    function pickRamp() {
+        var total = 0, i; for (i = 0; i < RAMP_KINDS.length; i++) total += RAMP_KINDS[i].w;
+        var r = Math.random() * total;
+        for (i = 0; i < RAMP_KINDS.length; i++) { r -= RAMP_KINDS[i].w; if (r <= 0) return RAMP_KINDS[i]; }
+        return RAMP_KINDS[0];
+    }
+    function resetGravityRun() {
+        curve.t = 0; curve.p1 = Math.random() * 6.28; curve.p2 = Math.random() * 6.28; curve.p3 = Math.random() * 6.28;
+        ramp = null; airborneFrames = 0; groundFrames = 0; rampCooldownUntil = performance.now() + 2500; relHist = [];
+        ballPos = null; ballVel = [0, 0, 0];
+    }
+    function stepGravity(playing) {
+        if (!gravAddrs.length) return;
+        var mode = gravityMode;
+        if (mode === "off" || !playing) {
+            if (gravWritten) { writeGravity(0, G0, 0); setView(0, 1, ""); }
+            return;
+        }
+        trackBall();
+        var now = performance.now();
+        var gx = 0, gy = G0, gz = 0, label = "";
+        if (mode === "curves" || mode === "both") {
+            curve.t += 1 / 60;
+            var amp = 4.5 * Math.min(2, 1 + curve.t / 40);                       // grows slowly over a long run
+            var tilt = 0.6 * Math.sin(6.2832 * curve.t / 9.3 + curve.p1) + 0.3 * Math.sin(6.2832 * curve.t / 4.1 + curve.p2) + 0.1 * Math.sin(6.2832 * curve.t / 1.7 + curve.p3);
+            gx = amp * tilt;
+        }
+        if (mode === "ramps" || mode === "both") {
+            var rel = relLift(); gravDebug.lastRel = rel;
+            if (ramp) {
+                var g = ramp.def.g();
+                gx += g[0]; gy = g[1]; label = ramp.def.label;
+                // landed: lift back to ~0 for a few frames, or time out
+                if (Math.abs(rel) < 2 && ballVel[1] < 0.5) groundFrames++; else groundFrames = 0;
+                if (now > ramp.until || groundFrames >= 6) { ramp = null; rampCooldownUntil = now + 1500; }
+            } else if (ballAddr >= 0 && now > rampCooldownUntil) {
+                if (rel > 5 && ballVel[1] > 0.5) airborneFrames++; else airborneFrames = 0;
+                if (airborneFrames >= 3) {
+                    ramp = { def: pickRamp(), until: now + 2200, since: now }; gravDebug.events++; gravDebug.lastKind = ramp.def.kind;
+                    groundFrames = 0; airborneFrames = 0;
+                    note("ramp -> " + ramp.def.kind + " (lift " + rel.toFixed(1) + ")");
+                }
+            }
+        }
+        writeGravity(gx, gy, gz);
+        var bank = -gx * 0.55;                                                   // degrees of view roll per m/s^2 of side pull
+        var zoom = ramp && ramp.def.kind === "floaty" ? 0.96 : (ramp && ramp.def.kind === "slam" ? 1.04 : 1);
+        setView(bank, zoom, label);
+    }
+    var viewLast = "";
+    function setView(bankDeg, zoom, label) {
+        if (!canvasEl) canvasEl = document.querySelector("#gameContainer canvas");
+        var key = bankDeg.toFixed(1) + "|" + zoom + "|" + label;
+        if (key === viewLast) return; viewLast = key;
+        if (canvasEl) canvasEl.style.transform = (bankDeg || zoom !== 1) ? "scale(" + (1.12 * zoom).toFixed(3) + ") rotate(" + bankDeg.toFixed(2) + "deg)" : "";
+        if (gravBadge) { gravBadge.textContent = label; gravBadge.classList.toggle("on", !!label); }
+    }
+    function setGravityMode(m) {
+        if (GRAVITY_MODES.indexOf(m) < 0) m = "off";
+        gravityMode = m; lsSet(KEY_GRAVITY, m);
+        if (m === "off") { writeGravity(0, G0, 0); setView(0, 1, ""); }
+    }
 
     // ======================================================================
     // 4. HUD
@@ -482,14 +622,14 @@
     ["keydown", "keypress", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {
             var t = e.target;
-            if (!t || (t.id !== STACK_INPUT_ID && t.id !== "hud-music" && !(t.closest && t.closest("#edit-panel")))) return;
+            if (!t || (t.id !== STACK_INPUT_ID && t.id !== "hud-music" && t.id !== "hud-gravity" && !(t.closest && t.closest("#edit-panel")))) return;
             e.stopImmediatePropagation();
             if (type === "keydown" && (e.key === "Enter" || e.key === "Escape") && t.tagName !== "TEXTAREA") { e.preventDefault(); t.blur(); }
         }, true);
     });
 
     var game = null;
-    var hud, timerEl, fsBtn, stackInput, rainbowBox, musicSel;
+    var hud, timerEl, fsBtn, stackInput, rainbowBox, musicSel, gravSel;
     var startedAt = Date.now();
     var hideTimer = null;
 
@@ -507,7 +647,8 @@
         hud.classList.remove("hidden");
         clearTimeout(hideTimer);
         hideTimer = setTimeout(function () {
-            if (document.activeElement === stackInput || document.activeElement === musicSel) return;   // keep it visible while choosing
+            var ae = document.activeElement;
+            if (ae === stackInput || ae === musicSel || ae === gravSel) return;   // keep it visible while choosing
             hud.classList.add("hidden");
         }, 2500);
     }
@@ -626,6 +767,8 @@
         setStack: setStackTarget,
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
+        setGravity: setGravityMode,
+        gravity: function () { return { mode: gravityMode, addrs: gravAddrs.length, ball: ballAddr, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(2); }), now: gravNow.map(function (v) { return +v.toFixed(2); }), ramp: ramp ? ramp.def.kind : null, events: gravDebug.events, lastRel: +gravDebug.lastRel.toFixed(2) }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
         openEditor: openPanel,
@@ -637,6 +780,14 @@
             stackInput = document.getElementById("hud-stack");
             rainbowBox = document.getElementById("hud-rainbow");
             musicSel = document.getElementById("hud-music");
+            gravSel = document.getElementById("hud-gravity");
+            gravBadge = document.getElementById("hud-gravity-badge");
+            if (gravSel) {
+                gravSel.value = gravityMode;
+                gravSel.addEventListener("change", function () { setGravityMode(gravSel.value); gravSel.blur(); });
+                gravSel.addEventListener("focus", showHud);
+                gravSel.addEventListener("blur", showHud);
+            }
 
             if (stackInput) {
                 stackInput.value = stackTarget;
@@ -665,7 +816,7 @@
             });
             document.addEventListener("keydown", function (e) {
                 var ae = document.activeElement;
-                if (ae === stackInput || ae === musicSel || (ae && ae.closest && ae.closest("#edit-panel"))) return;
+                if (ae === stackInput || ae === musicSel || ae === gravSel || (ae && ae.closest && ae.closest("#edit-panel"))) return;
                 if (e.ctrlKey || e.metaKey || e.altKey) return;
                 if (e.key === "f" || e.key === "F") toggleFullscreen();
                 else if (e.key === "r" || e.key === "R") requestRestart(false);
@@ -679,6 +830,7 @@
         },
         onGameReady: function () {
             startedAt = Date.now();
+            setTimeout(discoverHeap, 300);
             tickTimer();
             showHud();
         }
