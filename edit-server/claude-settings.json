@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(./TemplateData/mod.js)",
+      "Read(./TemplateData/mod.css)",
+      "Read(./index.html)",
+      "Read(./README.md)",
+      "Glob",
+      "Grep",
+      "Edit(./TemplateData/mod.js)",
+      "Edit(./TemplateData/mod.css)",
+      "MultiEdit(./TemplateData/mod.js)",
+      "MultiEdit(./TemplateData/mod.css)",
+      "Write(./TemplateData/mod.js)",
+      "Write(./TemplateData/mod.css)"
+    ],
+    "deny": [
+      "Bash",
+      "WebFetch",
+      "WebSearch",
+      "Agent",
+      "Task",
+      "NotebookEdit",
+      "Read(./.git/**)",
+      "Read(./Build/**)",
+      "Read(./edit-server/**)",
+      "Read(~/**)",
+      "Read(//etc/**)",
+      "Read(//srv/**)",
+      "Read(//home/**)",
+      "Read(//tmp/**)",
+      "Edit(./index.html)",
+      "Edit(./README.md)",
+      "Write(./index.html)",
+      "Write(./README.md)"
+    ]
+  },
+  "env": {
+    "DISABLE_AUTOUPDATER": "1",
+    "DISABLE_TELEMETRY": "1"
+  }
+}

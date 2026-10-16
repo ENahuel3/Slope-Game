@@ -1,0 +1,50 @@
+# /etc/systemd/system/slope-edit.service — install with edit-server/setup-pi.sh
+[Unit]
+Description=Slope in-game Claude Code editor (sandboxed)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=slopeedit
+Group=slopeedit
+WorkingDirectory=/srv/slope-edit
+EnvironmentFile=/srv/slope-edit/env            # ANTHROPIC_API_KEY, budget overrides (root-owned, 0640 root:slopeedit)
+Environment=HOME=/srv/slope-edit/home
+Environment=SLOPE_EDIT_REPO=/srv/slope-edit/repo
+Environment=SLOPE_EDIT_DATA=/srv/slope-edit/data
+Environment=SLOPE_EDIT_CLAUDE=/srv/slope-edit/home/.npm-global/bin/claude
+Environment=SLOPE_EDIT_CLAUDE_CONFIG=/srv/slope-edit/home/.claude
+Environment=SLOPE_EDIT_SETTINGS=/srv/slope-edit/app/claude-settings.json
+Environment=PATH=/srv/slope-edit/home/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/node /srv/slope-edit/app/server.js
+Restart=on-failure
+RestartSec=5
+
+# --- containment: nothing outside /srv/slope-edit is writable, no privilege gain
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/slope-edit/repo /srv/slope-edit/data /srv/slope-edit/home
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=no
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=1500M
+TasksMax=256
+CPUQuota=150%
+
+[Install]
+WantedBy=multi-user.target

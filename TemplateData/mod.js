@@ -24,6 +24,9 @@
  *
  * 4. HUD: fullscreen (F, whole page so the HUD stays), R restarts, session
  *    timer, Courses / Rainbow / Music controls, auto-hide while playing.
+ *
+ * 5. Community editor: typing "awesome" opens a box that asks Claude Code
+ *    (via edit-server/) to change this mod; see edit-server/README.md.
  */
 (function () {
     "use strict";
@@ -479,9 +482,9 @@
     ["keydown", "keypress", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {
             var t = e.target;
-            if (!t || (t.id !== STACK_INPUT_ID && t.id !== "hud-music")) return;
+            if (!t || (t.id !== STACK_INPUT_ID && t.id !== "hud-music" && !(t.closest && t.closest("#edit-panel")))) return;
             e.stopImmediatePropagation();
-            if (type === "keydown" && (e.key === "Enter" || e.key === "Escape")) { e.preventDefault(); t.blur(); }
+            if (type === "keydown" && (e.key === "Enter" || e.key === "Escape") && t.tagName !== "TEXTAREA") { e.preventDefault(); t.blur(); }
         }, true);
     });
 
@@ -528,6 +531,91 @@
         if (root.requestFullscreen) root.requestFullscreen().catch(function () { /* denied */ });
     }
 
+    // ======================================================================
+    // 5. Community editor: type "awesome" to open a box that sends a request
+    //    to the slope-edit service (edit-server/), which runs Claude Code on a
+    //    sandboxed clone and publishes the change for everyone.
+    // ======================================================================
+    var EDIT_API = (window.SLOPE_EDIT_API || "").replace(/\/+$/, "");
+    var MAGIC = "awesome";
+    var typed = "";
+    var panel = null, editBox = null, editSend = null, editStatus = null, editLog = null, editBudget = null;
+    var editJob = null, editPoll = null;
+
+    function api(pathname, opts) {
+        if (!EDIT_API) return Promise.reject(new Error("The editor is not connected on this page."));
+        return fetch(EDIT_API + pathname, Object.assign({ cache: "no-store" }, opts || {})).then(function (r) {
+            return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; });
+        });
+    }
+    function fmtUsd(x) { return "$" + (Math.round(x * 100) / 100).toFixed(2); }
+    function refreshBudget() {
+        if (!editBudget) return;
+        api("/api/status").then(function (st) {
+            var b = st.budget;
+            editBudget.textContent = "Budget today " + fmtUsd(b.dayUsed) + " / " + fmtUsd(b.dayCap) + " · month " + fmtUsd(b.monthUsed) + " / " + fmtUsd(b.monthCap) +
+                (st.queue ? " · " + st.queue + " waiting" : "") + (st.running ? " · one running" : "");
+        }).catch(function (e) { editBudget.textContent = e.message; });
+    }
+    function buildPanel() {
+        if (panel) return panel;
+        panel = document.createElement("div");
+        panel.id = "edit-panel";
+        panel.className = "edit-panel";
+        panel.innerHTML =
+            '<div class="edit-head"><span class="edit-title">Edit this game with Claude</span>' +
+            '<button type="button" class="edit-close" title="Close (Esc)">×</button></div>' +
+            '<p class="edit-hint">Describe a change to the mod (visuals, HUD, rules, rainbow…). Claude Code edits the game files in a sandbox, the result is checked and published for everyone. Keep it small and specific.</p>' +
+            '<textarea class="edit-box" rows="3" maxlength="700" placeholder="e.g. make the ball leave a short glowing trail"></textarea>' +
+            '<div class="edit-row"><button type="button" class="edit-send hud-btn">Send to Claude</button><span class="edit-status"></span></div>' +
+            '<pre class="edit-log"></pre>' +
+            '<div class="edit-budget"></div>';
+        document.body.appendChild(panel);
+        editBox = panel.querySelector(".edit-box"); editSend = panel.querySelector(".edit-send");
+        editStatus = panel.querySelector(".edit-status"); editLog = panel.querySelector(".edit-log"); editBudget = panel.querySelector(".edit-budget");
+        panel.querySelector(".edit-close").addEventListener("click", closePanel);
+        editSend.addEventListener("click", submitEdit);
+        editBox.addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submitEdit(); });
+        return panel;
+    }
+    function openPanel() {
+        buildPanel(); panel.classList.add("open"); showHud();
+        if (!EDIT_API) { editStatus.textContent = "The editor is not connected on this page (no SLOPE_EDIT_API)."; editSend.disabled = true; }
+        else refreshBudget();
+        setTimeout(function () { editBox.focus(); }, 50);
+    }
+    function closePanel() { if (panel) panel.classList.remove("open"); if (editBox) editBox.blur(); }
+    function setLog(lines) { editLog.textContent = (lines || []).join("\n"); editLog.scrollTop = editLog.scrollHeight; }
+    function submitEdit() {
+        var prompt = (editBox.value || "").trim();
+        if (prompt.length < 4) { editStatus.textContent = "Say what you want changed."; return; }
+        editSend.disabled = true; editStatus.textContent = "Sending…"; setLog([]);
+        api("/api/edit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: prompt }) })
+            .then(function (job) { editJob = job.id; editStatus.textContent = job.position > 1 ? "Queued (" + job.position + " ahead)" : "Working…"; pollJob(); })
+            .catch(function (e) { editStatus.textContent = e.message; editSend.disabled = false; });
+    }
+    function pollJob() {
+        clearTimeout(editPoll);
+        api("/api/job/" + editJob).then(function (job) {
+            setLog(job.log);
+            if (job.state === "queued") editStatus.textContent = "Queued" + (job.position > 1 ? " (" + (job.position - 1) + " ahead)" : "") + "…";
+            else if (job.state === "running") editStatus.textContent = "Claude is working…";
+            else if (job.state === "done") { editStatus.textContent = "Published " + (job.commit || "") + " for " + fmtUsd(job.cost) + ". Live in about a minute; reload to see it."; if (job.summary) setLog(job.log.concat(["", job.summary])); }
+            else if (job.state === "failed") { editStatus.textContent = "Not applied."; if (job.summary) setLog(job.log.concat(["", job.summary])); }
+            if (job.state === "done" || job.state === "failed") { editSend.disabled = false; refreshBudget(); return; }
+            editPoll = setTimeout(pollJob, 2000);
+        }).catch(function (e) { editStatus.textContent = e.message; editSend.disabled = false; });
+    }
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && panel && panel.classList.contains("open")) { closePanel(); return; }
+        var t = e.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+        if (e.key && e.key.length === 1) {
+            typed = (typed + e.key.toLowerCase()).slice(-MAGIC.length);
+            if (typed === MAGIC) { typed = ""; openPanel(); }
+        }
+    }, true);
+
     window.SlopeMod = {
         blockedCount: function () { return blockedCount; },
         stackTarget: function () { return stackTarget; },
@@ -540,6 +628,7 @@
         setMusic: setMusic,
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
+        openEditor: openPanel,
         init: function (gameInstance) {
             game = gameInstance;
             hud = document.getElementById("hud");
@@ -575,7 +664,8 @@
                 fsBtn.blur(); // give the keyboard back to the game
             });
             document.addEventListener("keydown", function (e) {
-                if (document.activeElement === stackInput || document.activeElement === musicSel) return;
+                var ae = document.activeElement;
+                if (ae === stackInput || ae === musicSel || (ae && ae.closest && ae.closest("#edit-panel"))) return;
                 if (e.ctrlKey || e.metaKey || e.altKey) return;
                 if (e.key === "f" || e.key === "F") toggleFullscreen();
                 else if (e.key === "r" || e.key === "R") requestRestart(false);
