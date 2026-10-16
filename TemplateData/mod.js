@@ -533,9 +533,15 @@
         var p = [f[ballAddr], f[ballAddr + 1], f[ballAddr + 2]];
         if (!isFinite(p[0]) || !isFinite(p[1]) || !isFinite(p[2]) || Math.abs(p[0]) > 1e5) { ballAddr = -1; return; }
         if (ballPos && ballT) {
-            var dt = Math.min(0.1, Math.max(0.004, (now - ballT) / 1000));
-            var v = [(p[0] - ballPos[0]) / dt, (p[1] - ballPos[1]) / dt, (p[2] - ballPos[2]) / dt];
-            ballVel = [ballVel[0] * 0.5 + v[0] * 0.5, ballVel[1] * 0.5 + v[1] * 0.5, ballVel[2] * 0.5 + v[2] * 0.5];
+            var dx = p[0] - ballPos[0], dy = p[1] - ballPos[1], dz = p[2] - ballPos[2];
+            if (dx * dx + dy * dy + dz * dz > 15 * 15) {
+                // teleport (restart put the ball back at the start): no velocity from this, and a short truce
+                ballVel = [0, 0, 0]; airborneFrames = 0; rampCooldownUntil = Math.max(rampCooldownUntil, now + 2500);
+            } else {
+                var dt = Math.min(0.1, Math.max(0.004, (now - ballT) / 1000));
+                var v = [dx / dt, dy / dt, dz / dt];
+                ballVel = [ballVel[0] * 0.5 + v[0] * 0.5, ballVel[1] * 0.5 + v[1] * 0.5, ballVel[2] * 0.5 + v[2] * 0.5];
+            }
         }
         ballPos = p; ballT = now;
     }
@@ -584,8 +590,8 @@
                 if (Math.abs(rel) < 2 && ballVel[1] < 0.5) groundFrames++; else groundFrames = 0;
                 if (now > ramp.until || groundFrames >= 6) { ramp = null; rampCooldownUntil = now + 1500; }
             } else if (ballAddr >= 0 && now > rampCooldownUntil) {
-                if (rel > 4) airborneFrames++; else airborneFrames = 0;
-                if (airborneFrames >= 3 || rel > 9) {
+                if (rel > 4 && rel < 60) airborneFrames++; else airborneFrames = 0;
+                if (airborneFrames >= 3 || (rel > 9 && rel < 60)) {
                     ramp = { def: pickRamp(), until: now + 2200, since: now }; gravDebug.events++; gravDebug.lastKind = ramp.def.kind;
                     groundFrames = 0; airborneFrames = 0;
                     note("ramp -> " + ramp.def.kind + " (lift " + rel.toFixed(1) + ")");
