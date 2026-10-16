@@ -666,9 +666,8 @@
     // ---- per-run track state -------------------------------------------------
     function resetTrackRun() {
         track = { yaw: 0, roll: 0, segs: [segFrame({ yaw: 0, roll: 0, pos: [0, 0, 0], from: null })], passed: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0,
-                  camQ: [0, 0, 0, 1], turnPending: pendingTurnNext, twistPending: pendingTwistNext, fallFrames: 0, shift: null, written: null, whip: null };
-        pendingTurnNext = 0; pendingTwistNext = 0;
-        note("track reset" + (track.turnPending ? " (turn pending)" : "") + (track.twistPending ? " (twist pending)" : ""));
+                  camQ: [0, 0, 0, 1], turnPending: 0, twistPending: 0, fallFrames: 0, shift: null, written: null, whip: null };
+        note("track reset" + (pendingTurnNext ? " (turn pending)" : "") + (pendingTwistNext ? " (twist pending)" : ""));
         ballPos = null; ballVel = [0, 0, 0];
         writeSpawnRot(spawnQ(0, 0)); writeRigQ([0, 0, 0, 1]); writeChaseLocal(0, 3.056, -1.207);
     }
@@ -691,8 +690,8 @@
     function planNextLap() {                   // called when a lap chain has finished spawning: decide the frame of the next lap
         var mode = gravityMode, yawStep = 0, rollStep = 0;
         track.laps++;
-        if (track.turnPending) { yawStep = track.turnPending; track.turnPending = 0; }
-        else if (track.twistPending) { rollStep = track.twistPending; track.twistPending = 0; }
+        if (pendingTurnNext) { yawStep = pendingTurnNext; pendingTurnNext = 0; }
+        else if (pendingTwistNext) { rollStep = pendingTwistNext; pendingTwistNext = 0; }
         else if (mode === "twists" || mode === "both") {
             if (track.laps >= 2 && Math.random() < 0.5) rollStep = (Math.random() < 0.5 ? -1 : 1) * Math.PI / 2;
         }
@@ -994,11 +993,11 @@
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
         setGravity: setGravityMode,
-        setTurn: function (dir) { var v = (dir < 0 ? -1 : 1) * Math.PI / 2; if (track) track.turnPending = v; pendingTurnNext = v; },
-        setTwist: function (dir) { var v = (dir < 0 ? -1 : 1) * Math.PI / 2; if (track) track.twistPending = v; pendingTwistNext = v; },
+        setTurn: function (dir) { pendingTurnNext = (dir < 0 ? -1 : 1) * Math.PI / 2; },
+        setTwist: function (dir) { pendingTwistNext = (dir < 0 ? -1 : 1) * Math.PI / 2; },
         heading: function () { if (!track || !ballPos) return null; var sg = track.segs[track.passed]; var fr = (track.passed > 0 && !sg.done) ? sg.from : sg; return +(fr.yaw * 180 / Math.PI).toFixed(1); },
         roll: function () { if (!track || !ballPos) return null; var sg = track.segs[track.passed]; var fr = (track.passed > 0 && !sg.done) ? sg.from : sg; return +(fr.roll * 180 / Math.PI).toFixed(0); },
-        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yaw * 180 / Math.PI).toFixed(1) : null, rollCmd: track ? +(track.roll * 180 / Math.PI).toFixed(0) : null, camQ: track ? track.camQ.map(function (v) { return +v.toFixed(2); }) : null, kill: H.kill, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), rigPos: rigPos(), rig: H.rig, shift: track && track.written ? track.written.map(function (v) { return +v.toFixed(1); }) : null, zforce: fsmFloat("zforce"), yforce: fsmFloat("yforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
+        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yaw * 180 / Math.PI).toFixed(1) : null, rollCmd: track ? +(track.roll * 180 / Math.PI).toFixed(0) : null, camQ: track ? track.camQ.map(function (v) { return +v.toFixed(2); }) : null, kill: H.kill, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), spawnQ: (function () { var f = heap32(); return f && H.spawnLive >= 0 ? [f[H.spawnLive], f[H.spawnLive + 1], f[H.spawnLive + 2], f[H.spawnLive + 3]].map(function (v) { return +v.toFixed(3); }) : null; })(), spawnCachePos: (function () { var f = heap32(); return f && H.spawnCache >= 0 ? [f[H.spawnCache + 4], f[H.spawnCache + 5], f[H.spawnCache + 6]].map(function (v) { return +v.toFixed(1); }) : null; })(), rigPos: rigPos(), rig: H.rig, shift: track && track.written ? track.written.map(function (v) { return +v.toFixed(1); }) : null, zforce: fsmFloat("zforce"), yforce: fsmFloat("yforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
         openEditor: openPanel,
