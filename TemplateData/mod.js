@@ -701,7 +701,8 @@
             // blocks span 0..10 along the frame's local x; put the ball at the lane centre (5)
             var nyaw = track.yawCmd, lx = [Math.cos(nyaw), 0, -Math.sin(nyaw)], centre = 5 * sharp;
             var b = track.shift.base, fw = track.shift.fwd, nf = track.shift.nfwd;
-            var want = [b[0] + fw[0] * ahead - nf[0] * back - lx[0] * centre + (1 - sharp) * 0, b[1], b[2] + fw[2] * ahead - nf[2] * back - lx[2] * centre];
+            var drop = 8 * sharp;                                                              // the lip is lower than the kink: start the turned lane below it
+            var want = [b[0] + fw[0] * ahead - nf[0] * back - lx[0] * centre, b[1] - drop, b[2] + fw[2] * ahead - nf[2] * back - lx[2] * centre];
             if (sharp < 0.3) want = [b[0], b[1], b[2]];                                       // gentle curves: leave the spawn point alone
             var cur = track.written || b, d = [want[0] - cur[0], want[1] - cur[1], want[2] - cur[2]];
             if (Math.abs(d[0]) + Math.abs(d[1]) + Math.abs(d[2]) > 0.01) shiftSpawnBy(d);
@@ -748,8 +749,8 @@
             var along = dx * Math.sin(last.from) + dz * Math.cos(last.from);
             var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
             var lift = ballVel[1] + Math.abs(ballVel[2] * Math.cos(last.from) + ballVel[0] * Math.sin(last.from));   // 0 while rolling the 45-degree descent
-            // start the whip once the ball is airborne off the jump lip, or at the lip at the latest
-            if (!track.whip && (lift > 2 || along > 10)) track.whip = { since: performance.now() };
+            // start the whip only once the ball is past the jump's lip (on the ramp a sideways shove jams it against the rails)
+            if (!track.whip && along > 12) track.whip = { since: performance.now() };
             if (track.whip && performance.now() - track.whip.since > 1500) track.whip = null;
             if (track.whip && along > -2 && along < 70 && vh > 3) {
                 var nf = [Math.sin(last.yaw), Math.cos(last.yaw)];
@@ -759,7 +760,7 @@
                 if (m > cap) { ax *= cap / m; az *= cap / m; }
                 gx += ax; gz += az;
                 // hang time: cancel most of the game's downforce while swinging so the ball reaches the new lane
-                if (last.turn && performance.now() - track.whip.since < 700) gy += Math.min(40, Math.abs(fsmFloat("yforce")) / BALL_MASS) * 0.9 + 4;
+                if (last.turn && performance.now() - track.whip.since < 500) gy += Math.min(40, Math.abs(fsmFloat("yforce")) / BALL_MASS) * 0.6;
                 if (last.turn) label = (last.yaw > last.from ? "turn →" : "← turn");
             }
         }
