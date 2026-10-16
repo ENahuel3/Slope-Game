@@ -675,13 +675,17 @@
         track.segs.push({ yaw: newYaw, pos: sp.slice(), from: track.yawCmd, at: performance.now(), turn: Math.abs(step) > 1 });
         // until the next chain spawns, keep the spawn point pushed forward along the OLD heading by the
         // radius of the swing the ball will make, so the new lap's first block is where the ball lands
-        track.shift = { base: sp.slice(), fwd: [Math.sin(track.yawCmd), 0, Math.cos(track.yawCmd)], step: Math.abs(step) };
+        track.shift = { base: sp.slice(), fwd: [Math.sin(track.yawCmd), 0, Math.cos(track.yawCmd)], nfwd: [Math.sin(newYaw), 0, Math.cos(newYaw)], step: Math.abs(step) };
         track.yawCmd = newYaw; trackDebug.kinks++;
         note("lap " + track.laps + ": yaw " + (newYaw * 180 / Math.PI).toFixed(0) + " deg (" + (step * 180 / Math.PI).toFixed(0) + ") at " + sp.map(function (v) { return v.toFixed(0); }).join(","));
     }
     function watchSpawner() {
         var sp = spawnPos(); if (!sp) return;
-        if (!track.lastSpawn) { track.lastSpawn = sp; planNextLap(); return; }   // the start section is already built: its jump is the first kink
+        if (!track.lastSpawn) {
+            track.lastSpawn = sp;
+            if (Math.abs(sp[0]) + Math.abs(sp[1]) + Math.abs(sp[2]) > 1) { track.moving = true; track.stillFrames = 7; }   // already built: treat as a chain at rest
+            return;
+        }
         var ref = track.written || track.lastSpawn;
         var moved = Math.abs(sp[0] - ref[0]) + Math.abs(sp[1] - ref[1]) + Math.abs(sp[2] - ref[2]) > 0.05;
         if (moved) { track.moving = true; track.stillFrames = 0; track.shift = null; track.written = null; }
@@ -689,8 +693,11 @@
         track.lastSpawn = sp;
         if (!track.moving && track.shift && ballPos) {
             var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
-            var r = Math.max(2, 0.2 * Math.max(vh, 12)) * Math.sin(Math.min(track.shift.step, Math.PI / 2) / 2) * 2;   // chord of the swing arc
-            var b = track.shift.base, fw = track.shift.fwd, want = [b[0] + fw[0] * r, b[1], b[2] + fw[2] * r];
+            var half = Math.min(track.shift.step, Math.PI / 2) / 2;
+            var r = Math.max(2, 0.2 * Math.max(vh, 12)) * Math.sin(half) * 2;              // chord of the swing arc, along the old heading
+            var back = 18 * Math.sin(half) * 2 / 1.4142;                                     // close the 20-unit inter-lap gap for sharp turns
+            var b = track.shift.base, fw = track.shift.fwd, nf = track.shift.nfwd;
+            var want = [b[0] + fw[0] * r - nf[0] * back, b[1], b[2] + fw[2] * r - nf[2] * back];
             var cur = track.written || b, d = [want[0] - cur[0], want[1] - cur[1], want[2] - cur[2]];
             if (Math.abs(d[0]) + Math.abs(d[1]) + Math.abs(d[2]) > 0.01) shiftSpawnBy(d);
             track.written = want; track.lastSpawn = want;
@@ -724,7 +731,8 @@
             var dx = ballPos[0] - last.pos[0], dz = ballPos[2] - last.pos[2];
             var along = dx * Math.sin(last.from) + dz * Math.cos(last.from);
             var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
-            if (along > -2 && along < 45 && vh > 3) {
+            var lift = ballVel[1] + Math.abs(ballVel[2] * Math.cos(last.from) + ballVel[0] * Math.sin(last.from));   // 0 while rolling the 45-degree descent
+            if ((along > 6 || lift > 3) && along < 45 && vh > 3) {
                 var want = [vh * fwd[0], vh * fwd[2]];
                 var K = last.turn ? 7 : 3, ax = K * (want[0] - ballVel[0]), az = K * (want[1] - ballVel[2]);
                 var m = Math.sqrt(ax * ax + az * az), cap = last.turn ? 320 : 60;
