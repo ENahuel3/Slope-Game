@@ -454,8 +454,7 @@
         lastCourseCount = c;
         var restarted = musicStarted; if (restarted) { lastRestart = frameNo; gameRunning = true; resetTrackRun(); }
         var died = musicStopped && !musicStarted && frameNo - lastRestart > RESTART_GRACE;
-        if (died) gameRunning = false;
-        if (c === 0 && frameNo - lastRestart > 120) gameRunning = false;   // world cleared / menu
+        if (died) gameRunning = false;                 // (the skyline draw count is not used here: the camera may simply be looking away)
         musicStopped = musicStarted = false;
 
         if (restartSeq) {
@@ -763,7 +762,7 @@
                 if (last.turn) label = (last.yaw > last.from ? "turn →" : "← turn");
             }
         }
-        writeGravity(gx, G0, gz);
+        writeGravity(gx, gy, gz);
         // --- camera: the rig yaws toward the ball's heading; the chase target is re-aimed so the clamped rig does not matter
         var target = (track.whip || seg.done || track.passed === 0) ? hGeo : h;
         var d = target - track.camYaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
