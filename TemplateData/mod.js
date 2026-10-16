@@ -719,7 +719,17 @@
         if (H.spawnLive < 0) return;                                       // not until the live spawn record has shown itself
         writeSpawnYaw(track.yawCmd);                                       // whatever spawns next uses the commanded heading
         if (!ballPos || H.rig < 0) return;
-        var h = segHeadingAt(ballPos);
+        var hGeo = segHeadingAt(ballPos);
+        // forces keep the previous lap's heading until the ball has actually been whipped round the
+        // corner (airborne + a quarter second) or is well past the jump; otherwise steering and the
+        // forward push would brake it before the lip
+        var seg = track.segs[track.passed], h = hGeo;
+        if (track.passed > 0 && !seg.done) {
+            var ddx = ballPos[0] - seg.pos[0], ddz = ballPos[2] - seg.pos[2];
+            var alongOld = ddx * Math.sin(seg.from) + ddz * Math.cos(seg.from);
+            if ((track.whip && performance.now() - track.whip.since > 250) || alongOld > 16) seg.done = true;
+            else h = seg.from;
+        }
         var fwd = [Math.sin(h), 0, Math.cos(h)], lat = [Math.cos(h), 0, -Math.sin(h)];
         // --- force compensation: the game pushes along world z / x, the course now runs along fwd / lat
         var zf = fsmFloat("zforce"), sL = fsmFloat("SteerForceLeft"), sR = fsmFloat("SteerForceRight");
@@ -736,7 +746,8 @@
             if (lift > 2 && !track.whip) track.whip = { since: performance.now() };                    // airborne off the jump lip: start the whip
             if (track.whip && performance.now() - track.whip.since > 1500) track.whip = null;
             if (track.whip && along > -2 && along < 60 && vh > 3) {
-                var speed = last.turn ? Math.max(vh, 28) : vh, want = [speed * fwd[0], speed * fwd[2]];
+                var nf = [Math.sin(last.yaw), Math.cos(last.yaw)];
+                var speed = last.turn ? Math.max(vh, 28) : vh, want = [speed * nf[0], speed * nf[1]];
                 var K = last.turn ? 9 : 3, ax = K * (want[0] - ballVel[0]), az = K * (want[1] - ballVel[2]);
                 var m = Math.sqrt(ax * ax + az * az), cap = last.turn ? 360 : 60;
                 if (m > cap) { ax *= cap / m; az *= cap / m; }
@@ -746,7 +757,8 @@
         }
         writeGravity(gx, G0, gz);
         // --- camera: the rig yaws toward the ball's heading; the chase target is re-aimed so the clamped rig does not matter
-        var target = h, d = target - track.camYaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+        var target = (track.whip || seg.done || track.passed === 0) ? hGeo : h;
+        var d = target - track.camYaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
         track.camYaw += d * 0.12;
         writeRigYaw(track.camYaw);
         var rp = rigPos();
@@ -932,7 +944,7 @@
         setMusic: setMusic,
         setGravity: setGravityMode,
         setTurn: function (dir) { var v = (dir < 0 ? -1 : 1) * Math.PI / 2; if (track) track.turnPending = v; pendingTurnNext = v; },
-        heading: function () { return track && ballPos ? +(segHeadingAt(ballPos) * 180 / Math.PI).toFixed(1) : null; },
+        heading: function () { if (!track || !ballPos) return null; var sg = track.segs[track.passed]; var hh = (track.passed > 0 && !sg.done) ? sg.from : sg.yaw; return +(hh * 180 / Math.PI).toFixed(1); },
         track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yawCmd * 180 / Math.PI).toFixed(1) : null, camYaw: track ? +(track.camYaw * 180 / Math.PI).toFixed(1) : null, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), rigPos: rigPos(), rig: H.rig, shift: track && track.shift ? +(Math.hypot((track.written || [0,0,0])[0] - track.shift.base[0], (track.written || [0,0,0])[2] - track.shift.base[2])).toFixed(1) : 0, zforce: fsmFloat("zforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
