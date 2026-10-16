@@ -576,7 +576,7 @@
             gx = amp * tilt;
         }
         if (mode === "ramps" || mode === "both") {
-            var rel = relLift(); gravDebug.lastRel = rel;
+            var rel = relLift(); gravDebug.lastRel = rel; relHist.push(+rel.toFixed(1)); if (relHist.length > 400) relHist.shift();
             if (ramp) {
                 var g = ramp.def.g();
                 gx += g[0]; gy = g[1]; label = ramp.def.label;
@@ -584,8 +584,8 @@
                 if (Math.abs(rel) < 2 && ballVel[1] < 0.5) groundFrames++; else groundFrames = 0;
                 if (now > ramp.until || groundFrames >= 6) { ramp = null; rampCooldownUntil = now + 1500; }
             } else if (ballAddr >= 0 && now > rampCooldownUntil) {
-                if (rel > 5 && ballVel[1] > 0.5) airborneFrames++; else airborneFrames = 0;
-                if (airborneFrames >= 3) {
+                if (rel > 4) airborneFrames++; else airborneFrames = 0;
+                if (airborneFrames >= 3 || rel > 9) {
                     ramp = { def: pickRamp(), until: now + 2200, since: now }; gravDebug.events++; gravDebug.lastKind = ramp.def.kind;
                     groundFrames = 0; airborneFrames = 0;
                     note("ramp -> " + ramp.def.kind + " (lift " + rel.toFixed(1) + ")");
@@ -768,7 +768,7 @@
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
         setGravity: setGravityMode,
-        gravity: function () { return { mode: gravityMode, addrs: gravAddrs.length, ball: ballAddr, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(2); }), now: gravNow.map(function (v) { return +v.toFixed(2); }), ramp: ramp ? ramp.def.kind : null, events: gravDebug.events, lastRel: +gravDebug.lastRel.toFixed(2) }; },
+        gravity: function () { return { mode: gravityMode, addrs: gravAddrs.length, ball: ballAddr, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(2); }), now: gravNow.map(function (v) { return +v.toFixed(2); }), ramp: ramp ? ramp.def.kind : null, events: gravDebug.events, lastRel: +gravDebug.lastRel.toFixed(2), liftMax: relHist.length ? Math.max.apply(null, relHist) : 0, lift: relHist.slice(-120) }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
         openEditor: openPanel,
