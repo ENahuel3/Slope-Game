@@ -698,7 +698,7 @@
         if (pendingTurnNext) { yawStep = pendingTurnNext; pendingTurnNext = 0; }
         else if (pendingTwistNext) { rollStep = pendingTwistNext; pendingTwistNext = 0; }
         else if (mode === "twists" || mode === "both") {
-            if (track.laps >= 2 && Math.random() < 0.5) rollStep = (Math.random() < 0.5 ? -1 : 1) * Math.PI / 2;
+            if (track.laps >= 1 && Math.random() < 0.6) rollStep = (Math.random() < 0.5 ? -1 : 1) * Math.PI / 2;
         }
         if (!yawStep && !rollStep && (mode === "curves" || mode === "both")) yawStep = (Math.random() * 2 - 1) * (8 * Math.PI / 180) + (Math.random() < 0.5 ? -1 : 1) * (4 * Math.PI / 180);
         if (!yawStep && !rollStep) return;
