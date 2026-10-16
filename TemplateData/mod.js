@@ -473,7 +473,7 @@
         frameNo++;
         var draws = frameDraws; frameDraws = [];
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
-        try { stepTrack(gameRunning && !build && !restartSeq); } catch (e) { /* ditto */ }
+        try { stepTrack(gameRunning && !build && !restartSeq); } catch (e) { if (!trackDebug.err) { trackDebug.err = String(e); note("track error: " + e); } }
         if (rainbowOn) { hue = (hue + 1 / 210) % 1; rainbowTime += 1 / 60; }   // hues scroll through a full cycle every 3.5 s
         requestAnimationFrame(frameLoop);
     }
@@ -739,6 +739,7 @@
         var zf = fsmFloat("zforce"), sL = fsmFloat("SteerForceLeft"), sR = fsmFloat("SteerForceRight");
         var steer = (keysHeld.left ? sL : 0) + (keysHeld.right ? sR : 0);
         var gx = (zf / BALL_MASS) * (fwd[0] - 0) + (steer / BALL_MASS) * (lat[0] - 1);
+        var gy = G0;
         var gz = (zf / BALL_MASS) * (fwd[2] - 1) + (steer / BALL_MASS) * (lat[2] - 0);
         // --- corner assist: just past a kink, swing the horizontal velocity onto the new heading
         var segs = track.segs, last = segs[track.passed], label = "";
