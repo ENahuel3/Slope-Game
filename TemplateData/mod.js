@@ -561,7 +561,7 @@
             if (!H.spawn.length) H.spawn = liveOnly(nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4));
             if (!H.rigCands) H.rigCands = liveOnly(nearSeq([0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3));
             if (H.chase < 0) { var c = liveOnly(nearSeq([0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4)); if (c.length) H.chase = c[c.length - 1]; }
-            ["zforce", "SteerForceLeft", "SteerForceRight"].forEach(function (nm) { if (!H.vars[nm]) H.vars[nm] = liveOnly(findFsmFloats(nm)); });
+            ["zforce", "yforce", "SteerForceLeft", "SteerForceRight"].forEach(function (nm) { if (!H.vars[nm]) H.vars[nm] = liveOnly(findFsmFloats(nm)); });
             note("heap: gravity x" + H.grav.length + ", spawn recs " + H.spawn.length + ", rig cands " + H.rigCands.length + ", chase " + (H.chase >= 0) + ", vars z/L/R " + [H.vars.zforce, H.vars.SteerForceLeft, H.vars.SteerForceRight].map(function (v) { return v ? v.length : 0; }).join("/"));
         } catch (e) { note("heap scan failed: " + e); }
     }
@@ -748,15 +748,18 @@
             var along = dx * Math.sin(last.from) + dz * Math.cos(last.from);
             var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
             var lift = ballVel[1] + Math.abs(ballVel[2] * Math.cos(last.from) + ballVel[0] * Math.sin(last.from));   // 0 while rolling the 45-degree descent
-            if (lift > 2 && !track.whip) track.whip = { since: performance.now() };                    // airborne off the jump lip: start the whip
+            // start the whip once the ball is airborne off the jump lip, or at the lip at the latest
+            if (!track.whip && (lift > 2 || along > 10)) track.whip = { since: performance.now() };
             if (track.whip && performance.now() - track.whip.since > 1500) track.whip = null;
-            if (track.whip && along > -2 && along < 60 && vh > 3) {
+            if (track.whip && along > -2 && along < 70 && vh > 3) {
                 var nf = [Math.sin(last.yaw), Math.cos(last.yaw)];
-                var speed = last.turn ? Math.max(vh, 28) : vh, want = [speed * nf[0], speed * nf[1]];
-                var K = last.turn ? 9 : 3, ax = K * (want[0] - ballVel[0]), az = K * (want[1] - ballVel[2]);
-                var m = Math.sqrt(ax * ax + az * az), cap = last.turn ? 360 : 60;
+                var speed = last.turn ? Math.max(vh, 30) : vh, want = [speed * nf[0], speed * nf[1]];
+                var K = last.turn ? 10 : 3, ax = K * (want[0] - ballVel[0]), az = K * (want[1] - ballVel[2]);
+                var m = Math.sqrt(ax * ax + az * az), cap = last.turn ? 400 : 60;
                 if (m > cap) { ax *= cap / m; az *= cap / m; }
                 gx += ax; gz += az;
+                // hang time: cancel most of the game's downforce while swinging so the ball reaches the new lane
+                if (last.turn && performance.now() - track.whip.since < 700) gy += Math.min(40, Math.abs(fsmFloat("yforce")) / BALL_MASS) * 0.9 + 4;
                 if (last.turn) label = (last.yaw > last.from ? "turn →" : "← turn");
             }
         }
