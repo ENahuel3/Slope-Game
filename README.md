@@ -12,6 +12,7 @@ A modded fork of [cgolden15/Slope-Game](https://github.com/cgolden15/Slope-Game)
 - **Instant restarts.** Press **R** at any time to restart with a fresh stack. When the ball dies the mod shows the death for half a second and restarts with the stack rebuilt; there is no game-over screen and no Enter to press. With Courses set to 1 a death goes through the normal game-over screen.
 - **Music.** Original, *Aria Math (Phonk Remix)* or *Mort Jackson – Billie Jean*. A custom track keeps its place across restarts (it pauses when the game would stop its own track and resumes when a run starts), and switching mid-run is immediate.
 - **Rainbow neon.** Every fragment shader is rewritten at compile time so the green neon becomes a diagonal rainbow that scrolls across the screen and ripples with a travelling wave. Red stays red.
+- **Community editor.** Type `awesome` on the page and a box appears where you can ask Claude Code to change the mod. The request runs on a sandboxed clone on the owner's server within a spend budget, the result is validated and pushed here, and GitHub Pages serves it to everyone a minute later. Details, containment and setup: [`edit-server/README.md`](edit-server/README.md). When the service is offline the box says so.
 
 ## How the stack works
 
