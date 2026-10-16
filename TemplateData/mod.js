@@ -575,14 +575,8 @@
         } catch (e) { note("heap scan failed: " + e); }
     }
     function trackReady() { return H.grav.length > 0 && H.spawn.length > 0 && H.rigCands && H.rigCands.length > 0 && H.chase >= 0; }
-    function resolveRig() {                   // the live rig record is the one that follows the ball once a run is on
-        if (H.rig >= 0 || !H.rigCands) return;
-        var f = heap32(); if (!f) return;
-        for (var i = 0; i < H.rigCands.length; i++) {
-            var a = H.rigCands[i], x = f[a + 4], y = f[a + 5], z = f[a + 6];
-            if (!isFinite(x) || !isFinite(y) || !isFinite(z) || Math.abs(x) > 1e4 || Math.abs(y) > 1e4 || Math.abs(z) > 1e4) continue;
-            if (Math.abs(x - 5) > 0.02 || Math.abs(y - 6.482) > 0.02 || Math.abs(z + 4.737) > 0.02) { H.rig = a; note("rig record " + a); return; }
-        }
+    function resolveRig() {                   // the rig's rotation record is unique; its position is derived from the ball below
+        if (H.rig < 0 && H.rigCands && H.rigCands.length) { H.rig = H.rigCands[H.rigCands.length - 1]; note("rig record " + H.rig); }
     }
     function writeGravity(x, y, z) {
         var f = heap32(); if (!f || !H.grav.length) return;
@@ -619,7 +613,9 @@
         var f = heap32(); if (!f || H.rig < 0) return;
         f[H.rig] = 0; f[H.rig + 1] = Math.sin(yaw / 2); f[H.rig + 2] = 0; f[H.rig + 3] = Math.cos(yaw / 2);
     }
-    function rigPos() { var f = heap32(); return (f && H.rig >= 0) ? [f[H.rig + 4], f[H.rig + 5], f[H.rig + 6]] : null; }
+    // The rig ("Text") copies the ball's position each frame with x clamped to 3..7 and a fixed offset; its
+    // own position record is a stale local copy, so reproduce that rule instead of reading it.
+    function rigPos() { return ballPos ? [Math.min(7, Math.max(3, ballPos[0])), ballPos[1] - 4.018, ballPos[2] - 0.737] : null; }
     function writeChaseLocal(x, y, z) { var f = heap32(); if (!f || H.chase < 0) return; f[H.chase + 4] = x; f[H.chase + 5] = y; f[H.chase + 6] = z; }
     var CHASE_WORLD_OFF = [0, 3.056 - 4.018, -1.207 - 0.737];   // chase target relative to the ball on a straight run (rig sits 4.0 below / 0.74 behind the ball)
 
@@ -643,7 +639,7 @@
     // ---- per-run track state -------------------------------------------------
     function resetTrackRun() {
         track = { yawCmd: 0, segs: [{ yaw: 0, pos: [0, 0, 0] }], passed: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0,
-                  camYaw: 0, turnPending: pendingTurnNext };
+                  camYaw: 0, turnPending: pendingTurnNext, fallFrames: 0 };
         pendingTurnNext = 0;
         ballPos = null; ballVel = [0, 0, 0];
         writeSpawnYaw(0); writeRigYaw(0); writeChaseLocal(0, 3.056, -1.207);   // each is a no-op until its record is known
@@ -695,6 +691,7 @@
             return;
         }
         trackBall(); watchSpawner();
+        if (ballPos && ballVel[1] < -70) { if (++track.fallFrames > 45 && !restartSeq) { note("free fall, restarting"); requestRestart(true); return; } } else track.fallFrames = 0;
         if (H.spawnLive < 0) return;                                       // not until the live spawn record has shown itself
         writeSpawnYaw(track.yawCmd);                                       // whatever spawns next uses the commanded heading
         if (!ballPos || H.rig < 0) return;
@@ -909,7 +906,7 @@
         setGravity: setGravityMode,
         setTurn: function (dir) { var v = (dir < 0 ? -1 : 1) * Math.PI / 2; if (track) track.turnPending = v; else pendingTurnNext = v; },
         heading: function () { return track && ballPos ? +(segHeadingAt(ballPos) * 180 / Math.PI).toFixed(1) : null; },
-        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnSet: H.spawnSet, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yawCmd * 180 / Math.PI).toFixed(1) : null, camYaw: track ? +(track.camYaw * 180 / Math.PI).toFixed(1) : null, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), rigPos: rigPos(), zforce: fsmFloat("zforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
+        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnSet: H.spawnSet, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yawCmd * 180 / Math.PI).toFixed(1) : null, camYaw: track ? +(track.camYaw * 180 / Math.PI).toFixed(1) : null, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), rigPos: rigPos(), rig: H.rig, zforce: fsmFloat("zforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
         openEditor: openPanel,
