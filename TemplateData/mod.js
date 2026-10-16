@@ -22,8 +22,8 @@
  *    framebuffer, so scenes that go through an image-effect pass are
  *    recoloured once, at the final blit.
  *
- * 4. HUD: fullscreen button (or F key), session timer, Courses and Rainbow
- *    controls, auto-hide while playing, reappear on mouse move.
+ * 4. HUD: fullscreen (F, whole page so the HUD stays), R restarts, session
+ *    timer, Courses / Rainbow / Music controls, auto-hide while playing.
  */
 (function () {
     "use strict";
@@ -33,6 +33,7 @@
     // ======================================================================
     var KEY_STACK = "slope-mod.stack";
     var KEY_RAINBOW = "slope-mod.rainbow";
+    var KEY_MUSIC = "slope-mod.music";
     var STACK_MAX = 99;
 
     function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -40,6 +41,12 @@
 
     var stackTarget = (function () { var n = parseInt(lsGet(KEY_STACK), 10); return (n >= 1 && n <= STACK_MAX) ? n : 1; })();
     var rainbowOn = lsGet(KEY_RAINBOW) !== "0";
+    var TRACKS = [
+        { id: "original", name: "Original" },
+        { id: "aria", name: "Aria Math (Phonk Remix)", file: "TemplateData/music/aria-math-phonk-remix.mp3" },
+        { id: "billie", name: "Mort Jackson \u2013 Billie Jean", file: "TemplateData/music/mort-jackson-billie-jean.mp3" }
+    ];
+    var musicId = (function () { var id = lsGet(KEY_MUSIC); return TRACKS.some(function (t) { return t.id === id; }) ? id : "original"; })();
 
     // ======================================================================
     // 1. Network shim
@@ -225,71 +232,162 @@
     // ======================================================================
     // Audio hook: the run's music track (a ~24 s buffer) is stopped at the
     // instant the ball dies, for falls and crashes alike, and restarted on
-    // every restart. That is the earliest death signal there is.
+    // every restart. That is the earliest death signal there is. The same
+    // hook swaps the music: with a custom track selected the game's own
+    // track is never started and an <audio> element plays instead, paused
+    // and resumed exactly when the game would stop and start its track.
     // ======================================================================
     var MUSIC_MIN_SECONDS = 10;
     var musicStopped = false, musicStarted = false;   // flags for the frame being examined
+    var musicNode = null;          // the game's current music source node
+    var audioEl = null;            // custom track player
+    var absStart = null, absStop = null;
+
+    function isCustomMusic() { return musicId !== "original"; }
+    function trackById(id) { for (var i = 0; i < TRACKS.length; i++) if (TRACKS[i].id === id) return TRACKS[i]; return TRACKS[0]; }
+    function ensureAudio() {
+        if (audioEl) return audioEl;
+        audioEl = new Audio();
+        audioEl.loop = true; audioEl.preload = "auto"; audioEl.volume = 0.8;
+        return audioEl;
+    }
+    function playCustom() {
+        var t = trackById(musicId); if (!t.file) return;
+        var el = ensureAudio();
+        var src = new URL(t.file, location.href).href;
+        if (el.src !== src) { el.src = src; }
+        var p = el.play(); if (p && p.catch) p.catch(function () { /* autoplay blocked until a gesture; the next restart retries */ });
+    }
+    function pauseCustom() { if (audioEl && !audioEl.paused) audioEl.pause(); }
+    function musicNodeElapsed(node) {
+        if (!node || node.__slopeStartedAt === undefined) return node && node.__slopeOffset || 0;
+        return (node.__slopeOffset || 0) + (node.context.currentTime - node.__slopeStartedAt);
+    }
+
     if (window.AudioBufferSourceNode) {
-        var absStart = AudioBufferSourceNode.prototype.start, absStop = AudioBufferSourceNode.prototype.stop;
-        AudioBufferSourceNode.prototype.start = function () {
+        absStart = AudioBufferSourceNode.prototype.start; absStop = AudioBufferSourceNode.prototype.stop;
+        AudioBufferSourceNode.prototype.start = function (when, offset) {
             this.__slopeDur = this.buffer ? this.buffer.duration : 0;
-            if (this.__slopeDur >= MUSIC_MIN_SECONDS) musicStarted = true;
+            if (this.__slopeDur < MUSIC_MIN_SECONDS) return absStart.apply(this, arguments);
+            musicStarted = true;
+            musicNode = this;
+            this.__slopeOffset = offset || 0;
+            if (isCustomMusic()) {
+                this.__slopeSuppressed = true;              // the game's track stays silent
+                playCustom();
+                return;
+            }
+            this.__slopeStartedAt = this.context.currentTime;
             return absStart.apply(this, arguments);
         };
         AudioBufferSourceNode.prototype.stop = function () {
-            if (this.__slopeDur >= MUSIC_MIN_SECONDS) musicStopped = true;
+            if (this.__slopeDur >= MUSIC_MIN_SECONDS) {
+                musicStopped = true;
+                if (this === musicNode) pauseCustom();
+                if (this.__slopeSuppressed) return;        // never started: nothing to stop
+            }
             return absStop.apply(this, arguments);
         };
     }
 
+    function setMusic(id) {
+        var t = trackById(id); id = t.id;
+        if (id === musicId) return;
+        var was = musicId; musicId = id; lsSet(KEY_MUSIC, id);
+        var node = musicNode;
+        if (!node) return;
+        if (was === "original" && isCustomMusic()) {
+            // original playing -> silence it, keep its position, start the custom track
+            node.__slopeOffset = musicNodeElapsed(node); node.__slopeStartedAt = undefined;
+            try { absStop.call(node); } catch (e) { /* already stopped */ }
+            node.__slopeSuppressed = true;
+            playCustom();
+        } else if (isCustomMusic()) {
+            playCustom();                                   // custom -> another custom
+        } else if (node.__slopeSuppressed && !node.__slopeDead) {
+            // custom -> original: start the game's node where it would have been
+            pauseCustom();
+            var off = (node.__slopeOffset || 0) % (node.__slopeDur || 1);
+            try {
+                // a stopped node cannot be restarted: build a fresh one on the same route
+                var ctx = node.context, fresh = ctx.createBufferSource();
+                fresh.buffer = node.buffer; fresh.loop = node.loop; fresh.loopStart = node.loopStart; fresh.loopEnd = node.loopEnd;
+                fresh.__slopeDur = node.__slopeDur; fresh.__slopeOffset = off; fresh.__slopeStartedAt = ctx.currentTime;
+                fresh.connect(node.__slopeDest || ctx.destination);
+                absStart.call(fresh, 0, off);
+                node.__slopeDead = true; musicNode = fresh;
+            } catch (e) { /* no route known: resumes at the next restart */ }
+        }
+    }
+    if (window.AudioNode) {
+        var nodeConnect = AudioNode.prototype.connect;
+        AudioNode.prototype.connect = function (dest) {
+            if (this instanceof AudioBufferSourceNode) this.__slopeDest = dest;
+            return nodeConnect.apply(this, arguments);
+        };
+    }
+
     // ======================================================================
-    // 2. Stacked courses: instant builder + instant restart after a death
+    // 2. Stacked courses: instant builder, instant restart (death or R)
     // ======================================================================
     // Hidden courses are spawned directly: Sphere "Restart Game" puts the
     // ball and the spawn point back at the origin, t_Spawner "spawn go tunnel
     // run" drops a start section there, and each "Check score" generates one
     // lap (the spawner's own per-speed-up path, so laps go easy -> medium ->
     // hard like a real run). Only the last course goes through the normal
-    // EventManager "resetGame" restart, so the game's own state is clean; the
-    // music restarting is the confirmation that it went through.
-    // Sphere "Restart Game" also resets the spawn point, so it is sent only
-    // right before a start section (never during laps: laps would then land
-    // inside the start tunnel) and once more just before the final reset, so
-    // the live run begins with the ball at the top of the drop whatever the
-    // build took. EventManager "start game" is forced after the final reset:
-    // it is the state that wakes the ball and restores the time scale.
+    // EventManager "resetGame" restart, so the game's own state is clean;
+    // "start game" is forced right after it (it wakes the ball and restores
+    // the time scale). Sphere "Restart Game" also resets the spawn point, so
+    // it is sent only right before a start section (never during laps, or
+    // the laps would land inside the start tunnel) and once more just before
+    // the final reset, so the live run begins with the ball at the top of the
+    // drop whatever the build took.
+    //
+    // Clearing the world: t_Spawner "DestroyBlocksPool" despawns every block
+    // but also sets the time scale to 0, and the despawn only executes once
+    // time runs again, so "start game" is forced in the same frame and the
+    // build starts two frames later on an empty world.
+    //
+    // Death: the game queues a "death complete" broadcast 3 s after a death
+    // (that is what despawns the course and freezes time at the game-over
+    // screen). A restart issued before it lands defuses it, so the mod does
+    // a plain restart half a second after the death, then clears, rebuilds
+    // and restarts again a few frames later. No game-over screen, no Enter.
     var LAPS_PER_COURSE = 8;       // laps pre-generated on every hidden course
     var FINAL_SETTLE = 8;          // frames between the last lift and the final reset (lets its delayed destroySelf land first)
-    var START_AFTER = 2;           // frames after the final reset to force "start game"
+    var START_AFTER = 2;           // frames after a reset to force "start game"
     var RESET_TIMEOUT = 45;        // frames to wait for the final reset's music restart before one retry
     var DEATH_BEAT = 30;           // frames to show the death before the instant restart
+    var DEFUSE_FRAMES = 10;        // frames between the defusing restart and the clear
+    var CLEAR_FRAMES = 2;          // frames for the despawn to execute before building
     var RESTART_GRACE = 15;        // a restart also stops the previous track a frame or two later
     var SPAWNER = "t_Spawner", EVENT_MANAGER = "EventManager", SPHERE = "Sphere";
 
-    var stacked = 1;              // courses currently in the world (our best estimate)
-    var lastCourseCount = 0;      // skyline draws in the last frame (0 = world cleared / menu)
-    var pendingTarget = null;     // a Courses change made mid-run, applied next run
-    var builds = 0, resetsSent = 0, deaths = 0, instantRestarts = 0;
+    var lastCourseCount = 0;      // skyline draws in the last frame (diagnostics)
+    var builds = 0, resetsSent = 0, deaths = 0, restarts = 0;
     var lastRestart = -1000;
     var frameNo = 0, debugLog = [];   // debugLog: last 40 decisions, for diagnostics
     function note(ev) { debugLog.push(frameNo + ':' + ev); if (debugLog.length > 40) debugLog.shift(); }
 
-    // build: null | { phase: "course" | "laps" | "settle" | "final", hidden, laps, since, started, tries, lastLift }
+    // build: null | { phase: "course" | "laps" | "settle" | "final", hidden, hiddenTarget, laps, since, started, tries, lastLift, startSent }
     var build = null;
-    // dying: null | { phase: "beat" | "clear", since }
-    var dying = null;
+    // restart: null | { phase: "beat" | "defuse" | "clear", since }
+    var restartSeq = null;
 
     function setState(obj, state) {
         if (!game || typeof game.SendMessage !== "function") return false;
         try { game.SendMessage(obj, "SetState", state); return true; } catch (e) { note("SendMessage failed: " + e); return false; }
     }
+    function plainRestart() { setState(EVENT_MANAGER, "resetGame"); }
+    function clearWorld() { setState(SPAWNER, "DestroyBlocksPool"); setState(EVENT_MANAGER, "start game"); }
     function liftBall() { setState(SPHERE, "Restart Game"); build.lastLift = frameNo; }
     function startBuild(existing) {
         // `existing` courses are already in the world with their start section
         // at the origin (1 right after a restart, 0 after a clear); they become
         // hidden layers under the ones built here
-        build = { phase: existing > 0 ? "laps" : "course", hidden: existing, laps: 0, since: frameNo, started: frameNo, tries: 0, lastLift: -1000, startSent: false };
-        stacked = Math.max(existing, 1);
+        build = { phase: existing > 0 ? "laps" : "course", hidden: existing, hiddenTarget: Math.max(stackTarget - 1, 0),
+                  laps: 0, since: frameNo, started: frameNo, tries: 0, lastLift: -1000, startSent: false };
+        if (build.hidden >= build.hiddenTarget) build.phase = "settle";
         builds++; note("building " + stackTarget + " courses from " + existing);
     }
     function sendFinalReset() {
@@ -298,20 +396,20 @@
         build.phase = "final"; build.since = frameNo; build.startSent = false;
     }
     function finishBuild(how) {
-        stacked = build.hidden + 1;
-        note("stack of " + stacked + " " + how + " in " + (frameNo - build.started) + " frames");
+        note("stack of " + (build.hidden + 1) + " " + how + " in " + (frameNo - build.started) + " frames");
         build = null;
     }
     function stepBuild(restarted) {
         if (build.phase === "course") {
             liftBall();                                   // ball to the top, SpawnPos -> origin
             setState(SPAWNER, "spawn go tunnel run");     // start section there
-            build.hidden++; build.laps = 0; build.phase = "laps"; stacked = build.hidden;
+            build.hidden++; build.laps = 0; build.phase = "laps";
         } else if (build.phase === "laps") {
             if (build.laps < LAPS_PER_COURSE) { setState(SPAWNER, "Check score"); build.laps++; }
-            else if (build.hidden < stackTarget - 1) build.phase = "course";
-            else { liftBall(); build.phase = "settle"; build.since = frameNo; }
+            else if (build.hidden < build.hiddenTarget) build.phase = "course";
+            else { build.phase = "settle"; build.since = frameNo; }
         } else if (build.phase === "settle") {
+            if (build.lastLift < 0) liftBall();
             if (frameNo - build.lastLift >= FINAL_SETTLE) { build.tries = 0; sendFinalReset(); }
         } else {                                          // final
             if (!build.startSent && frameNo - build.since >= START_AFTER) { setState(EVENT_MANAGER, "start game"); build.startSent = true; }
@@ -322,6 +420,24 @@
             }
         }
     }
+    function stepRestart() {
+        var r = restartSeq;
+        if (r.phase === "beat") {
+            if (frameNo - r.since >= DEATH_BEAT) { plainRestart(); r.phase = "defuse"; r.since = frameNo; r.startSent = false; }
+        } else if (r.phase === "defuse") {
+            if (!r.startSent && frameNo - r.since >= START_AFTER) { setState(EVENT_MANAGER, "start game"); r.startSent = true; }
+            if (frameNo - r.since >= DEFUSE_FRAMES) { clearWorld(); r.phase = "clear"; r.since = frameNo; }
+        } else if (frameNo - r.since >= CLEAR_FRAMES) {   // clear
+            restartSeq = null;
+            startBuild(0);
+        }
+    }
+    function requestRestart(withBeat) {
+        if (restartSeq) return;
+        build = null; restarts++;
+        restartSeq = withBeat ? { phase: "beat", since: frameNo } : { phase: "defuse", since: frameNo - DEFUSE_FRAMES, startSent: true };
+        note(withBeat ? "death -> instant restart" : "R -> restart");
+    }
 
     function examineFrame(draws) {
         var c = 0;
@@ -331,33 +447,16 @@
         var died = musicStopped && !musicStarted && frameNo - lastRestart > RESTART_GRACE;
         musicStopped = musicStarted = false;
 
-        if (dying) {
-            if (dying.phase === "beat") {
-                if (frameNo - dying.since >= DEATH_BEAT) {
-                    setState(SPAWNER, "DestroyBlocksPool");     // despawn every block (and pauses time; "start game" unpauses)
-                    dying.phase = "clear"; dying.since = frameNo;
-                }
-            } else if (c === 0 || frameNo - dying.since > 30) {
-                dying = null;
-                if (pendingTarget !== null) { stackTarget = pendingTarget; pendingTarget = null; lsSet(KEY_STACK, stackTarget); }
-                startBuild(0);
-            }
+        if (restartSeq) {
+            stepRestart();
         } else if (build) {
             stepBuild(restarted);
         } else if (restarted) {                         // a run just started (Enter at the menu / game over)
-            stacked = 1;
-            if (pendingTarget !== null) { stackTarget = pendingTarget; pendingTarget = null; lsSet(KEY_STACK, stackTarget); }
             if (stackTarget > 1) startBuild(1);
-        } else if (c === 0) {                           // game over cleared the world, or menu
-            if (stacked !== 1) note("cleared");
-            stacked = 1;
-            if (pendingTarget !== null) { stackTarget = pendingTarget; pendingTarget = null; lsSet(KEY_STACK, stackTarget); }
-        } else if (died && stackTarget > 1) {           // instant restart with the stack rebuilt
-            deaths++; instantRestarts++;
-            dying = { phase: "beat", since: frameNo };
-            note("death -> instant restart");
+        } else if (died) {
+            deaths++;
+            if (stackTarget > 1) requestRestart(true);  // instant restart with the stack rebuilt
         }
-        updateBadge();
     }
 
     function frameLoop() {
@@ -380,14 +479,14 @@
     ["keydown", "keypress", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {
             var t = e.target;
-            if (!t || t.id !== STACK_INPUT_ID) return;
+            if (!t || (t.id !== STACK_INPUT_ID && t.id !== "hud-music")) return;
             e.stopImmediatePropagation();
             if (type === "keydown" && (e.key === "Enter" || e.key === "Escape")) { e.preventDefault(); t.blur(); }
         }, true);
     });
 
     var game = null;
-    var hud, timerEl, fsBtn, stackInput, badgeEl, rainbowBox;
+    var hud, timerEl, fsBtn, stackInput, rainbowBox, musicSel;
     var startedAt = Date.now();
     var hideTimer = null;
 
@@ -405,71 +504,49 @@
         hud.classList.remove("hidden");
         clearTimeout(hideTimer);
         hideTimer = setTimeout(function () {
-            if (document.activeElement === stackInput) return;   // keep it visible while typing
+            if (document.activeElement === stackInput || document.activeElement === musicSel) return;   // keep it visible while choosing
             hud.classList.add("hidden");
         }, 2500);
-    }
-
-    function updateBadge() {
-        if (!badgeEl) return;
-        var target = pendingTarget !== null ? pendingTarget : stackTarget;
-        if (target <= 1 && stacked <= 1) { badgeEl.textContent = ""; badgeEl.classList.remove("on"); return; }
-        var txt = "stack " + Math.min(stacked, Math.max(target, stacked)) + " / " + target;
-        if (build || dying) txt += " \u2026";             // building / restarting
-        else if (pendingTarget !== null) txt += " (next run)";
-        badgeEl.textContent = txt;
-        badgeEl.classList.add("on");
     }
 
     function setStackTarget(n) {
         n = parseInt(n, 10);
         if (!(n >= 1)) n = 1;
         if (n > STACK_MAX) n = STACK_MAX;
-        if (dying || (lastCourseCount > 0 && !build && stacked > 1)) {
-            // a run is in progress with a stack already built: apply on the next run
-            pendingTarget = n;
-        } else if (lastCourseCount > 0 && !build && n > 1) {
-            // running on a single course: build right away (the ball goes back to the start)
-            stackTarget = n; lsSet(KEY_STACK, n); pendingTarget = null; startBuild(1);
-        } else {
-            stackTarget = n; lsSet(KEY_STACK, n); pendingTarget = null;
-            if (build && stacked >= stackTarget) build = null;
-        }
+        stackTarget = n;                                // applies at the next run, restart or R
+        lsSet(KEY_STACK, n);
         if (stackInput && String(stackInput.value) !== String(n)) stackInput.value = n;
-        updateBadge();
     }
 
     function toggleFullscreen() {
-        var container = document.getElementById("gameContainer");
+        // the whole page goes fullscreen (not just the canvas) so the HUD stays usable
         if (document.fullscreenElement) {
             if (document.exitFullscreen) document.exitFullscreen();
             return;
         }
-        if (game && game.Module && game.Module.SetFullscreen) {
-            game.SetFullscreen(1);
-        } else if (container && container.requestFullscreen) {
-            container.requestFullscreen();
-        }
+        var root = document.documentElement;
+        if (root.requestFullscreen) root.requestFullscreen().catch(function () { /* denied */ });
     }
 
     window.SlopeMod = {
         blockedCount: function () { return blockedCount; },
         stackTarget: function () { return stackTarget; },
-        stacked: function () { return stacked; },
         courseBatches: function () { return lastCourseCount; },
         log: function () { return debugLog.slice(); },
         frame: function () { return frameNo; },
-        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, instantRestarts: instantRestarts, building: !!build, dying: !!dying, shaderPatched: shaderPatched, shaderFailed: shaderFailed, rainbow: rainbowOn }; },
+        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, building: !!build, restarting: !!restartSeq, music: musicId, shaderPatched: shaderPatched, shaderFailed: shaderFailed, rainbow: rainbowOn }; },
         setStack: setStackTarget,
         setLaps: function (n) { LAPS_PER_COURSE = n; },
+        setMusic: setMusic,
+        restart: function () { if (game) requestRestart(false); },
         init: function (gameInstance) {
             game = gameInstance;
             hud = document.getElementById("hud");
             timerEl = document.getElementById("hud-timer");
             fsBtn = document.getElementById("hud-fs");
             stackInput = document.getElementById("hud-stack");
-            badgeEl = document.getElementById("hud-stack-badge");
             rainbowBox = document.getElementById("hud-rainbow");
+            musicSel = document.getElementById("hud-music");
 
             if (stackInput) {
                 stackInput.value = stackTarget;
@@ -484,20 +561,29 @@
                     rainbowOn = rainbowBox.checked; lsSet(KEY_RAINBOW, rainbowOn ? "1" : "0"); rainbowBox.blur();
                 });
             }
+            if (musicSel) {
+                musicSel.innerHTML = "";
+                TRACKS.forEach(function (t) { var o = document.createElement("option"); o.value = t.id; o.textContent = t.name; musicSel.appendChild(o); });
+                musicSel.value = musicId;
+                musicSel.addEventListener("change", function () { setMusic(musicSel.value); musicSel.blur(); });
+                musicSel.addEventListener("focus", showHud);
+                musicSel.addEventListener("blur", showHud);
+            }
             if (fsBtn) fsBtn.addEventListener("click", function () {
                 toggleFullscreen();
                 fsBtn.blur(); // give the keyboard back to the game
             });
             document.addEventListener("keydown", function (e) {
-                if (document.activeElement === stackInput) return;
-                if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey) toggleFullscreen();
+                if (document.activeElement === stackInput || document.activeElement === musicSel) return;
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+                if (e.key === "f" || e.key === "F") toggleFullscreen();
+                else if (e.key === "r" || e.key === "R") requestRestart(false);
             });
             ["mousemove", "touchstart"].forEach(function (ev) {
                 document.addEventListener(ev, showHud, { passive: true });
             });
             setInterval(tickTimer, 1000);
             tickTimer();
-            updateBadge();
             showHud();
         },
         onGameReady: function () {

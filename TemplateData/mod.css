@@ -123,17 +123,17 @@ html, body {
     background: rgba(0, 230, 118, 0.15);
 }
 
-.hud-badge {
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-    color: #00e676;
-    min-width: 0;
+.hud-select {
+    width: auto;
+    max-width: 220px;
+    text-align: left;
+    appearance: auto;
+    -moz-appearance: auto;
 }
 
-.hud-badge.on {
-    padding: 2px 8px;
-    border: 1px solid rgba(0, 230, 118, 0.5);
-    border-radius: 999px;
+.hud-select option {
+    background: #231F20;
+    color: #fff;
 }
 
 .hud-check {
