@@ -87,8 +87,18 @@ function syncRepo() {
     git(["clean", "--quiet", "-fd"]);
 }
 function changedFiles() {
-    const out = git(["status", "--porcelain", "--untracked-files=all"]);
-    return out ? out.split("\n").map(l => l.slice(3).trim()).filter(Boolean) : [];
+    const r = spawnSync("git", ["status", "--porcelain=v1", "--untracked-files=all", "-z"], { cwd: CFG.repoDir, encoding: "utf8", timeout: 60000 });
+    if (r.status !== 0) throw new Error("git status failed: " + (r.stderr || r.error));
+    // NUL-separated entries: "XY path" (renames add a second NUL-separated original path)
+    const out = [];
+    const parts = r.stdout.split("\0").filter(Boolean);
+    for (let i = 0; i < parts.length; i++) {
+        const e = parts[i];
+        const xy = e.slice(0, 2), p = e.slice(3);
+        out.push(p);
+        if (xy[0] === "R" || xy[0] === "C") i++;          // skip the source path of a rename/copy
+    }
+    return out;
 }
 
 // ---------------------------------------------------------------- validation
