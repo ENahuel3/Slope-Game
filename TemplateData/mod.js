@@ -494,7 +494,7 @@
     //    menu: transform records are 10 floats (quat, pos, scale).
     // ======================================================================
     var G0 = -9.8100004196167, BALL_MASS = 30;
-    var PITCH_SX = 0.38268343, PITCH_CX = 0.92387953;          // SpawnPos rest rotation: 45 degrees about x
+    var PITCH_SX = -0.70710678, PITCH_CX = 0.70710678;         // SpawnPos rest rotation after the scene patch: -90 degrees about x (blocks copy it)
     var H = { grav: [], spawn: [], spawnLive: -1, spawnCache: -1, rig: -1, chase: -1, ball: -1, ballCands: [], vars: {}, kill: -1 };
     var ballPos = null, ballVel = [0, 0, 0], ballT = 0;
     var track = null;                 // per-run state, see resetTrackRun()
@@ -557,7 +557,14 @@
         try {
             if (!H.grav.length) H.grav = findTriple(0, G0, 0);
             if (!H.ballCands.length) H.ballCands = findTriple(5, 10.5, -4);
-            if (!H.spawn.length) H.spawn = liveOnly(nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4));
+            if (!H.spawn.length) {
+                var all = liveOnly(nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4)), f0 = heap32();
+                H.spawnCacheCands = all.slice();
+                for (var i0 = 0; i0 < all.length; i0++) {
+                    var a0 = all[i0];
+                    if (f0[a0 - 3] === 0 && f0[a0 - 2] === 0 && f0[a0 - 1] === 0 && Math.abs(f0[a0 + 4] - 1) < 1e-3 && Math.abs(f0[a0 + 5] - 1) < 1e-3 && Math.abs(f0[a0 + 6] - 1) < 1e-3) H.spawn.push(a0);
+                }
+            }
             if (!H.rigCands) H.rigCands = liveOnly(nearSeq([0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3));
             if (H.chase < 0) { var c = liveOnly(nearSeq([0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4)); if (c.length) H.chase = c[c.length - 1]; }
             ["zforce", "yforce", "SteerForceLeft", "SteerForceRight"].forEach(function (nm) { if (!H.vars[nm]) H.vars[nm] = liveOnly(findFsmFloats(nm)); });
@@ -575,22 +582,21 @@
     }
     function plausible(x, y, z) { return isFinite(x) && isFinite(y) && isFinite(z) && Math.abs(x) < 1e4 && Math.abs(y) < 1e4 && Math.abs(z) < 1e4; }
     function resolveSpawn() {
-        // The spawner's transform shows up twice among the 45-degree rotation records: the local record
-        // (position in the 3 floats before the quaternion, scale after it) and a cached world copy
-        // (position in the 3 floats after the quaternion). They share the same position once the start
-        // section has been built. Unity reads the local one, so that is the one that must be written.
+        // The spawn transform's local record: rest rotation, at the origin with scale 1 while in the menu, and the
+        // only such record that then moves when a run starts (H.spawn is filtered to origin+scale-1 at discovery).
+        // Its cached world copy is the record in the [quat, pos] layout holding the same rotation and position.
         var f = heap32(); if (!f) return false;
         for (var i = 0; i < H.spawn.length; i++) {
             var a = H.spawn[i], x = f[a - 3], y = f[a - 2], z = f[a - 1];
             if (!plausible(x, y, z) || (x === 0 && y === 0 && z === 0)) continue;
-            if (Math.abs(f[a + 4] - 1) > 1e-3 || Math.abs(f[a + 5] - 1) > 1e-3 || Math.abs(f[a + 6] - 1) > 1e-3) continue;   // scale 1,1,1
-            for (var j = 0; j < H.spawn.length; j++) {
-                var b = H.spawn[j];
-                if (Math.abs(f[b + 4] - x) < 1e-3 && Math.abs(f[b + 5] - y) < 1e-3 && Math.abs(f[b + 6] - z) < 1e-3) {
-                    H.spawnLive = a; H.spawnCache = b; note("spawn transform: local " + a + ", cache " + b);
-                    return true;
-                }
+            H.spawnLive = a; H.spawnCache = -1;
+            var caches = H.spawnCacheCands || [];
+            for (var j = 0; j < caches.length; j++) {
+                var b = caches[j];
+                if (Math.abs(f[b + 4] - x) < 1e-3 && Math.abs(f[b + 5] - y) < 1e-3 && Math.abs(f[b + 6] - z) < 1e-3 && Math.abs(f[b] - f[a]) < 1e-3 && Math.abs(f[b + 3] - f[a + 3]) < 1e-3) { H.spawnCache = b; break; }
             }
+            note("spawn transform: local " + a + ", cache " + H.spawnCache);
+            return true;
         }
         return false;
     }
@@ -646,13 +652,12 @@
     function qconj(q) { return [-q[0], -q[1], -q[2], q[3]]; }
     function qrot(q, v) { var r = qmul(qmul(q, [v[0], v[1], v[2], 0]), qconj(q)); return [r[0], r[1], r[2]]; }
     function qaxis(axis, ang) { var h = ang / 2, s = Math.sin(h); return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(h)]; }
-    var Q_PITCH = [PITCH_SX, 0, 0, PITCH_CX];                  // the spawn point's rest rotation (45 degrees about x)
+    var Q_REST = [PITCH_SX, 0, 0, PITCH_CX];                   // the spawn point's rest rotation
     var FWD0 = [0, -0.70710678, 0.70710678], N0 = [0, 0.70710678, 0.70710678];   // course axis and floor normal of a straight lap
-    function frameQ(yaw, roll) {                                // world rotation of a lap frame: yaw about y, roll about the (pitched) course axis
-        var qy = qaxis([0, 1, 0], yaw), qr = qmul(qmul(Q_PITCH, qaxis([0, 0, 1], roll)), qconj(Q_PITCH));
-        return qmul(qy, qr);
+    function frameQ(yaw, roll) {                                // world rotation of a lap frame: roll about the course axis, then yaw about y
+        return qmul(qaxis([0, 1, 0], yaw), qaxis(FWD0, roll));
     }
-    function spawnQ(yaw, roll) { return qmul(qaxis([0, 1, 0], yaw), qmul(Q_PITCH, qaxis([0, 0, 1], roll))); }
+    function spawnQ(yaw, roll) { return qmul(frameQ(yaw, roll), Q_REST); }
     function v3(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
     function vadd(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
     function vsub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
