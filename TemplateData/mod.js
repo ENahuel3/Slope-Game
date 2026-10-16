@@ -591,6 +591,11 @@
         var list = H.spawnSet || [H.spawnLive];
         for (var i = 0; i < list.length; i++) { var a = list[i]; f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3]; }
     }
+    function writeSpawnPos(p) {
+        var f = heap32(); if (!f || H.spawnLive < 0) return;
+        var list = H.spawnSet || [H.spawnLive];
+        for (var i = 0; i < list.length; i++) { var a = list[i]; f[a + 4] = p[0]; f[a + 5] = p[1]; f[a + 6] = p[2]; }
+    }
     function spawnPos() {
         var f = heap32(); if (!f) return null;
         if (H.spawnLive < 0) {                  // the live record is the one that has left the origin (finite, plausible)
@@ -639,7 +644,7 @@
     // ---- per-run track state -------------------------------------------------
     function resetTrackRun() {
         track = { yawCmd: 0, segs: [{ yaw: 0, pos: [0, 0, 0] }], passed: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0,
-                  camYaw: 0, turnPending: pendingTurnNext, fallFrames: 0 };
+                  camYaw: 0, turnPending: pendingTurnNext, fallFrames: 0, shift: null, written: null };
         pendingTurnNext = 0;
         ballPos = null; ballVel = [0, 0, 0];
         writeSpawnYaw(0); writeRigYaw(0); writeChaseLocal(0, 3.056, -1.207);   // each is a no-op until its record is known
@@ -667,18 +672,26 @@
         var sp = spawnPos() || [0, 0, 0];
         var newYaw = track.yawCmd + step;
         track.segs.push({ yaw: newYaw, pos: sp.slice(), from: track.yawCmd, at: performance.now(), turn: Math.abs(step) > 1 });
+        // until the next chain spawns, keep the spawn point pushed forward along the OLD heading by the
+        // radius of the swing the ball will make, so the new lap's first block is where the ball lands
+        track.shift = { base: sp.slice(), fwd: [Math.sin(track.yawCmd), 0, Math.cos(track.yawCmd)], step: Math.abs(step) };
         track.yawCmd = newYaw; trackDebug.kinks++;
         note("lap " + track.laps + ": yaw " + (newYaw * 180 / Math.PI).toFixed(0) + " deg (" + (step * 180 / Math.PI).toFixed(0) + ") at " + sp.map(function (v) { return v.toFixed(0); }).join(","));
     }
     function watchSpawner() {
         var sp = spawnPos(); if (!sp) return;
         if (!track.lastSpawn) { track.lastSpawn = sp; planNextLap(); return; }   // the start section is already built: its jump is the first kink
-        if (track.lastSpawn) {
-            var moved = Math.abs(sp[0] - track.lastSpawn[0]) + Math.abs(sp[1] - track.lastSpawn[1]) + Math.abs(sp[2] - track.lastSpawn[2]) > 0.01;
-            if (moved) { track.moving = true; track.stillFrames = 0; }
-            else if (track.moving && ++track.stillFrames >= 8) { track.moving = false; planNextLap(); }   // a chain just finished: the jump block sits at this position
-        }
+        var ref = track.written || track.lastSpawn;
+        var moved = Math.abs(sp[0] - ref[0]) + Math.abs(sp[1] - ref[1]) + Math.abs(sp[2] - ref[2]) > 0.05;
+        if (moved) { track.moving = true; track.stillFrames = 0; track.shift = null; track.written = null; }
+        else if (track.moving && ++track.stillFrames >= 8) { track.moving = false; planNextLap(); }   // a chain just finished: the jump block sits at this position
         track.lastSpawn = sp;
+        if (!track.moving && track.shift && ballPos) {
+            var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
+            var r = Math.max(2, 0.2 * Math.max(vh, 12)) * Math.sin(Math.min(track.shift.step, Math.PI / 2) / 2) * 2;   // chord of the swing arc
+            var b = track.shift.base, fw = track.shift.fwd, p = [b[0] + fw[0] * r, b[1], b[2] + fw[2] * r];
+            writeSpawnPos(p); track.written = p; track.lastSpawn = p;
+        }
     }
     function rotY(v, yaw) { var s = Math.sin(yaw), c = Math.cos(yaw); return [v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c]; }
 
@@ -906,7 +919,7 @@
         setGravity: setGravityMode,
         setTurn: function (dir) { var v = (dir < 0 ? -1 : 1) * Math.PI / 2; if (track) track.turnPending = v; else pendingTurnNext = v; },
         heading: function () { return track && ballPos ? +(segHeadingAt(ballPos) * 180 / Math.PI).toFixed(1) : null; },
-        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnSet: H.spawnSet, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yawCmd * 180 / Math.PI).toFixed(1) : null, camYaw: track ? +(track.camYaw * 180 / Math.PI).toFixed(1) : null, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), rigPos: rigPos(), rig: H.rig, zforce: fsmFloat("zforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
+        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnSet: H.spawnSet, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yawCmd * 180 / Math.PI).toFixed(1) : null, camYaw: track ? +(track.camYaw * 180 / Math.PI).toFixed(1) : null, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), rigPos: rigPos(), rig: H.rig, shift: track && track.shift ? +(Math.hypot((track.written || [0,0,0])[0] - track.shift.base[0], (track.written || [0,0,0])[2] - track.shift.base[2])).toFixed(1) : 0, zforce: fsmFloat("zforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
         openEditor: openPanel,
