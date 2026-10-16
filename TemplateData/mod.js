@@ -496,7 +496,7 @@
     // ======================================================================
     var G0 = -9.8100004196167, BALL_MASS = 30;
     var PITCH_SX = 0.38268343, PITCH_CX = 0.92387953;          // SpawnPos rest rotation: 45 degrees about x
-    var H = { grav: [], spawn: [], spawnLive: -1, rig: -1, chase: -1, ball: -1, ballCands: [], vars: {} };
+    var H = { grav: [], spawn: [], spawnLive: -1, spawnCache: -1, rig: -1, chase: -1, ball: -1, ballCands: [], vars: {} };
     var ballPos = null, ballVel = [0, 0, 0], ballT = 0;
     var track = null;                 // per-run state, see resetTrackRun()
     var keysHeld = { left: false, right: false };
@@ -558,16 +558,7 @@
         try {
             if (!H.grav.length) H.grav = findTriple(0, G0, 0);
             if (!H.ballCands.length) H.ballCands = findTriple(5, 10.5, -4);
-            if (!H.spawn.length) {
-                var recs = liveOnly(nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4)), f = heap32();
-                H.spawnAll = []; H.spawnInit = {};
-                for (var i = 0; i < recs.length; i++) {
-                    var a = recs[i], x = f[a + 4], y = f[a + 5], z = f[a + 6];
-                    if (!isFinite(x) || !isFinite(y) || !isFinite(z) || Math.abs(x) > 1e4 || Math.abs(y) > 1e4 || Math.abs(z) > 1e4) continue;
-                    H.spawnAll.push(a); H.spawnInit[a] = [x, y, z];
-                    if (x === 0 && y === 0 && z === 0) H.spawn.push(a);
-                }
-            }
+            if (!H.spawn.length) H.spawn = liveOnly(nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4));
             if (!H.rigCands) H.rigCands = liveOnly(nearSeq([0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3));
             if (H.chase < 0) { var c = liveOnly(nearSeq([0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4)); if (c.length) H.chase = c[c.length - 1]; }
             ["zforce", "SteerForceLeft", "SteerForceRight"].forEach(function (nm) { if (!H.vars[nm]) H.vars[nm] = liveOnly(findFsmFloats(nm)); });
@@ -583,36 +574,46 @@
         for (var i = 0; i < H.grav.length; i++) { var a = H.grav[i]; f[a] = x; f[a + 1] = y; f[a + 2] = z; }
         gravWritten = !(x === 0 && y === G0 && z === 0);
     }
+    function plausible(x, y, z) { return isFinite(x) && isFinite(y) && isFinite(z) && Math.abs(x) < 1e4 && Math.abs(y) < 1e4 && Math.abs(z) < 1e4; }
+    function resolveSpawn() {
+        // The spawner's transform shows up twice among the 45-degree rotation records: the local record
+        // (position in the 3 floats before the quaternion, scale after it) and a cached world copy
+        // (position in the 3 floats after the quaternion). They share the same position once the start
+        // section has been built. Unity reads the local one, so that is the one that must be written.
+        var f = heap32(); if (!f) return false;
+        for (var i = 0; i < H.spawn.length; i++) {
+            var a = H.spawn[i], x = f[a - 3], y = f[a - 2], z = f[a - 1];
+            if (!plausible(x, y, z) || (x === 0 && y === 0 && z === 0)) continue;
+            if (Math.abs(f[a + 4] - 1) > 1e-3 || Math.abs(f[a + 5] - 1) > 1e-3 || Math.abs(f[a + 6] - 1) > 1e-3) continue;   // scale 1,1,1
+            for (var j = 0; j < H.spawn.length; j++) {
+                var b = H.spawn[j];
+                if (Math.abs(f[b + 4] - x) < 1e-3 && Math.abs(f[b + 5] - y) < 1e-3 && Math.abs(f[b + 6] - z) < 1e-3) {
+                    H.spawnLive = a; H.spawnCache = b; note("spawn transform: local " + a + ", cache " + b);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
     function writeSpawnYaw(yaw) {              // rotation = Ry(yaw) * Rx(45deg)
-        var f = heap32(); if (!f) return;
+        var f = heap32(); if (!f || H.spawnLive < 0) return;
         var sy = Math.sin(yaw / 2), cy = Math.cos(yaw / 2);
         var q = [cy * PITCH_SX, sy * PITCH_CX, -sy * PITCH_SX, cy * PITCH_CX];
-        if (H.spawnLive < 0) return;
-        var list = H.spawnSet || [H.spawnLive];
-        for (var i = 0; i < list.length; i++) { var a = list[i]; f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3]; }
+        var a = H.spawnLive, b = H.spawnCache;
+        f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3];
+        if (b >= 0) { f[b] = q[0]; f[b + 1] = q[1]; f[b + 2] = q[2]; f[b + 3] = q[3]; }
     }
-    function shiftSpawnBy(d) {               // move every lockstep record by the same delta (only the live one is the spawn point itself)
+    function shiftSpawnBy(d) {
         var f = heap32(); if (!f || H.spawnLive < 0) return;
-        var list = H.spawnSet || [H.spawnLive];
-        for (var i = 0; i < list.length; i++) { var a = list[i]; f[a + 4] += d[0]; f[a + 5] += d[1]; f[a + 6] += d[2]; }
+        var a = H.spawnLive, b = H.spawnCache;
+        f[a - 3] += d[0]; f[a - 2] += d[1]; f[a - 1] += d[2];
+        if (b >= 0) { f[b + 4] += d[0]; f[b + 5] += d[1]; f[b + 6] += d[2]; }
     }
     function spawnPos() {
         var f = heap32(); if (!f) return null;
-        if (H.spawnLive < 0) {                  // the live record is the one that has left the origin (finite, plausible)
-            for (var i = 0; i < H.spawn.length; i++) {
-                var a = H.spawn[i], x = f[a + 4], y = f[a + 5], z = f[a + 6];
-                if (isFinite(x) && isFinite(y) && isFinite(z) && (x !== 0 || y !== 0 || z !== 0) && Math.abs(x) < 1e4 && Math.abs(y) < 1e4 && Math.abs(z) < 1e4) { H.spawnLive = a; break; }
-            }
-            if (H.spawnLive < 0) return null;
-            // every 45-degree record that moved by the same displacement is the same transform (local + cached world copies)
-            var d = [f[H.spawnLive + 4], f[H.spawnLive + 5], f[H.spawnLive + 6]]; H.spawnSet = [];
-            for (var j = 0; j < H.spawnAll.length; j++) {
-                var b = H.spawnAll[j], o = H.spawnInit[b];
-                if (Math.abs((f[b + 4] - o[0]) - d[0]) < 0.05 && Math.abs((f[b + 5] - o[1]) - d[1]) < 0.05 && Math.abs((f[b + 6] - o[2]) - d[2]) < 0.05) H.spawnSet.push(b);
-            }
-            note("spawn point records " + H.spawnSet.join(",") + " (live " + H.spawnLive + ")");
-        }
-        return [f[H.spawnLive + 4], f[H.spawnLive + 5], f[H.spawnLive + 6]];
+        if (H.spawnLive < 0 && !resolveSpawn()) return null;
+        var a = H.spawnLive;
+        return [f[a - 3], f[a - 2], f[a - 1]];
     }
     function writeRigYaw(yaw) {
         var f = heap32(); if (!f || H.rig < 0) return;
@@ -928,9 +929,9 @@
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
         setGravity: setGravityMode,
-        setTurn: function (dir) { var v = (dir < 0 ? -1 : 1) * Math.PI / 2; if (track) track.turnPending = v; else pendingTurnNext = v; },
+        setTurn: function (dir) { var v = (dir < 0 ? -1 : 1) * Math.PI / 2; if (track) track.turnPending = v; pendingTurnNext = v; },
         heading: function () { return track && ballPos ? +(segHeadingAt(ballPos) * 180 / Math.PI).toFixed(1) : null; },
-        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnSet: H.spawnSet, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yawCmd * 180 / Math.PI).toFixed(1) : null, camYaw: track ? +(track.camYaw * 180 / Math.PI).toFixed(1) : null, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), rigPos: rigPos(), rig: H.rig, shift: track && track.shift ? +(Math.hypot((track.written || [0,0,0])[0] - track.shift.base[0], (track.written || [0,0,0])[2] - track.shift.base[2])).toFixed(1) : 0, zforce: fsmFloat("zforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
+        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yawCmd * 180 / Math.PI).toFixed(1) : null, camYaw: track ? +(track.camYaw * 180 / Math.PI).toFixed(1) : null, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), rigPos: rigPos(), rig: H.rig, shift: track && track.shift ? +(Math.hypot((track.written || [0,0,0])[0] - track.shift.base[0], (track.written || [0,0,0])[2] - track.shift.base[2])).toFixed(1) : 0, zforce: fsmFloat("zforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
         openEditor: openPanel,
