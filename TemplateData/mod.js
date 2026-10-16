@@ -694,11 +694,16 @@
         track.lastSpawn = sp;
         if (!track.moving && track.shift && ballPos) {
             var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
-            var half = Math.min(track.shift.step, Math.PI / 2) / 2;
-            var r = Math.max(2, 0.2 * Math.max(vh, 12)) * Math.sin(half) * 2;              // chord of the swing arc, along the old heading
-            var back = 8 * Math.sin(half) * 2 / 1.4142;                                      // shorten the 20-unit inter-lap gap for sharp turns (no overlap with the jump)
+            var half = Math.min(track.shift.step, Math.PI / 2) / 2, sharp = Math.sin(half) * 2 / 1.4142;   // 0..1, 1 for a 90-degree turn
+            // where the ball will be when the whip has turned it: past the jump lip plus the swing arc,
+            // measured along the old heading from the kink
+            var ahead = (8 + 0.06 * Math.max(vh, 12)) * sharp;
+            var back = 8 * sharp;                                                              // shorten the 20-unit inter-lap gap (no overlap with the jump)
+            // blocks span 0..10 along the frame's local x; put the ball at the lane centre (5)
+            var nyaw = track.yawCmd, lx = [Math.cos(nyaw), 0, -Math.sin(nyaw)], centre = 5 * sharp;
             var b = track.shift.base, fw = track.shift.fwd, nf = track.shift.nfwd;
-            var want = [b[0] + fw[0] * r - nf[0] * back, b[1], b[2] + fw[2] * r - nf[2] * back];
+            var want = [b[0] + fw[0] * ahead - nf[0] * back - lx[0] * centre + (1 - sharp) * 0, b[1], b[2] + fw[2] * ahead - nf[2] * back - lx[2] * centre];
+            if (sharp < 0.3) want = [b[0], b[1], b[2]];                                       // gentle curves: leave the spawn point alone
             var cur = track.written || b, d = [want[0] - cur[0], want[1] - cur[1], want[2] - cur[2]];
             if (Math.abs(d[0]) + Math.abs(d[1]) + Math.abs(d[2]) > 0.01) shiftSpawnBy(d);
             track.written = want; track.lastSpawn = want;
