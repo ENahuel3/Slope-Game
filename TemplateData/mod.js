@@ -591,10 +591,10 @@
         var list = H.spawnSet || [H.spawnLive];
         for (var i = 0; i < list.length; i++) { var a = list[i]; f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3]; }
     }
-    function writeSpawnPos(p) {
+    function shiftSpawnBy(d) {               // move every lockstep record by the same delta (only the live one is the spawn point itself)
         var f = heap32(); if (!f || H.spawnLive < 0) return;
         var list = H.spawnSet || [H.spawnLive];
-        for (var i = 0; i < list.length; i++) { var a = list[i]; f[a + 4] = p[0]; f[a + 5] = p[1]; f[a + 6] = p[2]; }
+        for (var i = 0; i < list.length; i++) { var a = list[i]; f[a + 4] += d[0]; f[a + 5] += d[1]; f[a + 6] += d[2]; }
     }
     function spawnPos() {
         var f = heap32(); if (!f) return null;
@@ -646,6 +646,7 @@
         track = { yawCmd: 0, segs: [{ yaw: 0, pos: [0, 0, 0] }], passed: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0,
                   camYaw: 0, turnPending: pendingTurnNext, fallFrames: 0, shift: null, written: null };
         pendingTurnNext = 0;
+        note("track reset" + (track.turnPending ? " (turn pending)" : ""));
         ballPos = null; ballVel = [0, 0, 0];
         writeSpawnYaw(0); writeRigYaw(0); writeChaseLocal(0, 3.056, -1.207);   // each is a no-op until its record is known
     }
@@ -689,8 +690,10 @@
         if (!track.moving && track.shift && ballPos) {
             var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
             var r = Math.max(2, 0.2 * Math.max(vh, 12)) * Math.sin(Math.min(track.shift.step, Math.PI / 2) / 2) * 2;   // chord of the swing arc
-            var b = track.shift.base, fw = track.shift.fwd, p = [b[0] + fw[0] * r, b[1], b[2] + fw[2] * r];
-            writeSpawnPos(p); track.written = p; track.lastSpawn = p;
+            var b = track.shift.base, fw = track.shift.fwd, want = [b[0] + fw[0] * r, b[1], b[2] + fw[2] * r];
+            var cur = track.written || b, d = [want[0] - cur[0], want[1] - cur[1], want[2] - cur[2]];
+            if (Math.abs(d[0]) + Math.abs(d[1]) + Math.abs(d[2]) > 0.01) shiftSpawnBy(d);
+            track.written = want; track.lastSpawn = want;
         }
     }
     function rotY(v, yaw) { var s = Math.sin(yaw), c = Math.cos(yaw); return [v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c]; }
@@ -704,7 +707,7 @@
             return;
         }
         trackBall(); watchSpawner();
-        if (ballPos && ballVel[1] < -70) { if (++track.fallFrames > 45 && !restartSeq) { note("free fall, restarting"); requestRestart(true); return; } } else track.fallFrames = 0;
+        if (ballPos && ballVel[1] < -70) { if (++track.fallFrames > 45 && !restartSeq && !build) { note("free fall at y=" + ballPos[1].toFixed(0) + ", restarting"); requestRestart(true); return; } } else track.fallFrames = 0;
         if (H.spawnLive < 0) return;                                       // not until the live spawn record has shown itself
         writeSpawnYaw(track.yawCmd);                                       // whatever spawns next uses the commanded heading
         if (!ballPos || H.rig < 0) return;
