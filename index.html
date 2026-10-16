@@ -44,12 +44,12 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
         <label class="hud-label" for="hud-music" title="Soundtrack">Music</label>
         <select id="hud-music" class="hud-input hud-select" title="Soundtrack"></select>
         <span class="hud-sep"></span>
-        <label class="hud-label" for="hud-gravity" title="Curves: gravity slowly tilts sideways and the view banks with it. Ramps: leaving the ground triggers a sudden gravity change until you land.">Gravity</label>
-        <select id="hud-gravity" class="hud-input hud-select" title="Gravity modifiers">
-            <option value="off">Off</option>
+        <label class="hud-label" for="hud-gravity" title="Curves: the course itself slowly bends left and right. Turns: after a jump the course turns a full 90 degrees and the camera swings round with it.">Track</label>
+        <select id="hud-gravity" class="hud-input hud-select" title="Track shaping">
+            <option value="off">Straight</option>
             <option value="curves">Curves</option>
-            <option value="ramps">Ramps</option>
-            <option value="both">Curves + Ramps</option>
+            <option value="turns">90&deg; turns</option>
+            <option value="both">Curves + turns</option>
         </select>
         <span id="hud-gravity-badge" class="hud-gbadge"></span>
         <span class="hud-spacer"></span>

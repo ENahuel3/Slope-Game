@@ -184,6 +184,5 @@ html, body {
 .edit-budget { font-size: 11px; opacity: 0.6; }
 
 /* gravity modes: the canvas banks with sideways gravity; a badge names ramp events */
-#gameContainer canvas { transition: transform 0.25s ease-out; transform-origin: 50% 60%; }
 .hud-gbadge { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #ffd54f; opacity: 0; transition: opacity 0.2s; }
 .hud-gbadge.on { opacity: 1; }
