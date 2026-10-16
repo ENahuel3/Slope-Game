@@ -53,7 +53,7 @@
         { id: "aria", name: "Aria Math (Phonk Remix)", file: "TemplateData/music/aria-math-phonk-remix.mp3" },
         { id: "billie", name: "Mort Jackson \u2013 Billie Jean", file: "TemplateData/music/mort-jackson-billie-jean.mp3" }
     ];
-    var GRAVITY_MODES = ["off", "curves", "turns", "both"];
+    var GRAVITY_MODES = ["off", "curves", "twists", "both"];
     var gravityMode = (function () { var m = lsGet(KEY_GRAVITY); return GRAVITY_MODES.indexOf(m) >= 0 ? m : "off"; })();
     var musicId = (function () { var id = lsGet(KEY_MUSIC); return TRACKS.some(function (t) { return t.id === id; }) ? id : "original"; })();
 
@@ -495,7 +495,7 @@
     // ======================================================================
     var G0 = -9.8100004196167, BALL_MASS = 30;
     var PITCH_SX = 0.38268343, PITCH_CX = 0.92387953;          // SpawnPos rest rotation: 45 degrees about x
-    var H = { grav: [], spawn: [], spawnLive: -1, spawnCache: -1, rig: -1, chase: -1, ball: -1, ballCands: [], vars: {} };
+    var H = { grav: [], spawn: [], spawnLive: -1, spawnCache: -1, rig: -1, chase: -1, ball: -1, ballCands: [], vars: {}, kill: -1 };
     var ballPos = null, ballVel = [0, 0, 0], ballT = 0;
     var track = null;                 // per-run state, see resetTrackRun()
     var keysHeld = { left: false, right: false };
@@ -641,43 +641,79 @@
         ballPos = p; ballT = now;
     }
 
+    // ---- quaternion helpers (x, y, z, w) ---------------------------------------
+    function qmul(a, b) { return [a[3]*b[0] + a[0]*b[3] + a[1]*b[2] - a[2]*b[1], a[3]*b[1] - a[0]*b[2] + a[1]*b[3] + a[2]*b[0], a[3]*b[2] + a[0]*b[1] - a[1]*b[0] + a[2]*b[3], a[3]*b[3] - a[0]*b[0] - a[1]*b[1] - a[2]*b[2]]; }
+    function qconj(q) { return [-q[0], -q[1], -q[2], q[3]]; }
+    function qrot(q, v) { var r = qmul(qmul(q, [v[0], v[1], v[2], 0]), qconj(q)); return [r[0], r[1], r[2]]; }
+    function qaxis(axis, ang) { var h = ang / 2, s = Math.sin(h); return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(h)]; }
+    var Q_PITCH = [PITCH_SX, 0, 0, PITCH_CX];                  // the spawn point's rest rotation (45 degrees about x)
+    var FWD0 = [0, -0.70710678, 0.70710678], N0 = [0, 0.70710678, 0.70710678];   // course axis and floor normal of a straight lap
+    function frameQ(yaw, roll) {                                // world rotation of a lap frame: yaw about y, roll about the (pitched) course axis
+        var qy = qaxis([0, 1, 0], yaw), qr = qmul(qmul(Q_PITCH, qaxis([0, 0, 1], roll)), qconj(Q_PITCH));
+        return qmul(qy, qr);
+    }
+    function spawnQ(yaw, roll) { return qmul(qaxis([0, 1, 0], yaw), qmul(Q_PITCH, qaxis([0, 0, 1], roll))); }
+    function v3(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+    function vadd(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+    function vsub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+    function vdot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+    function vlen(a) { return Math.sqrt(vdot(a, a)); }
+    function segFrame(seg) {                                    // cached axes of a segment
+        if (!seg.R) { seg.R = frameQ(seg.yaw, seg.roll); seg.fwd = qrot(seg.R, FWD0); seg.n = qrot(seg.R, N0); seg.xh = qrot(seg.R, [1, 0, 0]); seg.yh = qrot(seg.R, [0, 1, 0]); seg.zh = qrot(seg.R, [0, 0, 1]); }
+        return seg;
+    }
+
     // ---- per-run track state -------------------------------------------------
     function resetTrackRun() {
-        track = { yawCmd: 0, segs: [{ yaw: 0, pos: [0, 0, 0] }], passed: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0,
-                  camYaw: 0, turnPending: pendingTurnNext, fallFrames: 0, shift: null, written: null, whip: null };
-        pendingTurnNext = 0;
-        note("track reset" + (track.turnPending ? " (turn pending)" : ""));
+        track = { yaw: 0, roll: 0, segs: [segFrame({ yaw: 0, roll: 0, pos: [0, 0, 0], from: null })], passed: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0,
+                  camQ: [0, 0, 0, 1], turnPending: pendingTurnNext, twistPending: pendingTwistNext, fallFrames: 0, shift: null, written: null, whip: null };
+        pendingTurnNext = 0; pendingTwistNext = 0;
+        note("track reset" + (track.turnPending ? " (turn pending)" : "") + (track.twistPending ? " (twist pending)" : ""));
         ballPos = null; ballVel = [0, 0, 0];
-        writeSpawnYaw(0); writeRigYaw(0); writeChaseLocal(0, 3.056, -1.207);   // each is a no-op until its record is known
+        writeSpawnRot(spawnQ(0, 0)); writeRigQ([0, 0, 0, 1]); writeChaseLocal(0, 3.056, -1.207);
     }
-    function segHeadingAt(p) {                // heading of the segment the ball is on; kinks are passed in order and stay passed
+    function writeSpawnRot(q) {
+        var f = heap32(); if (!f || H.spawnLive < 0) return;
+        var a = H.spawnLive, b = H.spawnCache;
+        f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3];
+        if (b >= 0) { f[b] = q[0]; f[b + 1] = q[1]; f[b + 2] = q[2]; f[b + 3] = q[3]; }
+    }
+    function writeRigQ(q) { var f = heap32(); if (!f || H.rig < 0) return; f[H.rig] = q[0]; f[H.rig + 1] = q[1]; f[H.rig + 2] = q[2]; f[H.rig + 3] = q[3]; }
+    function segHeadingAt(p) {                // index of the segment the ball is on; kinks are passed in order and stay passed
         var segs = track.segs;
         while (track.passed + 1 < segs.length) {
             var k = segs[track.passed + 1], prev = segs[track.passed];
-            var dx = p[0] - k.pos[0], dz = p[2] - k.pos[2];
-            var dist = Math.sqrt(dx * dx + dz * dz);
-            var along = dx * Math.sin(prev.yaw) + dz * Math.cos(prev.yaw);
+            var d = vsub(p, k.pos), dist = vlen([d[0], 0, d[2]]), along = vdot(d, prev.fwd);
             if (dist < 90 && along > -2) { track.passed++; track.whip = null; } else break;
         }
-        return segs[track.passed].yaw;
+        return track.passed;
     }
-    function planNextLap() {                   // called when a lap chain has finished spawning: decide the yaw of the next lap
-        var mode = gravityMode, step = 0;
+    function planNextLap() {                   // called when a lap chain has finished spawning: decide the frame of the next lap
+        var mode = gravityMode, yawStep = 0, rollStep = 0;
         track.laps++;
-        if (track.turnPending) { step = track.turnPending; track.turnPending = 0; }
-        else if (mode === "turns" || mode === "both") {
-            if (track.laps >= 2 && Math.random() < 0.5) step = (Math.random() < 0.5 ? -1 : 1) * Math.PI / 2;
+        if (track.turnPending) { yawStep = track.turnPending; track.turnPending = 0; }
+        else if (track.twistPending) { rollStep = track.twistPending; track.twistPending = 0; }
+        else if (mode === "twists" || mode === "both") {
+            if (track.laps >= 2 && Math.random() < 0.5) rollStep = (Math.random() < 0.5 ? -1 : 1) * Math.PI / 2;
         }
-        if (!step && (mode === "curves" || mode === "both")) step = (Math.random() * 2 - 1) * (8 * Math.PI / 180) + (Math.random() < 0.5 ? -1 : 1) * (4 * Math.PI / 180);
-        if (!step) return;
+        if (!yawStep && !rollStep && (mode === "curves" || mode === "both")) yawStep = (Math.random() * 2 - 1) * (8 * Math.PI / 180) + (Math.random() < 0.5 ? -1 : 1) * (4 * Math.PI / 180);
+        if (!yawStep && !rollStep) return;
         var sp = spawnPos() || [0, 0, 0];
-        var newYaw = track.yawCmd + step;
-        track.segs.push({ yaw: newYaw, pos: sp.slice(), from: track.yawCmd, at: performance.now(), turn: Math.abs(step) > 1 });
-        // until the next chain spawns, keep the spawn point pushed forward along the OLD heading by the
-        // radius of the swing the ball will make, so the new lap's first block is where the ball lands
-        track.shift = { base: sp.slice(), fwd: [Math.sin(track.yawCmd), 0, Math.cos(track.yawCmd)], nfwd: [Math.sin(newYaw), 0, Math.cos(newYaw)], step: Math.abs(step) };
-        track.yawCmd = newYaw; trackDebug.kinks++;
-        note("lap " + track.laps + ": yaw " + (newYaw * 180 / Math.PI).toFixed(0) + " deg (" + (step * 180 / Math.PI).toFixed(0) + ") at " + sp.map(function (v) { return v.toFixed(0); }).join(","));
+        var prev = track.segs[track.segs.length - 1];
+        var seg = segFrame({ yaw: track.yaw + yawStep, roll: track.roll + rollStep, pos: sp.slice(), from: prev, turn: Math.abs(yawStep) > 1, twist: !!rollStep, at: performance.now() });
+        track.segs.push(seg);
+        if (seg.twist) {
+            // The next lap is a wall: put it at the lane edge on the side the new "up" points away from, so the
+            // ball (lane centre, 5 in from either edge) sits 5 units off the wall's collidable face and drops onto
+            // it once gravity swings. The lane spans 0..10 along the new lateral axis; centre that on the ball.
+            var w = vdot(seg.n, prev.xh) < 0 ? 10 : 0;
+            var p2 = vadd(vadd(sp, v3(prev.xh, w)), v3(seg.xh, -5));
+            track.shift = { fixed: p2 };
+        } else {
+            track.shift = { base: sp.slice(), fwd: prev.fwd, nfwd: seg.fwd, step: Math.abs(yawStep), nxh: seg.xh };
+        }
+        track.yaw = seg.yaw; track.roll = seg.roll; trackDebug.kinks++;
+        note("lap " + track.laps + ": yaw " + (seg.yaw * 180 / Math.PI).toFixed(0) + " roll " + (seg.roll * 180 / Math.PI).toFixed(0) + " at " + sp.map(function (v) { return v.toFixed(0); }).join(","));
     }
     function watchSpawner() {
         var sp = spawnPos(); if (!sp) return;
@@ -692,98 +728,104 @@
         else if (track.moving && ++track.stillFrames >= 8) { track.moving = false; planNextLap(); }   // a chain just finished: the jump block sits at this position
         track.lastSpawn = sp;
         if (!track.moving && track.shift && ballPos) {
-            var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
-            var half = Math.min(track.shift.step, Math.PI / 2) / 2, sharp = Math.sin(half) * 2 / 1.4142;   // 0..1, 1 for a 90-degree turn
-            // where the ball will be when the whip has turned it: past the jump lip plus the swing arc,
-            // measured along the old heading from the kink
-            var ahead = (8 + 0.06 * Math.max(vh, 12)) * sharp;
-            var back = 8 * sharp;                                                              // shorten the 20-unit inter-lap gap (no overlap with the jump)
-            // blocks span 0..10 along the frame's local x; put the ball at the lane centre (5)
-            var nyaw = track.yawCmd, lx = [Math.cos(nyaw), 0, -Math.sin(nyaw)], centre = 5 * sharp;
-            var b = track.shift.base, fw = track.shift.fwd, nf = track.shift.nfwd;
-            var drop = 8 * sharp;                                                              // the lip is lower than the kink: start the turned lane below it
-            var want = [b[0] + fw[0] * ahead - nf[0] * back - lx[0] * centre, b[1] - drop, b[2] + fw[2] * ahead - nf[2] * back - lx[2] * centre];
-            if (sharp < 0.3) want = [b[0], b[1], b[2]];                                       // gentle curves: leave the spawn point alone
-            var cur = track.written || b, d = [want[0] - cur[0], want[1] - cur[1], want[2] - cur[2]];
+            var want;
+            if (track.shift.fixed) want = track.shift.fixed;
+            else {
+                var sh = track.shift, vh = vlen([ballVel[0], 0, ballVel[2]]);
+                var half = Math.min(sh.step, Math.PI / 2) / 2, sharp = Math.sin(half) * 2 / 1.4142;
+                var ahead = (8 + 0.06 * Math.max(vh, 12)) * sharp, back = 8 * sharp, centre = 5 * sharp, drop = 8 * sharp;
+                want = vadd(vadd(vadd(sh.base, v3([sh.fwd[0], 0, sh.fwd[2]], ahead / 0.7071 * 0.7071)), v3([sh.nfwd[0], 0, sh.nfwd[2]], -back)), v3(sh.nxh, -centre));
+                want[1] -= drop;
+                if (sharp < 0.3) want = sh.base;
+            }
+            var cur = track.written || sp, d = vsub(want, cur);
             if (Math.abs(d[0]) + Math.abs(d[1]) + Math.abs(d[2]) > 0.01) shiftSpawnBy(d);
             track.written = want; track.lastSpawn = want;
         }
     }
-    function rotY(v, yaw) { var s = Math.sin(yaw), c = Math.cos(yaw); return [v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c]; }
 
     function stepTrack(playing) {
         if (!trackReady()) return;
         if (playing) resolveRig();
         if (gravityMode === "off" || !playing || !track) {
             if (gravWritten) writeGravity(0, G0, 0);
-            if (track && gravityMode === "off") { writeSpawnYaw(0); writeRigYaw(0); }
+            if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0, 0)); writeRigQ([0, 0, 0, 1]); parkKillZone(false); }
             return;
         }
         trackBall(); watchSpawner();
         if (ballPos && ballVel[1] < -70) { if (++track.fallFrames > 45 && !restartSeq && !build) { note("free fall at y=" + ballPos[1].toFixed(0) + ", restarting"); requestRestart(true); return; } } else track.fallFrames = 0;
         if (H.spawnLive < 0) return;                                       // not until the live spawn record has shown itself
-        writeSpawnYaw(track.yawCmd);                                       // whatever spawns next uses the commanded heading
+        parkKillZone(true);                                                // the kill box is a child of the spawner and would rotate into the lane
+        writeSpawnRot(spawnQ(track.yaw, track.roll));                      // whatever spawns next uses the commanded frame
         if (!ballPos || H.rig < 0) return;
-        var hGeo = segHeadingAt(ballPos);
-        // forces keep the previous lap's heading until the ball has actually been whipped round the
-        // corner (airborne + a quarter second) or is well past the jump; otherwise steering and the
-        // forward push would brake it before the lip
-        var seg = track.segs[track.passed], h = hGeo;
-        if (track.passed > 0 && !seg.done) {
-            var ddx = ballPos[0] - seg.pos[0], ddz = ballPos[2] - seg.pos[2];
-            var alongOld = ddx * Math.sin(seg.from) + ddz * Math.cos(seg.from);
-            if ((track.whip && performance.now() - track.whip.since > 250) || alongOld > 16) seg.done = true;
-            else h = seg.from;
+        var idx = segHeadingAt(ballPos), seg = track.segs[idx], frame = seg;
+        // forces keep the previous lap's frame until the ball is past the jump lip (or airborne and whipped for turns)
+        if (idx > 0 && !seg.done) {
+            var dOld = vsub(ballPos, seg.pos), alongOld = vdot(dOld, seg.from.fwd);
+            if ((track.whip && performance.now() - track.whip.since > 250) || alongOld > (seg.twist ? 14 : 16)) seg.done = true;
+            else frame = seg.from;
         }
-        var fwd = [Math.sin(h), 0, Math.cos(h)], lat = [Math.cos(h), 0, -Math.sin(h)];
-        // --- force compensation: the game pushes along world z / x, the course now runs along fwd / lat
-        var zf = fsmFloat("zforce"), sL = fsmFloat("SteerForceLeft"), sR = fsmFloat("SteerForceRight");
+        // --- force compensation: the game pushes along world y / z / x; the lap frame rotates those axes
+        var zf = fsmFloat("zforce"), yf = fsmFloat("yforce"), sL = fsmFloat("SteerForceLeft"), sR = fsmFloat("SteerForceRight");
         var steer = (keysHeld.left ? sL : 0) + (keysHeld.right ? sR : 0);
-        var gx = (zf / BALL_MASS) * (fwd[0] - 0) + (steer / BALL_MASS) * (lat[0] - 1);
-        var gy = G0;
-        var gz = (zf / BALL_MASS) * (fwd[2] - 1) + (steer / BALL_MASS) * (lat[2] - 0);
-        // --- corner assist: just past a kink, swing the horizontal velocity onto the new heading
-        var segs = track.segs, last = segs[track.passed], label = "";
-        if (track.passed > 0) {
-            var dx = ballPos[0] - last.pos[0], dz = ballPos[2] - last.pos[2];
-            var along = dx * Math.sin(last.from) + dz * Math.cos(last.from);
-            var vh = Math.sqrt(ballVel[0] * ballVel[0] + ballVel[2] * ballVel[2]);
-            var lift = ballVel[1] + Math.abs(ballVel[2] * Math.cos(last.from) + ballVel[0] * Math.sin(last.from));   // 0 while rolling the 45-degree descent
-            // start the whip only once the ball is past the jump's lip (on the ramp a sideways shove jams it against the rails)
+        var g = v3(frame.yh, G0);                                           // gravity itself, rotated into the frame
+        g = vadd(g, v3(vsub(frame.zh, [0, 0, 1]), zf / BALL_MASS));
+        g = vadd(g, v3(vsub(frame.yh, [0, 1, 0]), yf / BALL_MASS));
+        g = vadd(g, v3(vsub(frame.xh, [1, 0, 0]), steer / BALL_MASS));
+        var label = "";
+        if (idx > 0) {
+            var last = seg, dd = vsub(ballPos, last.pos), along = vdot(dd, last.from.fwd), vh = vlen([ballVel[0], 0, ballVel[2]]);
             if (!track.whip && along > 12) track.whip = { since: performance.now() };
             if (track.whip && performance.now() - track.whip.since > 1500) track.whip = null;
-            if (track.whip && along > -2 && along < 70 && vh > 3) {
-                var nf = [Math.sin(last.yaw), Math.cos(last.yaw)];
-                var speed = last.turn ? Math.max(vh, 30) : vh, want = [speed * nf[0], speed * nf[1]];
-                var K = last.turn ? 10 : 3, ax = K * (want[0] - ballVel[0]), az = K * (want[1] - ballVel[2]);
-                var m = Math.sqrt(ax * ax + az * az), cap = last.turn ? 400 : 60;
-                if (m > cap) { ax *= cap / m; az *= cap / m; }
-                gx += ax; gz += az;
-                // hang time: cancel most of the game's downforce while swinging so the ball reaches the new lane
-                if (last.turn && performance.now() - track.whip.since < 500) gy += Math.min(40, Math.abs(fsmFloat("yforce")) / BALL_MASS) * 0.6;
-                if (last.turn) label = (last.yaw > last.from ? "turn →" : "← turn");
+            if (track.whip && last.turn && along > -2 && along < 70 && vh > 3) {   // yaw turn: swing the horizontal velocity onto the new heading
+                var nf = [last.fwd[0], last.fwd[2]], nl = Math.sqrt(nf[0] * nf[0] + nf[1] * nf[1]); nf = [nf[0] / nl, nf[1] / nl];
+                var speed = Math.max(vh, 30), want = [speed * nf[0], speed * nf[1]];
+                var ax = 10 * (want[0] - ballVel[0]), az = 10 * (want[1] - ballVel[2]), m = Math.sqrt(ax * ax + az * az);
+                if (m > 400) { ax *= 400 / m; az *= 400 / m; }
+                g = vadd(g, [ax, 0, az]);
+                if (performance.now() - track.whip.since < 500) g[1] += Math.min(40, Math.abs(yf) / BALL_MASS) * 0.6;
+                label = last.yaw > last.from.yaw ? "turn →" : "← turn";
+            } else if (last.twist && !seg.done) {
+                label = "twist ahead";
+            } else if (last.twist && track.whip && performance.now() - track.whip.since < 1500) {
+                label = Math.round(last.roll * 180 / Math.PI) % 360 === 0 ? "upright" : "twist " + Math.round(last.roll * 180 / Math.PI) + "°";
             }
         }
-        writeGravity(gx, gy, gz);
-        // --- camera: the rig yaws toward the ball's heading; the chase target is re-aimed so the clamped rig does not matter
-        var target = (track.whip || seg.done || track.passed === 0) ? hGeo : h;
-        var d = target - track.camYaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-        track.camYaw += d * 0.12;
-        writeRigYaw(track.camYaw);
+        writeGravity(g[0], g[1], g[2]);
+        // --- camera: the rig takes the frame's rotation; the chase target is re-aimed so the clamped rig does not matter
+        var camTarget = (track.whip || seg.done || idx === 0) ? seg.R : frame.R;
+        var cq = track.camQ, t = 0.12;
+        if (vdot(cq, camTarget) < 0) camTarget = [-camTarget[0], -camTarget[1], -camTarget[2], -camTarget[3]];
+        cq = [cq[0] + (camTarget[0] - cq[0]) * t, cq[1] + (camTarget[1] - cq[1]) * t, cq[2] + (camTarget[2] - cq[2]) * t, cq[3] + (camTarget[3] - cq[3]) * t];
+        var nl2 = Math.sqrt(vdot(cq, cq) + cq[3] * cq[3] - cq[3] * cq[3]); nl2 = Math.sqrt(cq[0] * cq[0] + cq[1] * cq[1] + cq[2] * cq[2] + cq[3] * cq[3]);
+        cq = [cq[0] / nl2, cq[1] / nl2, cq[2] / nl2, cq[3] / nl2]; track.camQ = cq;
+        writeRigQ(cq);
         var rp = rigPos();
         if (rp) {
-            var off = rotY(CHASE_WORLD_OFF, track.camYaw);
-            var desired = [ballPos[0] + off[0], ballPos[1] + off[1], ballPos[2] + off[2]];
-            var local = rotY([desired[0] - rp[0], desired[1] - rp[1], desired[2] - rp[2]], -track.camYaw);
+            var desired = vadd(ballPos, qrot(cq, CHASE_WORLD_OFF));
+            var local = qrot(qconj(cq), vsub(desired, rp));
             writeChaseLocal(local[0], local[1], local[2]);
         }
-        if (gravBadge) { if (gravBadge.textContent !== label) { gravBadge.textContent = label; gravBadge.classList.toggle("on", !!label); } }
+        if (gravBadge && gravBadge.textContent !== label) { gravBadge.textContent = label; gravBadge.classList.toggle("on", !!label); }
     }
-    var GRAVITY_LABELS = { off: "Off", curves: "Curves", turns: "Turns", both: "Curves + Turns" };
+    // The fall-out kill box hangs under the spawner; with the spawner rolled it would cut through the lane.
+    // While a track mode runs it is parked far below (the free-fall watchdog restarts the run instead).
+    function parkKillZone(park) {
+        var f = heap32(); if (!f) return;
+        if (H.kill < 0) {
+            var k = liveOnly(nearSeq([10, -10, 300], 1e-3));                // its scale, unique
+            for (var i = 0; i < k.length; i++) { var a = k[i] - 7; if (Math.abs(f[a] - 0.125) < 0.01 && Math.abs(f[a + 1] + 5.15) < 0.01 && Math.abs(f[a + 2] - 18.779) < 0.01) { H.kill = a; break; } }
+            if (H.kill < 0) { H.kill = -2; return; }
+        }
+        if (H.kill < 0) return;
+        f[H.kill + 1] = park ? -5000 : -5.15;
+    }
+    var pendingTwistNext = 0;
+
     function setGravityMode(m) {
         if (GRAVITY_MODES.indexOf(m) < 0) m = "off";
         gravityMode = m; lsSet(KEY_GRAVITY, m);
-        if (m === "off") { writeGravity(0, G0, 0); writeSpawnYaw(0); writeRigYaw(0); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
+        if (m === "off") { writeGravity(0, G0, 0); writeSpawnRot(spawnQ(0, 0)); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
     }
     ["keydown", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {
@@ -953,8 +995,10 @@
         setMusic: setMusic,
         setGravity: setGravityMode,
         setTurn: function (dir) { var v = (dir < 0 ? -1 : 1) * Math.PI / 2; if (track) track.turnPending = v; pendingTurnNext = v; },
-        heading: function () { if (!track || !ballPos) return null; var sg = track.segs[track.passed]; var hh = (track.passed > 0 && !sg.done) ? sg.from : sg.yaw; return +(hh * 180 / Math.PI).toFixed(1); },
-        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yawCmd * 180 / Math.PI).toFixed(1) : null, camYaw: track ? +(track.camYaw * 180 / Math.PI).toFixed(1) : null, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), rigPos: rigPos(), rig: H.rig, shift: track && track.shift ? +(Math.hypot((track.written || [0,0,0])[0] - track.shift.base[0], (track.written || [0,0,0])[2] - track.shift.base[2])).toFixed(1) : 0, zforce: fsmFloat("zforce"), yforce: fsmFloat("yforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
+        setTwist: function (dir) { var v = (dir < 0 ? -1 : 1) * Math.PI / 2; if (track) track.twistPending = v; pendingTwistNext = v; },
+        heading: function () { if (!track || !ballPos) return null; var sg = track.segs[track.passed]; var fr = (track.passed > 0 && !sg.done) ? sg.from : sg; return +(fr.yaw * 180 / Math.PI).toFixed(1); },
+        roll: function () { if (!track || !ballPos) return null; var sg = track.segs[track.passed]; var fr = (track.passed > 0 && !sg.done) ? sg.from : sg; return +(fr.roll * 180 / Math.PI).toFixed(0); },
+        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yaw * 180 / Math.PI).toFixed(1) : null, rollCmd: track ? +(track.roll * 180 / Math.PI).toFixed(0) : null, camQ: track ? track.camQ.map(function (v) { return +v.toFixed(2); }) : null, kill: H.kill, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), rigPos: rigPos(), rig: H.rig, shift: track && track.written ? track.written.map(function (v) { return +v.toFixed(1); }) : null, zforce: fsmFloat("zforce"), yforce: fsmFloat("yforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
         openEditor: openPanel,
