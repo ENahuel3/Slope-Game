@@ -252,13 +252,16 @@
     // hard like a real run). Only the last course goes through the normal
     // EventManager "resetGame" restart, so the game's own state is clean; the
     // music restarting is the confirmation that it went through.
-    // Hold-at-top: while building, the ball is lifted back to the start every
-    // few frames; a reset issued after the ball has landed kills it.
+    // Sphere "Restart Game" also resets the spawn point, so it is sent only
+    // right before a start section (never during laps: laps would then land
+    // inside the start tunnel) and once more just before the final reset, so
+    // the live run begins with the ball at the top of the drop whatever the
+    // build took. EventManager "start game" is forced after the final reset:
+    // it is the state that wakes the ball and restores the time scale.
     var LAPS_PER_COURSE = 8;       // laps pre-generated on every hidden course
-    var HOLD_EVERY = 6;            // frames between ball lifts during a build
     var FINAL_SETTLE = 8;          // frames between the last lift and the final reset (lets its delayed destroySelf land first)
-    var RESET_TIMEOUT = 60;        // frames to wait for the final reset's music restart
-    var RESET_RETRIES = 3;
+    var START_AFTER = 2;           // frames after the final reset to force "start game"
+    var RESET_TIMEOUT = 45;        // frames to wait for the final reset's music restart before one retry
     var DEATH_BEAT = 30;           // frames to show the death before the instant restart
     var RESTART_GRACE = 15;        // a restart also stops the previous track a frame or two later
     var SPAWNER = "t_Spawner", EVENT_MANAGER = "EventManager", SPHERE = "Sphere";
@@ -285,34 +288,38 @@
         // `existing` courses are already in the world with their start section
         // at the origin (1 right after a restart, 0 after a clear); they become
         // hidden layers under the ones built here
-        build = { phase: existing > 0 ? "laps" : "course", hidden: existing, laps: 0, since: frameNo, started: frameNo, tries: 0, lastLift: -1000 };
+        build = { phase: existing > 0 ? "laps" : "course", hidden: existing, laps: 0, since: frameNo, started: frameNo, tries: 0, lastLift: -1000, startSent: false };
         stacked = Math.max(existing, 1);
         builds++; note("building " + stackTarget + " courses from " + existing);
     }
     function sendFinalReset() {
         resetsSent++; build.tries++;
         setState(EVENT_MANAGER, "resetGame");
-        build.phase = "final"; build.since = frameNo;
+        build.phase = "final"; build.since = frameNo; build.startSent = false;
+    }
+    function finishBuild(how) {
+        stacked = build.hidden + 1;
+        note("stack of " + stacked + " " + how + " in " + (frameNo - build.started) + " frames");
+        build = null;
     }
     function stepBuild(restarted) {
         if (build.phase === "course") {
-            liftBall();                                   // SpawnPos -> origin
+            liftBall();                                   // ball to the top, SpawnPos -> origin
             setState(SPAWNER, "spawn go tunnel run");     // start section there
             build.hidden++; build.laps = 0; build.phase = "laps"; stacked = build.hidden;
         } else if (build.phase === "laps") {
-            if (frameNo - build.lastLift >= HOLD_EVERY) liftBall();
             if (build.laps < LAPS_PER_COURSE) { setState(SPAWNER, "Check score"); build.laps++; }
             else if (build.hidden < stackTarget - 1) build.phase = "course";
-            else { build.phase = "settle"; build.since = frameNo; }
+            else { liftBall(); build.phase = "settle"; build.since = frameNo; }
         } else if (build.phase === "settle") {
             if (frameNo - build.lastLift >= FINAL_SETTLE) { build.tries = 0; sendFinalReset(); }
-        } else if (restarted) {                           // final: the game restarted on its own path
-            stacked = build.hidden + 1;
-            note("stack of " + stacked + " complete in " + (frameNo - build.started) + " frames");
-            build = null;
-        } else if (frameNo - build.since > RESET_TIMEOUT) {
-            if (build.tries < RESET_RETRIES) { note("final reset not seen, retrying"); sendFinalReset(); }
-            else { note("giving up at " + build.hidden); stacked = build.hidden; build = null; }
+        } else {                                          // final
+            if (!build.startSent && frameNo - build.since >= START_AFTER) { setState(EVENT_MANAGER, "start game"); build.startSent = true; }
+            if (restarted) finishBuild("complete");
+            else if (frameNo - build.since > RESET_TIMEOUT) {
+                if (build.tries < 2) { note("final reset not confirmed, one retry"); sendFinalReset(); }
+                else finishBuild("unconfirmed");
+            }
         }
     }
 
