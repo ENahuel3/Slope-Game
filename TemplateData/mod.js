@@ -524,15 +524,20 @@
         for (var i = 0, n = u.length - 2; i < n; i++) if (u[i] === A && u[i + 1] === B && u[i + 2] === C) out.push(i);
         return out;
     }
-    function nearSeq(vals, eps) {           // tolerant scan for a run of floats
-        var f = heap32(); if (!f) return [];
-        var out = [], n = f.length - vals.length, k;
-        for (var i = 0; i < n; i++) {
-            if (!(Math.abs(f[i] - vals[0]) < eps)) continue;                     // NaN never matches
-            for (k = 1; k < vals.length; k++) if (!(Math.abs(f[i + k] - vals[k]) < eps)) break;
-            if (k === vals.length) out.push(i);
+    function nearSeq(vals, eps) { return nearSeqMulti([[vals, eps]])[0]; }
+    function nearSeqMulti(specs) {          // tolerant scans for runs of floats, all in one pass over the heap
+        var f = heap32(); if (!f) return specs.map(function () { return []; });
+        var outs = specs.map(function () { return []; }), n = f.length - 10, m = specs.length, i, j, k, sp, vals, eps;
+        for (i = 0; i < n; i++) {
+            var v = f[i];
+            for (j = 0; j < m; j++) {
+                sp = specs[j]; vals = sp[0]; eps = sp[1];
+                if (!(Math.abs(v - vals[0]) < eps)) continue;                      // NaN never matches
+                for (k = 1; k < vals.length; k++) if (!(Math.abs(f[i + k] - vals[k]) < eps)) break;
+                if (k === vals.length) outs[j].push(i);
+            }
         }
-        return out;
+        return outs;
     }
     // PlayMaker FsmFloat objects: managed string "name" <- NamedVariable.name at obj+12, value at obj+24
     function findStringObjects(str) {
@@ -547,13 +552,22 @@
         }
         return out;
     }
-    function findFsmFloats(name) {
-        var strs = findStringObjects(name), u = heapU32(), out = [];
-        for (var s = 0; s < strs.length; s++) {
-            for (var i = 0, n = u.length; i < n; i++) if (u[i] === strs[s]) out.push(i * 4 - 12);   // object whose +12 field is the name
+    // All names at once: the string objects' addresses go into a bitmap, then ONE pass over the heap finds every
+    // object whose +12 field points at one of them (a per-string pass took seconds each: 80 copies of a name = 16 s).
+    function findFsmFloatsMulti(names) {
+        var u = heapU32(), out = {}, owner = {}, flags = new Uint8Array((u.length >> 3) + 1), any = false;
+        names.forEach(function (nm) {
+            out[nm] = [];
+            findStringObjects(nm).forEach(function (a) { owner[a] = nm; flags[a >> 5] |= 1 << ((a >> 2) & 7); any = true; });
+        });
+        if (!any) return out;
+        for (var i = 0, n = u.length; i < n; i++) {
+            var v = u[i];
+            if ((v & 3) === 0 && (flags[v >> 5] & (1 << ((v >> 2) & 7))) && owner[v] !== undefined) out[owner[v]].push(i * 4 - 12);   // object whose +12 field is the name
         }
         return out;
     }
+    function findFsmFloats(name) { return findFsmFloatsMulti([name])[name]; }
     function fsmFloat(name) {                 // the live one: largest magnitude among the candidates
         var objs = H.vars[name]; if (!objs || !objs.length) return 0;
         var f = heap32(), best = 0;
@@ -564,23 +578,82 @@
     // so matches below this float index are copies inside the data file, not the scene.
     var LIVE_MIN = 3000000;
     function liveOnly(list) { return list.filter(function (a) { return a >= LIVE_MIN; }); }
+    // Heap discovery runs in slices (one per frame) so the page never freezes: pass A walks the heap as u32 with
+    // exact bit patterns as cheap prefilters, pass B finds the managed strings of the FSM variable names, pass C
+    // finds the variable objects pointing at them. trackReady() turns true when all three are done.
+    var discover = null;
     function discoverHeap() {
-        try {
-            if (!H.grav.length) H.grav = findTriple(0, G0, 0);
-            if (!H.ballCands.length) H.ballCands = findTriple(5, 10.5, -4);
-            if (!H.spawn.length) {
-                var all = liveOnly(nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4)), f0 = heap32();
-                H.spawnCacheCands = all.slice();
-                for (var i0 = 0; i0 < all.length; i0++) {
-                    var a0 = all[i0];
-                    if (f0[a0 - 3] === 0 && f0[a0 - 2] === 0 && f0[a0 - 1] === 0 && Math.abs(f0[a0 + 4] - 1) < 1e-3 && Math.abs(f0[a0 + 5] - 1) < 1e-3 && Math.abs(f0[a0 + 6] - 1) < 1e-3) H.spawn.push(a0);
+        if (discover) return;
+        var u = heapU32(), f = heap32(), u16 = heapU16(); if (!u) return;
+        var t0 = performance.now(), N = u.length, STEP = 4 << 20;
+        var B = { g: fbits(G0), b5: fbits(5), b105: fbits(10.5), bm4: fbits(-4), one: fbits(1), b10: fbits(10), bm10: fbits(-10), b300: fbits(300) };
+        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"].filter(function (nm) { return !H.vars[nm]; });
+        var firsts = {}; names.forEach(function (nm) { firsts[nm.charCodeAt(0)] = (firsts[nm.charCodeAt(0)] || []).concat([nm]); });
+        var strs = {}, owner = {}, flags = null, found = {};
+        names.forEach(function (nm) { strs[nm] = []; found[nm] = []; });
+        var grav = [], ballCands = [], rigCands = [], spawnCands = [], chase = [], kill = [];
+        var st = { pass: 0, i: 0 };
+        function passA(i0, i1) {
+            for (var i = i0; i < i1; i++) {
+                var v = u[i];
+                if (v === 0) {
+                    if (u[i + 1] === B.g && u[i + 2] === 0) grav.push(i);
+                    if (u[i + 1] === 0 && u[i + 2] === 0 && u[i + 3] === B.one && Math.abs(f[i + 4] - 5) < 2e-3 && Math.abs(f[i + 5] - 6.482) < 2e-3 && Math.abs(f[i + 6] + 4.737) < 2e-3 && u[i + 7] === B.one && u[i + 8] === B.one && u[i + 9] === B.one) rigCands.push(i);
+                } else if (v === B.b5) { if (u[i + 1] === B.b105 && u[i + 2] === B.bm4) ballCands.push(i); }
+                else if (v === B.b10) { if (u[i + 1] === B.bm10 && u[i + 2] === B.b300) kill.push(i); }
+                else if (u[i + 1] === 0 && u[i + 2] === 0) {
+                    var x = f[i];
+                    if (Math.abs(x - PITCH_SX) < 3e-4 && Math.abs(f[i + 3] - PITCH_CX) < 3e-4) spawnCands.push(i);
+                    else if (Math.abs(x - 0.43559) < 3e-4 && Math.abs(f[i + 3] - 0.90015) < 3e-4 && Math.abs(f[i + 4]) < 3e-4 && Math.abs(f[i + 5] - 3.056) < 3e-4 && Math.abs(f[i + 6] + 1.207) < 3e-4 && u[i + 7] === B.one && u[i + 8] === B.one && u[i + 9] === B.one) chase.push(i);
                 }
             }
-            if (!H.rigCands) H.rigCands = liveOnly(nearSeq([0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3));
-            if (H.chase < 0) { var c = liveOnly(nearSeq([0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4)); if (c.length) H.chase = c[c.length - 1]; }
-            ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"].forEach(function (nm) { if (!H.vars[nm]) H.vars[nm] = liveOnly(findFsmFloats(nm)); });
-            note("heap: gravity x" + H.grav.length + ", spawn recs " + H.spawn.length + ", rig cands " + H.rigCands.length + ", chase " + (H.chase >= 0) + ", vars z/L/R " + [H.vars.zforce, H.vars.SteerForceLeft, H.vars.SteerForceRight].map(function (v) { return v ? v.length : 0; }).join("/"));
-        } catch (e) { note("heap scan failed: " + e); }
+        }
+        function passB(i0, i1) {               // managed strings: length at obj+8, chars at obj+12
+            for (var i = i0; i < i1; i++) {
+                var cands = firsts[u16[i]]; if (!cands) continue;
+                for (var c = 0; c < cands.length; c++) {
+                    var nm = cands[c], k;
+                    for (k = 1; k < nm.length; k++) if (u16[i + k] !== nm.charCodeAt(k)) break;
+                    if (k < nm.length) continue;
+                    var byteAddr = i * 2; if (byteAddr % 4) continue;
+                    if (u[(byteAddr - 4) >> 2] === nm.length) { var a = byteAddr - 12; strs[nm].push(a); owner[a] = nm; }
+                }
+            }
+        }
+        function passC(i0, i1) {
+            for (var i = i0; i < i1; i++) { var v = u[i]; if ((v & 3) === 0 && (flags[v >> 5] & (1 << ((v >> 2) & 7))) && owner[v] !== undefined) found[owner[v]].push(i * 4 - 12); }
+        }
+        function finish() {
+            try {
+                if (!H.grav.length) H.grav = grav;
+                if (!H.ballCands.length) H.ballCands = ballCands;
+                if (!H.spawn.length) {
+                    var all = liveOnly(spawnCands); H.spawnCacheCands = all.slice();
+                    for (var i0 = 0; i0 < all.length; i0++) {
+                        var a0 = all[i0];
+                        if (f[a0 - 3] === 0 && f[a0 - 2] === 0 && f[a0 - 1] === 0 && Math.abs(f[a0 + 4] - 1) < 1e-3 && Math.abs(f[a0 + 5] - 1) < 1e-3 && Math.abs(f[a0 + 6] - 1) < 1e-3) H.spawn.push(a0);
+                    }
+                }
+                if (!H.rigCands) H.rigCands = liveOnly(rigCands);
+                if (H.chase < 0) { var c = liveOnly(chase); if (c.length) H.chase = c[c.length - 1]; }
+                if (H.kill < 0) { var ks = liveOnly(kill); for (var k = 0; k < ks.length; k++) { var a = ks[k] - 7; if (Math.abs(f[a] - 0.125) < 0.01 && Math.abs(f[a + 1] + 5.15) < 0.01 && Math.abs(f[a + 2] - 18.779) < 0.01) { H.kill = a; break; } } if (H.kill < 0) H.kill = -2; }
+                names.forEach(function (nm) { H.vars[nm] = liveOnly(found[nm]); });
+                note("heap (" + Math.round(performance.now() - t0) + " ms, sliced): gravity x" + H.grav.length + ", spawn recs " + H.spawn.length + ", rig cands " + H.rigCands.length + ", chase " + (H.chase >= 0) + ", kill " + (H.kill >= 0) + ", vars z/L/R/delay " + [H.vars.zforce, H.vars.SteerForceLeft, H.vars.SteerForceRight, H.vars.ModSectionDelay].map(function (v) { return v ? v.length : 0; }).join("/"));
+            } catch (e) { note("heap scan failed: " + e); }
+            discover = null;
+        }
+        function slice() {
+            try {
+                var budget = performance.now() + 12;      // ms of work per frame
+                while (performance.now() < budget) {
+                    if (st.pass === 0) { if (st.i >= N - 10) { st.pass = 1; st.i = 0; continue; } var e = Math.min(st.i + STEP, N - 10); passA(st.i, e); st.i = e; }
+                    else if (st.pass === 1) { if (!names.length || st.i >= u16.length - 20) { st.pass = 2; st.i = 0; flags = new Uint8Array((N >> 3) + 1); Object.keys(owner).forEach(function (a) { a = +a; flags[a >> 5] |= 1 << ((a >> 2) & 7); }); continue; } var e1 = Math.min(st.i + 2 * STEP, u16.length - 20); passB(st.i, e1); st.i = e1; }
+                    else if (st.pass === 2) { if (!names.length || st.i >= N) { finish(); return; } var e2 = Math.min(st.i + STEP, N); passC(st.i, e2); st.i = e2; }
+                }
+            } catch (e) { note("heap scan failed: " + e); discover = null; return; }
+            discover = setTimeout(slice, 0);
+        }
+        discover = setTimeout(slice, 0);
     }
     function trackReady() { return H.grav.length > 0 && H.spawn.length > 0 && H.rigCands && H.rigCands.length > 0 && H.chase >= 0; }
     function resolveRig() {                   // the rig's rotation record is unique; its position is derived from the ball below
@@ -808,12 +881,7 @@
     // While a track mode runs it is parked far below (the free-fall watchdog restarts the run instead).
     function parkKillZone(park) {
         var f = heap32(); if (!f) return;
-        if (H.kill < 0) {
-            var k = liveOnly(nearSeq([10, -10, 300], 1e-3));                // its scale, unique
-            for (var i = 0; i < k.length; i++) { var a = k[i] - 7; if (Math.abs(f[a] - 0.125) < 0.01 && Math.abs(f[a + 1] + 5.15) < 0.01 && Math.abs(f[a + 2] - 18.779) < 0.01) { H.kill = a; break; } }
-            if (H.kill < 0) { H.kill = -2; return; }
-        }
-        if (H.kill < 0) return;
+        if (H.kill < 0) return;                                            // found by discoverHeap (-2: not there)
         f[H.kill + 1] = park ? -5000 : -5.15;
     }
 
@@ -996,6 +1064,7 @@
         setAutopilot: function (on) { autopilot = !!on; if (!on && autoKey) { keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39); autoKey = null; } },
         frameDt: function () { return frameDt; },
         spawnTrace: function () { return spawnTrace.slice(); },
+        profileScans: function () { var r = {}, t; t = performance.now(); findTriple(0, G0, 0); r.triple = Math.round(performance.now() - t); t = performance.now(); nearSeqMulti([[[PITCH_SX, 0, 0, PITCH_CX], 3e-4], [[0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3], [[0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4]]); r.near3 = Math.round(performance.now() - t); t = performance.now(); nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4); r.near1 = Math.round(performance.now() - t); t = performance.now(); ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"].forEach(findStringObjects); r.strings5 = Math.round(performance.now() - t); t = performance.now(); findFsmFloatsMulti(["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"]); r.multi = Math.round(performance.now() - t); return r; },
         fsmGet: function (name) { var f = heap32(); return liveOnly(findFsmFloats(name)).map(function (a) { return [a, f[(a + 24) >> 2]]; }); },
         fsmGetInt: function (name) { var u = heapU32(); return liveOnly(findFsmFloats(name)).map(function (a) { return [a, u[(a + 24) >> 2] | 0]; }); },
         fsmSet: function (name, v) { var f = heap32(), objs = liveOnly(findFsmFloats(name)); objs.forEach(function (a) { f[(a + 24) >> 2] = v; }); return objs.length; },
