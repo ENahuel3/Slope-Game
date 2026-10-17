@@ -32,8 +32,8 @@ def write_state(w, st):
     a = st['actions']
     w.arr(a['names'], w.str); w.arr(a['custom'], w.str); w.bools(a['enabled']); w.bools(a['open']); w.ints(a['start']); w.ints(a['hash'])
     w.arr(a['unityObject'], w.pptr); w.arr(a['gameObject'], fsmGO); w.arr(a['ownerDefault'], ownerDef)
-    w.i32(0); w.i32(0); w.i32(0); w.arr(a['eventTarget'], eventTarget); w.i32(0); w.i32(0)
-    w.arr(a['string'], fsmString); w.arr(a['object'], fsmObject); w.i32(0); w.i32(0); w.arr(a['enum'], fsmEnum)
+    w.i32(0); w.i32(len(a.get('functionCall', []))); assert not a.get('functionCall'); w.i32(0); w.arr(a['eventTarget'], eventTarget); assert not a.get('fsmProperty'); w.i32(0); w.i32(0)
+    w.arr(a['string'], fsmString); w.arr(a['object'], fsmObject); assert not a.get('fsmVar') and not a.get('fsmArray'); w.i32(0); w.i32(0); w.arr(a['enum'], fsmEnum)
     w.arr(a['float'], fsmFloat); w.arr(a['int'], fsmInt); w.arr(a['bool'], fsmBool); w.arr(a['v2'], fsmVn); w.arr(a['v3'], fsmVn); w.arr(a['color'], fsmVn); w.arr(a['rect'], fsmVn); w.arr(a['quat'], fsmVn)
     w.arr(a['stringParams'], w.str); w.bytes_(bytes(a['bytes']))
     w.ints(a['arrayParamSizes']); w.arr(a['arrayParamTypes'], w.str); w.ints(a['customTypeSizes']); w.arr(a['customTypeNames'], w.str)

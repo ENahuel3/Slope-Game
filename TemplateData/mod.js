@@ -465,6 +465,7 @@
             if (stackTarget > 1) startBuild(1);
         } else if (died) {
             deaths++;
+            if (gravityMode !== "off") setState(SPAWNER, "Offset Buildings to Match Spawner");   // park a run that is still spawning block by block before the game's death flow interrupts it
             if (stackTarget > 1) requestRestart(true);  // instant restart with the stack rebuilt
         }
     }
@@ -504,7 +505,8 @@
     var spawnTrace = [];              // debug: [frame, s] whenever the game moved the spawn point
     var twistQueue = [];              // debug/test: forced rolls in degrees for the next planned laps (0 = straight lap)
     var LANE_HALF = 5;                // the ball's line is 5 along the lateral axis from the spawn point
-    var SECTION_AHEAD = 7;            // a block lands about this far ahead of the spawn point along the course
+    var SUB = 3, SUBLEN = 14.1421 / 3;   // scene patch: each lane block step spawns SUB short blocks, each rotated by ModQ1..3
+    var Q_VARS = ["ModQ1", "ModQ2", "ModQ3"];
     var TWIST_LEN = 200, TWIST_AT = 30;   // a 90-degree twist: length along the course (about 20 blocks, 4.5° each), distance into the lap
     var CURVE_LEN = 600, CURVE_AT = 10;   // a slow roll: spread over a lap and a half
     var SECTION_DELAY = 0.001;        // ModSectionDelay (scene patch): any positive Wait takes a frame, so one block per frame
@@ -587,7 +589,7 @@
         var u = heapU32(), f = heap32(), u16 = heapU16(); if (!u) return;
         var t0 = performance.now(), N = u.length, STEP = 4 << 20;
         var B = { g: fbits(G0), b5: fbits(5), b105: fbits(10.5), bm4: fbits(-4), one: fbits(1), b10: fbits(10), bm10: fbits(-10), b300: fbits(300) };
-        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"].filter(function (nm) { return !H.vars[nm]; });
+        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay", "ModQ1", "ModQ2", "ModQ3"].filter(function (nm) { return !H.vars[nm]; });
         var firsts = {}; names.forEach(function (nm) { firsts[nm.charCodeAt(0)] = (firsts[nm.charCodeAt(0)] || []).concat([nm]); });
         var strs = {}, owner = {}, flags = null, found = {};
         names.forEach(function (nm) { strs[nm] = []; found[nm] = []; });
@@ -638,7 +640,7 @@
                 if (H.chase < 0) { var c = liveOnly(chase); if (c.length) H.chase = c[c.length - 1]; }
                 if (H.kill < 0) { var ks = liveOnly(kill); for (var k = 0; k < ks.length; k++) { var a = ks[k] - 7; if (Math.abs(f[a] - 0.125) < 0.01 && Math.abs(f[a + 1] + 5.15) < 0.01 && Math.abs(f[a + 2] - 18.779) < 0.01) { H.kill = a; break; } } if (H.kill < 0) H.kill = -2; }
                 names.forEach(function (nm) { H.vars[nm] = liveOnly(found[nm]); });
-                note("heap (" + Math.round(performance.now() - t0) + " ms, sliced): gravity x" + H.grav.length + ", spawn recs " + H.spawn.length + ", rig cands " + H.rigCands.length + ", chase " + (H.chase >= 0) + ", kill " + (H.kill >= 0) + ", vars z/L/R/delay " + [H.vars.zforce, H.vars.SteerForceLeft, H.vars.SteerForceRight, H.vars.ModSectionDelay].map(function (v) { return v ? v.length : 0; }).join("/"));
+                note("heap (" + Math.round(performance.now() - t0) + " ms, sliced): gravity x" + H.grav.length + ", spawn recs " + H.spawn.length + ", rig cands " + H.rigCands.length + ", chase " + (H.chase >= 0) + ", kill " + (H.kill >= 0) + ", vars z/L/R/delay/q " + [H.vars.zforce, H.vars.SteerForceLeft, H.vars.SteerForceRight, H.vars.ModSectionDelay, H.vars.ModQ1].map(function (v) { return v ? v.length : 0; }).join("/"));
             } catch (e) { note("heap scan failed: " + e); }
             discover = null;
         }
@@ -742,7 +744,7 @@
         track = { segs: [], sections: [], endRoll: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0, camQ: [0, 0, 0, 1], dApplied: [0, 0, 0], fallFrames: 0, wroteRoll: 0, lastPlanS: -1000 };
         note("track reset" + (twistQueue.length ? " (forced " + twistQueue[0] + ")" : ""));
         ballPos = null; ballVel = [0, 0, 0];
-        writeSpawnRot(spawnQ(0)); writeRigQ([0, 0, 0, 1]); writeChaseLocal(0, 3.056, -1.207);
+        writeSpawnRot(spawnQ(0)); writeSubRolls([0, 0, 0]); writeRigQ([0, 0, 0, 1]); writeChaseLocal(0, 3.056, -1.207);
     }
     function writeSpawnRot(q) {
         var f = heap32(); if (!f || H.spawnLive < 0) return;
@@ -824,19 +826,33 @@
             // the game spawned a section (one per frame with the scene patch's delay; a whole run when it is 0),
             // with the rotation written last frame: remember it, the ball's frame follows these records
             track.moving = true; track.stillFrames = 0;
-            if (sNow > sPrev) { var fx = frameAxes(track.wroteRoll).xh; track.sections.push({ s0: sPrev, s1: sNow, roll: track.wroteRoll, lat: vdot(gamePos, fx) + LANE_HALF * fx[0] }); }   // lane centre = game spawn line + 5 along world x, measured along the block's lateral axis
-            spawnTrace.push([frameNo, +sNow.toFixed(1), +vdot(gamePos, N0).toFixed(1), +gamePos[0].toFixed(1), +(track.wroteRoll * 180 / Math.PI).toFixed(1), +(sNow - sPrev).toFixed(0)]); if (spawnTrace.length > 400) spawnTrace.shift();
+            if (sNow > sPrev) {
+                var L = sNow - sPrev, parts = (L > 13 && L < 15.5 && track.wroteRolls) ? SUB : 1;   // a lane step = SUB short blocks with their own rolls
+                for (var j = 0; j < parts; j++) {
+                    var rj = parts === SUB ? track.wroteRolls[j] : track.wroteRoll, fx = frameAxes(rj).xh;
+                    track.sections.push({ s0: sPrev + L * j / parts, s1: sPrev + L * (j + 1) / parts, roll: rj, lat: vdot(gamePos, fx) + LANE_HALF * fx[0] });   // lane centre = game spawn line + 5 along world x, along the block's lateral axis
+                }
+            }
+            var fq = heap32(), liveRoll = fq && H.spawnLive >= 0 ? +(2 * Math.asin(Math.max(-1, Math.min(1, fq[H.spawnLive + 1] / PITCH_CX))) * 180 / Math.PI).toFixed(1) : null;
+            spawnTrace.push([frameNo, +sNow.toFixed(1), +vdot(gamePos, N0).toFixed(1), +gamePos[0].toFixed(1), +(track.wroteRoll * 180 / Math.PI).toFixed(1), +(sNow - sPrev).toFixed(0), liveRoll, track.wroteRolls ? +(track.wroteRolls[2] * 180 / Math.PI).toFixed(1) : null]); if (spawnTrace.length > 400) spawnTrace.shift();
         }
         else if (track.moving && ++track.stillFrames >= 8) { track.moving = false; planNextLap(sNow); }   // a run just finished: the jump block sits here
         track.lastSpawn = gamePos;
         // whatever spawns next: the rotation for its place on the course, and the spawn point moved sideways so the
         // lane's centre line stays where the game's own spawn line + 5 puts it
-        var th = rollAt(sNow + SECTION_AHEAD), fr = frameAxes(th);
-        writeSpawnRot(spawnQ(th)); track.wroteRoll = th;
+        var rolls = [rollAt(sNow + 0.5 * SUBLEN), rollAt(sNow + 1.5 * SUBLEN), rollAt(sNow + 2.5 * SUBLEN)], th = rolls[1], fr = frameAxes(th);
+        writeSpawnRot(spawnQ(rolls[0])); writeSubRolls(rolls); track.wroteRoll = rolls[0]; track.wroteRolls = rolls;
         var d = v3(vsub(fr.xh, [1, 0, 0]), -LANE_HALF), dd = vsub(d, track.dApplied);
         if (vlen(dd) > 1e-4) { shiftSpawnBy(dd); track.dApplied = d; }
     }
 
+    function writeQuatVar(name, q) {       // FsmQuaternion variable objects: value (4 floats) at +24, like FsmFloat's
+        var f = heap32(), objs = H.vars[name]; if (!f || !objs) return;
+        for (var i = 0; i < objs.length; i++) { var a = (objs[i] + 24) >> 2; f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3]; }
+    }
+    function writeSubRolls(rolls) {        // the three short blocks of the next lane step take these rolls (SetRotation in the patched FSM)
+        for (var j = 0; j < SUB; j++) writeQuatVar(Q_VARS[j], spawnQ(rolls[j]));
+    }
     function setSectionDelay(v) {
         var f = heap32(), objs = H.vars.ModSectionDelay; if (!f || !objs || !objs.length) return;
         for (var i = 0; i < objs.length; i++) f[(objs[i] + 24) >> 2] = v;
@@ -850,7 +866,7 @@
         if (playing) resolveRig();
         if (gravityMode === "off" || !playing || !track) {
             if (gravWritten) writeGravity(0, G0, 0);
-            if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0)); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (vlen(track.dApplied) > 0) { shiftSpawnBy(v3(track.dApplied, -1)); track.dApplied = [0, 0, 0]; } }
+            if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0)); writeSubRolls([0, 0, 0]); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (vlen(track.dApplied) > 0) { shiftSpawnBy(v3(track.dApplied, -1)); track.dApplied = [0, 0, 0]; } }
             return;
         }
         trackBall(); watchSpawner();
@@ -897,7 +913,7 @@
     function setGravityMode(m) {
         if (GRAVITY_MODES.indexOf(m) < 0) m = "off";
         gravityMode = m; lsSet(KEY_GRAVITY, m);
-        if (m === "off") { writeGravity(0, G0, 0); writeSpawnRot(spawnQ(0)); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
+        if (m === "off") { writeGravity(0, G0, 0); writeSpawnRot(spawnQ(0)); writeSubRolls([0, 0, 0]); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
     }
     ["keydown", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {

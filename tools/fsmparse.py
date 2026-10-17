@@ -32,6 +32,18 @@ def parse(b):
     def eventTarget(): return {'target': r.i32(), 'excludeSelf': fsmBool(), 'go': ownerDef(), 'fsmName': fsmString(), 'sendToChildren': fsmBool(), 'comp': r.pptr()}
     def transition():
         d = {'event': fsmEvent()}; d['_toPos'] = r.p; d['to'] = r.str(); d['linkStyle'] = r.i32(); d['linkConstraint'] = r.i32(); d['color'] = r.bool(); return d
+    def fsmArray():
+        d = named(); d['type'] = r.i32(); d['objType'] = r.str()
+        d['floats'] = r.arr(r.f32); d['ints'] = r.ints(); d['bools'] = r.bools(); d['strings'] = r.arr(r.str); d['v4'] = r.arr(lambda: [r.f32() for _ in range(4)]); d['objs'] = r.arr(r.pptr); return d
+    def functionCall():
+        d = {'name': r.str(), 'ptype': r.str()}
+        d['bool'] = fsmBool(); d['float'] = fsmFloat(); d['int'] = fsmInt(); d['go'] = fsmGO(); d['obj'] = fsmObject(); d['str'] = fsmString(); d['v2'] = fsmV2(); d['v3'] = fsmV3(); d['rect'] = fsm4(); d['quat'] = fsm4(); d['mat'] = fsmObject(); d['tex'] = fsmObject(); d['color'] = fsm4(); d['enum'] = fsmEnum(); d['array'] = fsmArray(); return d
+    def fsmVar():
+        d = {'name': r.str(), 'objType': r.str(), 'use': r.bool(), 'type': r.i32(), 'f': r.f32(), 'i': r.i32(), 'b': r.bool(), 's': r.str(), 'v4': [r.f32() for _ in range(4)], 'obj': r.pptr()}
+        d['array'] = fsmArray(); return d
+    def fsmProperty():
+        d = {'target': fsmObject(), 'targetType': r.str(), 'prop': r.str(), 'propType': r.str()}
+        d['bool'] = fsmBool(); d['float'] = fsmFloat(); d['int'] = fsmInt(); d['go'] = fsmGO(); d['obj'] = fsmObject(); d['str'] = fsmString(); d['v2'] = fsmV2(); d['v3'] = fsmV3(); d['rect'] = fsm4(); d['quat'] = fsm4(); d['mat'] = fsmObject(); d['tex'] = fsmObject(); d['color'] = fsm4(); d['enum'] = fsmEnum(); d['array'] = fsmArray(); d['set'] = r.bool(); return d
     def zero(label):
         n = r.i32()
         if n: raise ValueError('unsupported non-empty list %s (%d) at %d' % (label, n, r.p - 4))
@@ -40,8 +52,8 @@ def parse(b):
         a = {'_pos': r.p}
         a['names'] = r.arr(r.str); a['custom'] = r.arr(r.str); a['_enabledPos'] = r.p; a['enabled'] = r.bools(); a['open'] = r.bools(); a['start'] = r.ints(); a['hash'] = r.ints()
         a['unityObject'] = r.arr(r.pptr); a['gameObject'] = r.arr(fsmGO); a['ownerDefault'] = r.arr(ownerDef)
-        zero('animCurve'); zero('functionCall'); zero('templateControl'); a['eventTarget'] = r.arr(eventTarget); zero('fsmProperty'); zero('layoutOption')
-        a['string'] = r.arr(fsmString); a['object'] = r.arr(fsmObject); zero('fsmVar'); zero('fsmArray'); a['enum'] = r.arr(fsmEnum)
+        zero('animCurve'); a['functionCall'] = r.arr(functionCall); zero('templateControl'); a['eventTarget'] = r.arr(eventTarget); a['fsmProperty'] = r.arr(fsmProperty); zero('layoutOption')
+        a['string'] = r.arr(fsmString); a['object'] = r.arr(fsmObject); a['fsmVar'] = r.arr(fsmVar); a['fsmArray'] = r.arr(fsmArray); a['enum'] = r.arr(fsmEnum)
         a['float'] = r.arr(fsmFloat); a['int'] = r.arr(fsmInt); a['bool'] = r.arr(fsmBool); a['v2'] = r.arr(fsmV2); a['v3'] = r.arr(fsmV3); a['color'] = r.arr(fsm4); a['rect'] = r.arr(fsm4); a['quat'] = r.arr(fsm4)
         a['stringParams'] = r.arr(r.str); a['_bytesPos'] = r.p; a['bytes'] = r.bytes_()
         a['arrayParamSizes'] = r.ints(); a['arrayParamTypes'] = r.arr(r.str); a['customTypeSizes'] = r.ints(); a['customTypeNames'] = r.arr(r.str)
@@ -61,7 +73,7 @@ def parse(b):
         f['events'] = r.arr(fsmEvent); f['globalTransitions'] = r.arr(transition)
         v = {'_pos': r.p}
         v['float'] = r.arr(fsmFloat); v['int'] = r.arr(fsmInt); v['bool'] = r.arr(fsmBool); v['string'] = r.arr(fsmString); v['v2'] = r.arr(fsmV2); v['v3'] = r.arr(fsmV3)
-        v['color'] = r.arr(fsm4); v['rect'] = r.arr(fsm4); v['quat'] = r.arr(fsm4); v['gameObject'] = r.arr(fsmGO); v['object'] = r.arr(fsmObject)
+        v['color'] = r.arr(fsm4); v['rect'] = r.arr(fsm4); v['_quatPos'] = r.p; v['quat'] = r.arr(fsm4); v['gameObject'] = r.arr(fsmGO); v['object'] = r.arr(fsmObject)
         f['variables'] = v; f['_afterVars'] = r.p
     except Exception as e:
         f['_err'] = str(e)
