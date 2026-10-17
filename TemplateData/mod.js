@@ -480,18 +480,19 @@
     requestAnimationFrame(frameLoop);   // registered before Unity's loop, so it runs first each frame
 
     // ======================================================================
-    // 6. Track shaping: curves and 90-degree turns in the course itself.
-    //    The spawner builds the course by translating the SpawnPos transform
-    //    forward in its own frame, so rotating that transform (yaw) bends
-    //    everything built after it; every block keeps the yaw it was spawned
-    //    with. The camera hangs under a rig object ("Text") that follows the
-    //    ball, so rotating the rig turns the camera. The game's forces are
-    //    hard-wired to world axes (forward push along +z, steering along x),
-    //    so on a turned course the mod reads the force magnitudes from the
-    //    PlayMaker variables and adds the difference through gravity, which
-    //    is also where the "throw you round the corner" burst comes from.
-    //    Everything is found in the WebAssembly heap by value once, at the
-    //    menu: transform records are 10 floats (quat, pos, scale).
+    // 6. Track shaping: the course rolls about its own centre line.
+    //    A roll profile theta(s) is planned along the course axis (s = distance
+    //    along FWD0 from the start). The spawner builds a lap by translating the
+    //    SpawnPos transform forward in its own frame and every block copies its
+    //    rotation (scene patch), so each frame the transform gets the rotation
+    //    for its current s and is shifted sideways so the lane's centre line
+    //    stays put while the lane turns about it (the lane spans 0..10 along
+    //    the spawner's lateral axis; the ball rides 5 in). Gravity, the forward
+    //    push, steering (all hard-wired to world axes in the game; the mod reads
+    //    the magnitudes from the PlayMaker variables and adds the difference
+    //    through gravity) and the camera rig use the frame at the ball's own s,
+    //    so the ball rides the twisting ribbon continuously. Everything is found
+    //    in the WebAssembly heap by value once, at the menu.
     // ======================================================================
     var G0 = -9.8100004196167, BALL_MASS = 30;
     var PITCH_SX = -0.70710678, PITCH_CX = 0.70710678;         // SpawnPos rest rotation after the scene patch: -90 degrees about x (blocks copy it)
@@ -499,12 +500,18 @@
     var ballPos = null, ballVel = [0, 0, 0], ballT = 0;
     var track = null;                 // per-run state, see resetTrackRun()
     var keysHeld = { left: false, right: false };
-    var trackDebug = { laps: 0, kinks: 0 };
-    var pendingTurnNext = 0;          // debug/test: force the next planned lap to turn
-    var TWIST_CENTER_MS = 2500, TWIST_CENTER_W = 4;   // lateral centring after a twist: window and spring rate (rad/s)
-    var TWIST_LAT = 0;                // debug/test: extra lateral offset of a twisted lap, along its lateral axis
-    var TWIST_GENTLE_MS = 1300, TWIST_GENTLE_A = 7;   // after the swing: pull into the new surface at only this (m/s²) for this long
-    var TWIST_GAP = 6, TWIST_SWITCH = 18; // face distance from the ball; distance past the kink before gravity swings (the wall starts ~22 past it)                // distance from the ball's centre line to a twisted lap's face when it spawns
+    var trackDebug = { laps: 0, twists: 0 };
+    var spawnTrace = [];              // debug: [frame, s] whenever the game moved the spawn point
+    var twistQueue = [];              // debug/test: forced rolls in degrees for the next planned laps (0 = straight lap)
+    var LANE_HALF = 5;                // the ball's line is 5 along the lateral axis from the spawn point
+    var SECTION_AHEAD = 7;            // a block lands about this far ahead of the spawn point along the course
+    var TWIST_LEN = 200, TWIST_AT = 30;   // a 90-degree twist: length along the course (about 20 blocks, 4.5° each), distance into the lap
+    var CURVE_LEN = 600, CURVE_AT = 10;   // a slow roll: spread over a lap and a half
+    var SECTION_DELAY = 0.001;        // ModSectionDelay (scene patch): any positive Wait takes a frame, so one block per frame
+    var CAM_T = 0.08;                 // camera rig follows the ball's frame with this per-frame fraction
+    var sectionDelayWritten = -1, frameDt = 1 / 60, lastFrameT = 0;
+    var sectionDelayOverride = null;   // debug/test
+    var autopilot = false, autoKey = null, autoErr = null, autoPred = null;   // debug/test: steer the ball toward the lane's centre line
     var gravBadge = null, gravWritten = false;
 
     function heap32() { return game && game.Module ? game.Module.HEAPF32 : null; }
@@ -571,7 +578,7 @@
             }
             if (!H.rigCands) H.rigCands = liveOnly(nearSeq([0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3));
             if (H.chase < 0) { var c = liveOnly(nearSeq([0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4)); if (c.length) H.chase = c[c.length - 1]; }
-            ["zforce", "yforce", "SteerForceLeft", "SteerForceRight"].forEach(function (nm) { if (!H.vars[nm]) H.vars[nm] = liveOnly(findFsmFloats(nm)); });
+            ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"].forEach(function (nm) { if (!H.vars[nm]) H.vars[nm] = liveOnly(findFsmFloats(nm)); });
             note("heap: gravity x" + H.grav.length + ", spawn recs " + H.spawn.length + ", rig cands " + H.rigCands.length + ", chase " + (H.chase >= 0) + ", vars z/L/R " + [H.vars.zforce, H.vars.SteerForceLeft, H.vars.SteerForceRight].map(function (v) { return v ? v.length : 0; }).join("/"));
         } catch (e) { note("heap scan failed: " + e); }
     }
@@ -604,14 +611,6 @@
         }
         return false;
     }
-    function writeSpawnYaw(yaw) {              // rotation = Ry(yaw) * Rx(45deg)
-        var f = heap32(); if (!f || H.spawnLive < 0) return;
-        var sy = Math.sin(yaw / 2), cy = Math.cos(yaw / 2);
-        var q = [cy * PITCH_SX, sy * PITCH_CX, -sy * PITCH_SX, cy * PITCH_CX];
-        var a = H.spawnLive, b = H.spawnCache;
-        f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3];
-        if (b >= 0) { f[b] = q[0]; f[b + 1] = q[1]; f[b + 2] = q[2]; f[b + 3] = q[3]; }
-    }
     function shiftSpawnBy(d) {
         var f = heap32(); if (!f || H.spawnLive < 0) return;
         var a = H.spawnLive, b = H.spawnCache;
@@ -623,10 +622,6 @@
         if (H.spawnLive < 0 && !resolveSpawn()) return null;
         var a = H.spawnLive;
         return [f[a - 3], f[a - 2], f[a - 1]];
-    }
-    function writeRigYaw(yaw) {
-        var f = heap32(); if (!f || H.rig < 0) return;
-        f[H.rig] = 0; f[H.rig + 1] = Math.sin(yaw / 2); f[H.rig + 2] = 0; f[H.rig + 3] = Math.cos(yaw / 2);
     }
     // The rig ("Text") copies the ball's position each frame with x clamped to 3..7 and a fixed offset; its
     // own position record is a stale local copy, so reproduce that rule instead of reading it.
@@ -658,27 +653,23 @@
     function qaxis(axis, ang) { var h = ang / 2, s = Math.sin(h); return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(h)]; }
     var Q_REST = [PITCH_SX, 0, 0, PITCH_CX];                   // the spawn point's rest rotation
     var FWD0 = [0, -0.70710678, 0.70710678], N0 = [0, 0.70710678, 0.70710678];   // course axis and floor normal of a straight lap
-    function frameQ(yaw, roll) {                                // world rotation of a lap frame: roll about the course axis, then yaw about y
-        return qmul(qaxis([0, 1, 0], yaw), qaxis(FWD0, roll));
+    function frameQ(roll) { return qaxis(FWD0, roll); }        // world rotation of the course frame: roll about the course axis
+    function spawnQ(roll) { return qmul(frameQ(roll), Q_REST); }
+    function frameAxes(roll) {                                  // axes of the frame at a roll angle
+        var R = frameQ(roll);
+        return { R: R, n: qrot(R, N0), xh: qrot(R, [1, 0, 0]), yh: qrot(R, [0, 1, 0]), zh: qrot(R, [0, 0, 1]) };
     }
-    function spawnQ(yaw, roll) { return qmul(frameQ(yaw, roll), Q_REST); }
     function v3(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
     function vadd(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
     function vsub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
     function vdot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
     function vlen(a) { return Math.sqrt(vdot(a, a)); }
-    function segFrame(seg) {                                    // cached axes of a segment
-        if (!seg.R) { seg.R = frameQ(seg.yaw, seg.roll); seg.fwd = qrot(seg.R, FWD0); seg.n = qrot(seg.R, N0); seg.xh = qrot(seg.R, [1, 0, 0]); seg.yh = qrot(seg.R, [0, 1, 0]); seg.zh = qrot(seg.R, [0, 0, 1]); }
-        return seg;
-    }
-
     // ---- per-run track state -------------------------------------------------
     function resetTrackRun() {
-        track = { yaw: 0, roll: 0, segs: [segFrame({ yaw: 0, roll: 0, pos: [0, 0, 0], from: null })], passed: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0,
-                  camQ: [0, 0, 0, 1], turnPending: 0, twistPending: 0, fallFrames: 0, shift: null, written: null, whip: null };
-        note("track reset" + (pendingTurnNext ? " (turn pending)" : "") + (pendingTwistNext ? " (twist pending)" : ""));
+        track = { segs: [], sections: [], endRoll: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0, camQ: [0, 0, 0, 1], dApplied: [0, 0, 0], fallFrames: 0, wroteRoll: 0, lastPlanS: -1000 };
+        note("track reset" + (twistQueue.length ? " (forced " + twistQueue[0] + ")" : ""));
         ballPos = null; ballVel = [0, 0, 0];
-        writeSpawnRot(spawnQ(0, 0)); writeRigQ([0, 0, 0, 1]); writeChaseLocal(0, 3.056, -1.207);
+        writeSpawnRot(spawnQ(0)); writeRigQ([0, 0, 0, 1]); writeChaseLocal(0, 3.056, -1.207);
     }
     function writeSpawnRot(q) {
         var f = heap32(); if (!f || H.spawnLive < 0) return;
@@ -687,140 +678,120 @@
         if (b >= 0) { f[b] = q[0]; f[b + 1] = q[1]; f[b + 2] = q[2]; f[b + 3] = q[3]; }
     }
     function writeRigQ(q) { var f = heap32(); if (!f || H.rig < 0) return; f[H.rig] = q[0]; f[H.rig + 1] = q[1]; f[H.rig + 2] = q[2]; f[H.rig + 3] = q[3]; }
-    function segHeadingAt(p) {                // index of the segment the ball is on; kinks are passed in order and stay passed
-        var segs = track.segs;
-        while (track.passed + 1 < segs.length) {
-            var k = segs[track.passed + 1], prev = segs[track.passed];
-            var d = vsub(p, k.pos), dist = vlen([d[0], 0, d[2]]), along = vdot(d, prev.fwd);
-            if (dist < 90 && along > -2) { track.passed++; track.whip = null; } else break;
+    // The roll profile: smooth steps between constant stretches, in order along the course.
+    function rollAt(s) {
+        var segs = track.segs, a = 0;
+        for (var i = 0; i < segs.length; i++) {
+            var sg = segs[i];
+            if (s <= sg.s0) return sg.a0;
+            if (s >= sg.s1) { a = sg.a1; continue; }
+            var u = (s - sg.s0) / (sg.s1 - sg.s0); u = u * u * (3 - 2 * u);
+            return sg.a0 + (sg.a1 - sg.a0) * u;
         }
-        return track.passed;
+        return a;
     }
-    function planNextLap() {                   // called when a lap chain has finished spawning: decide the frame of the next lap
-        var mode = gravityMode, yawStep = 0, rollStep = 0;
-        track.laps++;
-        if (pendingTurnNext) { yawStep = pendingTurnNext; pendingTurnNext = 0; }
-        else if (pendingTwistNext) { rollStep = pendingTwistNext; pendingTwistNext = twistQueue.length ? twistQueue.shift() * Math.PI / 2 : 0; }
-        else if (mode === "twists" || mode === "both") {
-            if (track.laps >= 1 && Math.random() < 0.6) rollStep = (Math.random() < 0.5 ? -1 : 1) * Math.PI / 2;
+    function sectionAt(s) {           // the block record the ball is on (the course as actually built)
+        var secs = track.sections, sec = null;
+        for (var i = 0; i < secs.length; i++) { if (s < secs[i].s0) break; sec = secs[i]; }
+        return sec;
+    }
+    function sectionRollAt(s) { var sec = sectionAt(s); return sec ? sec.roll : 0; }
+    function keyEvent(type, key, code) {
+        var e = new KeyboardEvent(type, { key: key, code: key, bubbles: true, cancelable: true });
+        try { Object.defineProperty(e, "keyCode", { get: function () { return code; } }); Object.defineProperty(e, "which", { get: function () { return code; } }); } catch (x) {}
+        document.dispatchEvent(e); var c = document.querySelector("canvas"); if (c) c.dispatchEvent(e);
+    }
+    function stepAutopilot(sb, fr) {   // debug/test: lateral error from the lane's centre line; optionally hold left/right
+        var sec = sectionAt(sb), want = null;
+        autoErr = null; autoPred = null;
+        if (sec && sec.lat !== undefined) { var err = vdot(ballPos, fr.xh) - sec.lat, vLat = vdot(ballVel, fr.xh), pred = err + vLat * 0.25; autoErr = +err.toFixed(2); autoPred = +pred.toFixed(2); want = pred > 0.3 ? "ArrowLeft" : pred < -0.3 ? "ArrowRight" : null; }
+        if (!autopilot) return;
+        if (want === autoKey) return;
+        if (autoKey) keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39);
+        if (want) keyEvent("keydown", want, want === "ArrowLeft" ? 37 : 39);
+        autoKey = want;
+    }
+    function rollingAt(s) { var segs = track.segs; for (var i = 0; i < segs.length; i++) if (s > segs[i].s0 && s < segs[i].s1) return segs[i]; return null; }
+    function planNextLap(sEnd) {              // called when a run has finished spawning: decide the roll of the next one
+        var mode = gravityMode, step = 0, len = 0, at = 0;
+        if (sEnd < track.lastPlanS + 20) return;   // the spawner idling where it already planned (start of a run)
+        track.lastPlanS = sEnd; track.laps++;
+        if (twistQueue.length) { step = twistQueue.shift(); len = TWIST_LEN; at = TWIST_AT; }
+        else if (mode === "twists" || (mode === "both" && Math.random() < 0.5)) {
+            if (Math.random() < 0.7) { step = Math.random() < 0.5 ? -90 : 90; len = TWIST_LEN; at = TWIST_AT; }
+        } else if (mode === "curves" || mode === "both") {
+            step = (Math.random() < 0.5 ? -1 : 1) * (120 + Math.random() * 120); len = CURVE_LEN; at = CURVE_AT;
         }
-        if (!yawStep && !rollStep && (mode === "curves" || mode === "both")) yawStep = (Math.random() * 2 - 1) * (8 * Math.PI / 180) + (Math.random() < 0.5 ? -1 : 1) * (4 * Math.PI / 180);
-        if (!yawStep && !rollStep) return;
-        var sp = spawnPos() || [0, 0, 0];
-        var prev = track.segs[track.segs.length - 1];
-        var seg = segFrame({ yaw: track.yaw + yawStep, roll: track.roll + rollStep, pos: sp.slice(), from: prev, turn: Math.abs(yawStep) > 1, twist: !!rollStep, at: performance.now() });
-        track.segs.push(seg);
-        if (seg.twist) {
-            // The next lap is a wall. The lane's surface passes through the spawn point's line and spans 0..10 along
-            // the spawner's lateral axis, so the ball (lane centre, 5 along the old lateral from the spawn line)
-            // gets the new lane centred on it, with the face TWIST_GAP away along the new "down" so it drops onto it
-            // once gravity swings. Measured in the heap: the ball comes to rest a ball radius short of the spawn x.
-            var B = vadd(sp, v3(prev.xh, 5));
-            var p2 = vadd(vadd(B, v3(seg.n, -TWIST_GAP)), v3(seg.xh, -5 + TWIST_LAT));
-            track.shift = { fixed: p2 };
-        } else {
-            track.shift = { base: sp.slice(), fwd: prev.fwd, nfwd: seg.fwd, step: Math.abs(yawStep), nxh: seg.xh };
-        }
-        track.yaw = seg.yaw; track.roll = seg.roll; trackDebug.kinks++;
-        note("lap " + track.laps + ": yaw " + (seg.yaw * 180 / Math.PI).toFixed(0) + " roll " + (seg.roll * 180 / Math.PI).toFixed(0) + " at " + sp.map(function (v) { return v.toFixed(0); }).join(","));
+        if (!step) return;
+        var last = track.segs.length ? track.segs[track.segs.length - 1].s1 : 0;
+        var s0 = Math.max(sEnd + at, last), a1 = track.endRoll + step * Math.PI / 180;
+        track.segs.push({ s0: s0, s1: s0 + len, a0: track.endRoll, a1: a1 });
+        track.endRoll = a1; trackDebug.twists++;
+        note("lap " + track.laps + ": roll " + Math.round(step) + " over s " + Math.round(s0) + ".." + Math.round(s0 + len));
     }
     function watchSpawner() {
         var sp = spawnPos(); if (!sp) return;
+        var gamePos = vsub(sp, track.dApplied);                  // where the game itself has put the spawn point
         if (!track.lastSpawn) {
-            track.lastSpawn = sp;
-            if (Math.abs(sp[0]) + Math.abs(sp[1]) + Math.abs(sp[2]) > 1) { track.moving = true; track.stillFrames = 7; }   // already built: treat as a chain at rest
+            track.lastSpawn = gamePos;
+            if (vlen(gamePos) > 1) { track.moving = true; track.stillFrames = 7; }   // already built: treat as a chain at rest
             return;
         }
-        var ref = track.written || track.lastSpawn;
-        var moved = Math.abs(sp[0] - ref[0]) + Math.abs(sp[1] - ref[1]) + Math.abs(sp[2] - ref[2]) > 0.05;
-        if (moved) { track.moving = true; track.stillFrames = 0; track.shift = null; track.written = null; }
-        else if (track.moving && ++track.stillFrames >= 8) { track.moving = false; planNextLap(); }   // a chain just finished: the jump block sits at this position
-        track.lastSpawn = sp;
-        if (!track.moving && track.shift && ballPos) {
-            var want;
-            if (track.shift.fixed) want = track.shift.fixed;
-            else {
-                var sh = track.shift, vh = vlen([ballVel[0], 0, ballVel[2]]);
-                var half = Math.min(sh.step, Math.PI / 2) / 2, sharp = Math.sin(half) * 2 / 1.4142;
-                var ahead = (8 + 0.06 * Math.max(vh, 12)) * sharp, back = 8 * sharp, centre = 5 * sharp, drop = 8 * sharp;
-                want = vadd(vadd(vadd(sh.base, v3([sh.fwd[0], 0, sh.fwd[2]], ahead / 0.7071 * 0.7071)), v3([sh.nfwd[0], 0, sh.nfwd[2]], -back)), v3(sh.nxh, -centre));
-                want[1] -= drop;
-                if (sharp < 0.3) want = sh.base;
-            }
-            var cur = track.written || sp, d = vsub(want, cur);
-            if (Math.abs(d[0]) + Math.abs(d[1]) + Math.abs(d[2]) > 0.01) shiftSpawnBy(d);
-            track.written = want; track.lastSpawn = want;
+        var sNow = vdot(gamePos, FWD0), sPrev = vdot(track.lastSpawn, FWD0);
+        if (vlen(vsub(gamePos, track.lastSpawn)) > 0.05) {
+            // the game spawned a section (one per frame with the scene patch's delay; a whole run when it is 0),
+            // with the rotation written last frame: remember it, the ball's frame follows these records
+            track.moving = true; track.stillFrames = 0;
+            if (sNow > sPrev) { var fx = frameAxes(track.wroteRoll).xh; track.sections.push({ s0: sPrev, s1: sNow, roll: track.wroteRoll, lat: vdot(gamePos, fx) + LANE_HALF * fx[0] }); }   // lane centre = game spawn line + 5 along world x, measured along the block's lateral axis
+            spawnTrace.push([frameNo, +sNow.toFixed(1), +vdot(gamePos, N0).toFixed(1), +gamePos[0].toFixed(1), +(track.wroteRoll * 180 / Math.PI).toFixed(1), +(sNow - sPrev).toFixed(0)]); if (spawnTrace.length > 400) spawnTrace.shift();
         }
+        else if (track.moving && ++track.stillFrames >= 8) { track.moving = false; planNextLap(sNow); }   // a run just finished: the jump block sits here
+        track.lastSpawn = gamePos;
+        // whatever spawns next: the rotation for its place on the course, and the spawn point moved sideways so the
+        // lane's centre line stays where the game's own spawn line + 5 puts it
+        var th = rollAt(sNow + SECTION_AHEAD), fr = frameAxes(th);
+        writeSpawnRot(spawnQ(th)); track.wroteRoll = th;
+        var d = v3(vsub(fr.xh, [1, 0, 0]), -LANE_HALF), dd = vsub(d, track.dApplied);
+        if (vlen(dd) > 1e-4) { shiftSpawnBy(dd); track.dApplied = d; }
     }
 
+    function setSectionDelay(v) {
+        var f = heap32(), objs = H.vars.ModSectionDelay; if (!f || !objs || !objs.length) return;
+        for (var i = 0; i < objs.length; i++) f[(objs[i] + 24) >> 2] = v;
+        sectionDelayWritten = v;
+    }
     function stepTrack(playing) {
         if (!trackReady()) return;
+        var nowT = performance.now(); if (lastFrameT) frameDt = frameDt * 0.9 + Math.min(0.1, (nowT - lastFrameT) / 1000) * 0.1; lastFrameT = nowT;
+        var want = gravityMode !== "off" && gameRunning && !build && !restartSeq ? (sectionDelayOverride !== null ? sectionDelayOverride : SECTION_DELAY) : 0;
+        if (want !== sectionDelayWritten) setSectionDelay(want);
         if (playing) resolveRig();
         if (gravityMode === "off" || !playing || !track) {
             if (gravWritten) writeGravity(0, G0, 0);
-            if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0, 0)); writeRigQ([0, 0, 0, 1]); parkKillZone(false); }
+            if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0)); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (vlen(track.dApplied) > 0) { shiftSpawnBy(v3(track.dApplied, -1)); track.dApplied = [0, 0, 0]; } }
             return;
         }
         trackBall(); watchSpawner();
-        if (ballPos && ballVel[1] < -70) { if (++track.fallFrames > 45 && !restartSeq && !build) { note("free fall at y=" + ballPos[1].toFixed(0) + ", restarting"); requestRestart(true); return; } } else track.fallFrames = 0;
         if (H.spawnLive < 0) return;                                       // not until the live spawn record has shown itself
         parkKillZone(true);                                                // the kill box is a child of the spawner and would rotate into the lane
-        writeSpawnRot(spawnQ(track.yaw, track.roll));                      // whatever spawns next uses the commanded frame
         if (!ballPos || H.rig < 0) return;
-        var idx = segHeadingAt(ballPos), seg = track.segs[idx], frame = seg;
-        // forces keep the previous lap's frame until the ball is past the jump lip (or airborne and whipped for turns)
-        if (idx > 0 && !seg.done) {
-            var dOld = vsub(ballPos, seg.pos), alongOld = vdot(dOld, seg.from.fwd);
-            if (seg.twist ? alongOld > TWIST_SWITCH : ((track.whip && performance.now() - track.whip.since > 250) || alongOld > 16)) { seg.done = true; seg.doneAt = performance.now(); }
-            else frame = seg.from;
-        }
-        // --- force compensation: the game pushes along world y / z / x; the lap frame rotates those axes
+        var sb = vdot(ballPos, FWD0), th = sectionRollAt(sb), fr = frameAxes(th);
+        stepAutopilot(sb, fr);
+        // fell off: moving fast along the frame's "down" for a while (the kill box is parked)
+        if (-vdot(ballVel, fr.n) > 70) { if (++track.fallFrames > 45 && !restartSeq && !build) { note("free fall at s=" + sb.toFixed(0) + ", restarting"); requestRestart(true); return; } } else track.fallFrames = 0;
+        // --- force compensation: the game pushes along world y / z / x; the frame rotates those axes
         var zf = fsmFloat("zforce"), yf = fsmFloat("yforce"), sL = fsmFloat("SteerForceLeft"), sR = fsmFloat("SteerForceRight");
         var steer = (keysHeld.left ? sL : 0) + (keysHeld.right ? sR : 0);
-        var g = v3(frame.yh, G0);                                           // gravity itself, rotated into the frame
-        g = vadd(g, v3(vsub(frame.zh, [0, 0, 1]), zf / BALL_MASS));
-        g = vadd(g, v3(vsub(frame.yh, [0, 1, 0]), yf / BALL_MASS));
-        g = vadd(g, v3(vsub(frame.xh, [1, 0, 0]), steer / BALL_MASS));
-        var label = "";
-        if (idx > 0) {
-            var last = seg, dd = vsub(ballPos, last.pos), along = vdot(dd, last.from.fwd), vh = vlen([ballVel[0], 0, ballVel[2]]);
-            if (!track.whip && along > 12) track.whip = { since: performance.now() };
-            if (track.whip && performance.now() - track.whip.since > 1500) track.whip = null;
-            if (track.whip && last.turn && along > -2 && along < 70 && vh > 3) {   // yaw turn: swing the horizontal velocity onto the new heading
-                var nf = [last.fwd[0], last.fwd[2]], nl = Math.sqrt(nf[0] * nf[0] + nf[1] * nf[1]); nf = [nf[0] / nl, nf[1] / nl];
-                var speed = Math.max(vh, 30), want = [speed * nf[0], speed * nf[1]];
-                var ax = 10 * (want[0] - ballVel[0]), az = 10 * (want[1] - ballVel[2]), m = Math.sqrt(ax * ax + az * az);
-                if (m > 400) { ax *= 400 / m; az *= 400 / m; }
-                g = vadd(g, [ax, 0, az]);
-                if (performance.now() - track.whip.since < 500) g[1] += Math.min(40, Math.abs(yf) / BALL_MASS) * 0.6;
-                label = last.yaw > last.from.yaw ? "turn →" : "← turn";
-            } else if (last.twist) {
-                if (track.whip && performance.now() - track.whip.since < TWIST_CENTER_MS) {
-                    // The jump's lift became a sideways drift when the frame rolled, so the ball would slide off the
-                    // far edge of the wall before reaching it: spring it (critically damped) onto the lane's centre line.
-                    var dLat = vdot(vsub(ballPos, last.pos), last.xh) - 5 * vdot(last.from.xh, last.xh), vLat = vdot(ballVel, last.xh);
-                    var aLat = -(2 * TWIST_CENTER_W * vLat + TWIST_CENTER_W * TWIST_CENTER_W * dLat);
-                    if (aLat > 60) aLat = 60; else if (aLat < -60) aLat = -60;
-                    g = vadd(g, v3(last.xh, aLat));
-                }
-                if (seg.done && performance.now() - seg.doneAt < TWIST_GENTLE_MS) {
-                    // The wall's face sits anywhere from TWIST_GAP to ~6 further (the spawner steps the lap start
-                    // down by a random amount), so pull the ball in gently at first: it drifts onto the face
-                    // wherever it is instead of shooting past the plane before the wall has begun.
-                    var aIn = -vdot(last.n, vadd(v3(last.yh, G0 + yf / BALL_MASS), v3(last.zh, zf / BALL_MASS)));
-                    if (aIn > TWIST_GENTLE_A) g = vadd(g, v3(last.n, aIn - TWIST_GENTLE_A));
-                }
-                if (!seg.done) label = "twist ahead";
-                else if (track.whip && performance.now() - track.whip.since < 1500) label = Math.round(last.roll * 180 / Math.PI) % 360 === 0 ? "upright" : "twist " + Math.round(last.roll * 180 / Math.PI) + "°";
-            }
-        }
+        var g = v3(fr.yh, G0);                                             // gravity itself, rotated into the frame
+        g = vadd(g, v3(vsub(fr.zh, [0, 0, 1]), zf / BALL_MASS));
+        g = vadd(g, v3(vsub(fr.yh, [0, 1, 0]), yf / BALL_MASS));
+        g = vadd(g, v3(vsub(fr.xh, [1, 0, 0]), steer / BALL_MASS));
         writeGravity(g[0], g[1], g[2]);
-        // --- camera: the rig takes the frame's rotation; the chase target is re-aimed so the clamped rig does not matter
-        var camTarget = (track.whip || seg.done || idx === 0) ? seg.R : frame.R;
-        var cq = track.camQ, t = 0.12;
-        if (vdot(cq, camTarget) < 0) camTarget = [-camTarget[0], -camTarget[1], -camTarget[2], -camTarget[3]];
-        cq = [cq[0] + (camTarget[0] - cq[0]) * t, cq[1] + (camTarget[1] - cq[1]) * t, cq[2] + (camTarget[2] - cq[2]) * t, cq[3] + (camTarget[3] - cq[3]) * t];
-        var nl2 = Math.sqrt(vdot(cq, cq) + cq[3] * cq[3] - cq[3] * cq[3]); nl2 = Math.sqrt(cq[0] * cq[0] + cq[1] * cq[1] + cq[2] * cq[2] + cq[3] * cq[3]);
+        // --- camera: the rig takes the ball's frame; the chase target is re-aimed so the clamped rig does not matter
+        var camTarget = fr.R, cq = track.camQ;
+        if (vdot(cq, camTarget) + cq[3] * camTarget[3] < 0) camTarget = [-camTarget[0], -camTarget[1], -camTarget[2], -camTarget[3]];
+        cq = [cq[0] + (camTarget[0] - cq[0]) * CAM_T, cq[1] + (camTarget[1] - cq[1]) * CAM_T, cq[2] + (camTarget[2] - cq[2]) * CAM_T, cq[3] + (camTarget[3] - cq[3]) * CAM_T];
+        var nl2 = Math.sqrt(cq[0] * cq[0] + cq[1] * cq[1] + cq[2] * cq[2] + cq[3] * cq[3]);
         cq = [cq[0] / nl2, cq[1] / nl2, cq[2] / nl2, cq[3] / nl2]; track.camQ = cq;
         writeRigQ(cq);
         var rp = rigPos();
@@ -829,6 +800,8 @@
             var local = qrot(qconj(cq), vsub(desired, rp));
             writeChaseLocal(local[0], local[1], local[2]);
         }
+        var deg = Math.round(rollAt(sb) * 180 / Math.PI), rolling = rollingAt(sb);
+        var label = rolling ? (Math.abs(rolling.a1 - rolling.a0) > 1.2 ? "rolling " : "twist ") + deg + "°" : (deg % 360 === 0 ? "" : deg + "°");
         if (gravBadge && gravBadge.textContent !== label) { gravBadge.textContent = label; gravBadge.classList.toggle("on", !!label); }
     }
     // The fall-out kill box hangs under the spawner; with the spawner rolled it would cut through the lane.
@@ -843,12 +816,11 @@
         if (H.kill < 0) return;
         f[H.kill + 1] = park ? -5000 : -5.15;
     }
-    var pendingTwistNext = 0, twistQueue = [];   // debug/test: forced rolls for the next laps (+1/-1 = ±90°, 0 = straight)
 
     function setGravityMode(m) {
         if (GRAVITY_MODES.indexOf(m) < 0) m = "off";
         gravityMode = m; lsSet(KEY_GRAVITY, m);
-        if (m === "off") { writeGravity(0, G0, 0); writeSpawnRot(spawnQ(0, 0)); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
+        if (m === "off") { writeGravity(0, G0, 0); writeSpawnRot(spawnQ(0)); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
     }
     ["keydown", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {
@@ -1017,15 +989,19 @@
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
         setGravity: setGravityMode,
-        setTurn: function (dir) { pendingTurnNext = (dir < 0 ? -1 : 1) * Math.PI / 2; },
-        setTwist: function (dir) { pendingTwistNext = (dir < 0 ? -1 : 1) * Math.PI / 2; },
-        setTwistGap: function (g) { TWIST_GAP = +g; },
-        setTwistQueue: function (q) { twistQueue = q.slice(1); pendingTwistNext = q[0] * Math.PI / 2; },
-        setTwistSwitch: function (d) { TWIST_SWITCH = +d; },
-        setTwistLat: function (d) { TWIST_LAT = +d; },
-        heading: function () { if (!track || !ballPos) return null; var sg = track.segs[track.passed]; var fr = (track.passed > 0 && !sg.done) ? sg.from : sg; return +(fr.yaw * 180 / Math.PI).toFixed(1); },
-        roll: function () { if (!track || !ballPos) return null; var sg = track.segs[track.passed]; var fr = (track.passed > 0 && !sg.done) ? sg.from : sg; return +(fr.roll * 180 / Math.PI).toFixed(0); },
-        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), yawCmd: track ? +(track.yaw * 180 / Math.PI).toFixed(1) : null, rollCmd: track ? +(track.roll * 180 / Math.PI).toFixed(0) : null, camQ: track ? track.camQ.map(function (v) { return +v.toFixed(2); }) : null, kill: H.kill, laps: track ? track.laps : 0, segs: track ? track.segs.length - 1 : 0, passed: track ? track.passed : 0, spawnPos: spawnPos(), spawnQ: (function () { var f = heap32(); return f && H.spawnLive >= 0 ? [f[H.spawnLive], f[H.spawnLive + 1], f[H.spawnLive + 2], f[H.spawnLive + 3]].map(function (v) { return +v.toFixed(3); }) : null; })(), spawnCachePos: (function () { var f = heap32(); return f && H.spawnCache >= 0 ? [f[H.spawnCache + 4], f[H.spawnCache + 5], f[H.spawnCache + 6]].map(function (v) { return +v.toFixed(1); }) : null; })(), rigPos: rigPos(), rig: H.rig, shift: track && track.written ? track.written.map(function (v) { return +v.toFixed(1); }) : null, zforce: fsmFloat("zforce"), yforce: fsmFloat("yforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
+        setTwistQueue: function (q) { twistQueue = q.slice(); },   // degrees per upcoming lap, 0 = straight
+        setLaneHalf: function (v) { LANE_HALF = +v; },               // debug/test
+        setSectionDelay: function (v) { sectionDelayOverride = v; },   // debug/test (null = automatic)
+        key: function (type, k) { keyEvent(type, k, k === "ArrowLeft" ? 37 : 39); },   // debug/test
+        setAutopilot: function (on) { autopilot = !!on; if (!on && autoKey) { keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39); autoKey = null; } },
+        frameDt: function () { return frameDt; },
+        spawnTrace: function () { return spawnTrace.slice(); },
+        fsmGet: function (name) { var f = heap32(); return liveOnly(findFsmFloats(name)).map(function (a) { return [a, f[(a + 24) >> 2]]; }); },
+        fsmGetInt: function (name) { var u = heapU32(); return liveOnly(findFsmFloats(name)).map(function (a) { return [a, u[(a + 24) >> 2] | 0]; }); },
+        fsmSet: function (name, v) { var f = heap32(), objs = liveOnly(findFsmFloats(name)); objs.forEach(function (a) { f[(a + 24) >> 2] = v; }); return objs.length; },
+        setTwistParams: function (o) { if (o.len) TWIST_LEN = o.len; if (o.at) TWIST_AT = o.at; },   // debug/test
+        roll: function () { return track && ballPos ? +(rollAt(vdot(ballPos, FWD0)) * 180 / Math.PI).toFixed(1) : null; },
+        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), s: ballPos ? +vdot(ballPos, FWD0).toFixed(1) : null, sections: track ? track.sections.length : 0, latErr: autoErr, latPred: autoPred, segs: track ? track.segs.map(function (sg) { return [Math.round(sg.s0), Math.round(sg.s1), Math.round(sg.a0 * 180 / Math.PI), Math.round(sg.a1 * 180 / Math.PI)]; }) : null, camQ: track ? track.camQ.map(function (v) { return +v.toFixed(2); }) : null, kill: H.kill, laps: track ? track.laps : 0, spawnPos: spawnPos(), spawnQ: (function () { var f = heap32(); return f && H.spawnLive >= 0 ? [f[H.spawnLive], f[H.spawnLive + 1], f[H.spawnLive + 2], f[H.spawnLive + 3]].map(function (v) { return +v.toFixed(3); }) : null; })(), dApplied: track ? track.dApplied.map(function (v) { return +v.toFixed(2); }) : null, rigPos: rigPos(), zforce: fsmFloat("zforce"), yforce: fsmFloat("yforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
         openEditor: openPanel,
