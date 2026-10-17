@@ -508,7 +508,7 @@
     var TWIST_LEN = 200, TWIST_AT = 30;   // a 90-degree twist: length along the course (about 20 blocks, 4.5° each), distance into the lap
     var CURVE_LEN = 600, CURVE_AT = 10;   // a slow roll: spread over a lap and a half
     var SECTION_DELAY = 0.001;        // ModSectionDelay (scene patch): any positive Wait takes a frame, so one block per frame
-    var CAM_T = 0.08;                 // camera rig follows the ball's frame with this per-frame fraction
+    var CAM_T = 0.2;                  // camera rig follows the ball's (continuous) frame with this per-frame fraction
     var sectionDelayWritten = -1, frameDt = 1 / 60, lastFrameT = 0;
     var sectionDelayOverride = null;   // debug/test
     var autopilot = false, autoKey = null, autoErr = null, autoPred = null;   // debug/test: steer the ball toward the lane's centre line
@@ -763,12 +763,21 @@
         }
         return a;
     }
-    function sectionAt(s) {           // the block record the ball is on (the course as actually built)
-        var secs = track.sections, sec = null;
-        for (var i = 0; i < secs.length; i++) { if (s < secs[i].s0) break; sec = secs[i]; }
-        return sec;
+    function sectionIndexAt(s) {      // index of the block record the ball is on (the course as actually built)
+        var secs = track.sections, k = -1;
+        for (var i = 0; i < secs.length; i++) { if (s < secs[i].s0) break; k = i; }
+        return k;
     }
-    function sectionRollAt(s) { var sec = sectionAt(s); return sec ? sec.roll : 0; }
+    function sectionAt(s) { var k = sectionIndexAt(s); return k >= 0 ? track.sections[k] : null; }
+    // The roll of the ball's frame is continuous: linear between the centres of consecutive blocks (each block
+    // is rigid at its own roll, so this matches the geometry at the block centres and never steps).
+    function sectionRollAt(s) {
+        var secs = track.sections, k = sectionIndexAt(s); if (k < 0) return 0;
+        var a = secs[k], ca = (a.s0 + a.s1) / 2;
+        if (s >= ca && k + 1 < secs.length) { var b = secs[k + 1], cb = (b.s0 + b.s1) / 2; if (cb > ca && b.s0 - a.s1 < 30) return a.roll + (b.roll - a.roll) * Math.min(1, (s - ca) / (cb - ca)); }
+        if (s < ca && k > 0) { var p = secs[k - 1], cp = (p.s0 + p.s1) / 2; if (ca > cp && a.s0 - p.s1 < 30) return p.roll + (a.roll - p.roll) * Math.max(0, (s - cp) / (ca - cp)); }
+        return a.roll;
+    }
     function keyEvent(type, key, code) {
         var e = new KeyboardEvent(type, { key: key, code: key, bubbles: true, cancelable: true });
         try { Object.defineProperty(e, "keyCode", { get: function () { return code; } }); Object.defineProperty(e, "which", { get: function () { return code; } }); } catch (x) {}
