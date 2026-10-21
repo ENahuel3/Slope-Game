@@ -5,11 +5,13 @@ translate into chained sub-states that each end with Wait(time = ModSectionDelay
 variable. 0 (the default) waits nothing, so the run still bursts; > 0 makes every block take a frame,
 so a mod can rotate the spawn transform per block. Each plain lane-block step (Translate y=-10 z=BlockLength + Pmt Spawn slope) is further cut into SUB
 sub-steps with the slope prefab shortened to 1/SUB, so a rolling course is faceted every 4.7 units
-instead of every 14. usage: patch_sections.py <in data.unity3d> <out>"""
+instead of every 14; the lone slope spawns that open each section are spawned SUB times too (wrap_lone_slopes).
+usage: patch_sections.py <in data.unity3d> <out>   |   patch_sections.py --repatch <patched data.unity3d> <out>"""
 import sys, struct, os, copy
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fsmparse, fsmwrite, UnityPy
-src, dst = sys.argv[1], sys.argv[2]
+REPATCH = '--repatch' in sys.argv     # a bundle already patched by this script: only apply the lone-slope wrap (the earlier pipeline stages' inputs are not kept)
+src, dst = [x for x in sys.argv[1:] if not x.startswith('--')][:2]
 VAR = 'ModSectionDelay'
 WAIT = 'HutongGames.PlayMaker.Actions.Wait'
 SUB = int(os.environ.get('SUB', '3'))                      # sub-steps per lane block
@@ -125,6 +127,57 @@ def subdivide(st):
         if not last: t['transitions'] = [{'event': {'name': 'FINISHED', 'sys': True, 'glob': False}, 'to': '%s.%d' % (st['name'], j + 1), 'linkStyle': 0, 'linkConstraint': 0, 'color': False}]
         subs.append(t)
     return subs
+SLAB_LABEL = 'Mod slab step'
+def wrap_lone_slopes(st):
+    """A spawn of the (now 1/SUB long) slope prefab that is not one of a lane step's SUB sub-steps still has to
+    cover a full block: the first block of every section, spawned after the gap between sections, left a hole
+    2/SUB of a block long. Spawn it SUB times: step back 2/SUB of a block along the block's own axis first
+    (self space: one block is (0, -10, -10)) and forward 1/SUB between the slabs, so the spawn point ends up
+    where it was. Returns the number of spawns wrapped; a second run finds nothing to do."""
+    a = st['actions']; n = len(a['names'])
+    pend = lambda i: a['start'][i + 1] if i + 1 < n else len(a['pname'])
+    def prefab(i):
+        gk = next((k for k in range(a['start'][i], pend(i)) if a['pname'][k] == 'gameObject'), None)
+        return a['gameObject'][a['ppos'][gk]] if gk is not None and a['ptype'][gk] == 19 else None
+    lone = []
+    for i in range(n):
+        if not a['names'][i].endswith('.PmtSpawn') or not a['enabled'][i]: continue
+        go = prefab(i)
+        if not go or go['use'] or go['ptr'] != SLOPE_PREFAB: continue
+        if i and (a['names'][i - 1] == SETROT or a['custom'][i - 1] == SLAB_LABEL): continue
+        lone.append(i)
+    if not lone: return 0
+    src = next(i for i in range(n) if a['names'][i].endswith('.Translate') and a['custom'][i].startswith('Translate SpawnPos'))
+    step = 10.0 / SUB; items = []
+    for i in range(n):
+        items += ([('T', 2 * step), i] + [('T', -step), i] * (SUB - 1)) if i in lone else [i]
+    data = bytes(a['bytes']); nonef = b'\x00' * 4 + b'\x01'
+    pn, pt, pp, ps, starts, names, custom, enabled, opened, hashes = [], [], [], [], [], [], [], [], [], []
+    for it in items:
+        starts.append(len(pn)); new = isinstance(it, tuple); i = src if new else it
+        for k in range(a['start'][i], pend(i)):
+            pn.append(a['pname'][k]); pt.append(a['ptype'][k])
+            if new and a['pname'][k] in ('x', 'y', 'z'):
+                bts = nonef if a['pname'][k] == 'x' else struct.pack('<f', it[1]) + b'\x00'
+                pp.append(len(data)); ps.append(len(bts)); data += bts
+            else: pp.append(a['ppos'][k]); ps.append(a['psize'][k])
+        names.append(a['names'][i]); custom.append(SLAB_LABEL if new else a['custom'][i]); enabled.append(True if new else a['enabled'][i]); opened.append(False if new else a['open'][i]); hashes.append(a['hash'][i])
+    a['names'] = names; a['custom'] = custom; a['enabled'] = enabled; a['open'] = opened; a['hash'] = hashes
+    a['start'] = starts; a['pname'] = pn; a['ptype'] = pt; a['ppos'] = pp; a['psize'] = ps; a['bytes'] = data
+    return len(lone)
+def rebuild(raw, f, states):
+    w = fsmwrite.W()
+    for st in states: fsmwrite.write_state(w, st)
+    count_pos = f['states'][0]['_pos'] - 4
+    new = raw[:count_pos] + struct.pack('<i', len(states)) + bytes(w.b) + raw[f['_afterStates']:]
+    g = fsmparse.parse(new); assert '_err' not in g, g.get('_err'); assert len(g['states']) == len(states)
+    return new
+def repatch(raw):
+    """--repatch: only the lone-slope wrap, on a bundle this script patched before that pass existed"""
+    f = fsmparse.parse(raw); assert '_err' not in f
+    assert any(x['name'] == VAR for x in f['variables']['float']), 'not a patched bundle'
+    wrapped = sum(wrap_lone_slopes(st) for st in f['states'])
+    return rebuild(raw, f, f['states']), ['wrapped %d lone slope spawns' % wrapped]
 def patch(raw):
     raw = add_variable(raw); report = ['added float variable ' + VAR]
     f = fsmparse.parse(raw); assert '_err' not in f
@@ -138,12 +191,9 @@ def patch(raw):
             d = subdivide(sub); fine += d if d else [sub]
         out.append(fine[0]); extra += fine[1:]
         report.append('%s -> %d sub-states, %d with lane sub-steps' % (st['name'], len(subs), len(fine)))
-    w = fsmwrite.W()
-    for st in out + extra: fsmwrite.write_state(w, st)
-    count_pos = f['states'][0]['_pos'] - 4
-    new = raw[:count_pos] + struct.pack('<i', len(out) + len(extra)) + bytes(w.b) + raw[f['_afterStates']:]
-    g = fsmparse.parse(new); assert '_err' not in g, g.get('_err'); assert len(g['states']) == len(out) + len(extra)
-    assert any(x['name'] == VAR for x in g['variables']['float'])
+    report.append('wrapped %d lone slope spawns' % sum(wrap_lone_slopes(st) for st in out + extra))
+    new = rebuild(raw, f, out + extra)
+    assert any(x['name'] == VAR for x in fsmparse.parse(new)['variables']['float'])
     return new, report
 env = UnityPy.load(src)
 scripts = {o.path_id: o.read().m_ClassName for o in env.objects if o.type.name == "MonoScript"}
@@ -154,11 +204,11 @@ for o in list(env.objects):
     raw = bytes(o.get_raw_data())
     if scripts.get(struct.unpack_from('<q', raw, 20)[0]) != 'PlayMakerFSM': continue
     if gos.get((id(o.assets_file), struct.unpack_from('<q', raw, 4)[0])) != 't_Spawner': continue
-    new, report = patch(raw); print('\n'.join(report)); print('raw', len(raw), '->', len(new))
+    new, report = repatch(raw) if REPATCH else patch(raw); print('\n'.join(report)); print('raw', len(raw), '->', len(new))
     o.set_raw_data(new); done = True
 assert done
 # the slope prefab: 1/SUB as long (its collision plane and neon slab scale with the root; the lane stays 10 wide)
-for o in (env.objects if SCALE_PREFAB else []):
+for o in (env.objects if SCALE_PREFAB and not REPATCH else []):
     if o.type.name == 'GameObject' and o.path_id == SLOPE_PREFAB[1] and o.assets_file.name.endswith('sharedassets0.assets'):
         go = o.read(); assert go.m_Name == 'slope', go.m_Name
         for c in go.m_Components:

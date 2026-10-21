@@ -1,0 +1,30 @@
+{
+ "latest": {
+  "title": "Three-slab geometry, section gaps fixed",
+  "notes": "Every lane block is three slabs; the first block of each section is three slabs too (the gap fix of 2026-10-21).",
+  "date": "2026-10-21"
+ },
+ "versions": [
+  {
+   "tag": "v4-stack",
+   "title": "Stacked courses, instant restart, music, rainbow",
+   "notes": "Before track shaping: Courses, R restart, music, rainbow, ad-free scene.",
+   "date": "2026-10-15",
+   "commit": "14b9eec"
+  },
+  {
+   "tag": "v5-gravity",
+   "title": "Gravity modes (curves and ramps)",
+   "notes": "Sideways-gravity curves and airborne ramp effects, before the course itself was reshaped.",
+   "date": "2026-10-16",
+   "commit": "e952f4c"
+  },
+  {
+   "tag": "v6-track",
+   "title": "Track shaping with rigid blocks",
+   "notes": "Curves and 90-degree twists built one 14-unit block at a time; the last version before the three-slab geometry.",
+   "date": "2026-10-17",
+   "commit": "5571cfb"
+  }
+ ]
+}

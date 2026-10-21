@@ -936,7 +936,7 @@
     ["keydown", "keypress", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {
             var t = e.target;
-            if (!t || (t.id !== STACK_INPUT_ID && t.id !== "hud-music" && t.id !== "hud-gravity" && !(t.closest && t.closest("#edit-panel")))) return;
+            if (!t || (t.id !== STACK_INPUT_ID && t.id !== "hud-music" && t.id !== "hud-gravity" && t.id !== "hud-version" && !(t.closest && t.closest("#edit-panel")))) return;
             e.stopImmediatePropagation();
             if (type === "keydown" && (e.key === "Enter" || e.key === "Escape") && t.tagName !== "TEXTAREA") { e.preventDefault(); t.blur(); }
         }, true);
