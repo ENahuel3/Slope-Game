@@ -390,14 +390,23 @@
     function plainRestart() { setState(EVENT_MANAGER, "resetGame"); }
     function clearWorld() { setState(SPAWNER, "DestroyBlocksPool"); setState(EVENT_MANAGER, "start game"); }
     function liftBall() { setState(SPHERE, "Restart Game"); build.lastLift = frameNo; }
+    // Hidden courses are built in one frame, so they cannot follow the roll of a shaped track: the straight
+    // hidden lanes cut through the rolled live lane and wedge the ball. The stack applies on a straight track only.
+    function stackWanted() { return gravityMode === "off" ? stackTarget : 1; }
+    function refreshStackNote() {
+        if (!stackInput) return;
+        var off = gravityMode !== "off" && stackTarget > 1;
+        stackInput.classList.toggle("muted", off);
+        stackInput.title = off ? "Courses stack only on a straight track (hidden courses cannot follow a rolled lane); this number applies again when Track is Straight" : "Type a number: 1 = normal game";
+    }
     function startBuild(existing) {
         // `existing` courses are already in the world with their start section
         // at the origin (1 right after a restart, 0 after a clear); they become
         // hidden layers under the ones built here
-        build = { phase: existing > 0 ? "laps" : "course", hidden: existing, hiddenTarget: Math.max(stackTarget - 1, 0),
+        build = { phase: existing > 0 ? "laps" : "course", hidden: existing, hiddenTarget: Math.max(stackWanted() - 1, 0),
                   laps: 0, since: frameNo, started: frameNo, tries: 0, lastLift: -1000, startSent: false };
         if (build.hidden >= build.hiddenTarget) build.phase = "settle";
-        builds++; note("building " + stackTarget + " courses from " + existing);
+        builds++; note("building " + stackWanted() + " courses from " + existing);
     }
     function sendFinalReset() {
         resetsSent++; build.tries++;
@@ -462,11 +471,11 @@
         } else if (build) {
             stepBuild(restarted);
         } else if (restarted) {                         // a run just started (Enter at the menu / game over)
-            if (stackTarget > 1) startBuild(1);
+            if (stackWanted() > 1) startBuild(1);
         } else if (died) {
             deaths++;
             if (gravityMode !== "off") setState(SPAWNER, "Offset Buildings to Match Spawner");   // park a run that is still spawning block by block before the game's death flow interrupts it
-            if (stackTarget > 1) requestRestart(true);  // instant restart with the stack rebuilt
+            if (stackWanted() > 1) requestRestart(true);  // instant restart with the stack rebuilt
         }
     }
 
@@ -912,7 +921,7 @@
 
     function setGravityMode(m) {
         if (GRAVITY_MODES.indexOf(m) < 0) m = "off";
-        gravityMode = m; lsSet(KEY_GRAVITY, m);
+        gravityMode = m; lsSet(KEY_GRAVITY, m); refreshStackNote();
         if (m === "off") { writeGravity(0, G0, 0); writeSpawnRot(spawnQ(0)); writeSubRolls([0, 0, 0]); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
     }
     ["keydown", "keyup"].forEach(function (type) {
@@ -974,6 +983,7 @@
         stackTarget = n;                                // applies at the next run, restart or R
         lsSet(KEY_STACK, n);
         if (stackInput && String(stackInput.value) !== String(n)) stackInput.value = n;
+        refreshStackNote();
     }
 
     function toggleFullscreen() {
@@ -1117,7 +1127,7 @@
             }
 
             if (stackInput) {
-                stackInput.value = stackTarget;
+                stackInput.value = stackTarget; refreshStackNote();
                 stackInput.addEventListener("input", function () { setStackTarget(stackInput.value); });
                 stackInput.addEventListener("change", function () { setStackTarget(stackInput.value); stackInput.blur(); });
                 stackInput.addEventListener("focus", showHud);
