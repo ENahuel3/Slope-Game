@@ -10,13 +10,13 @@ usage: patch_sections.py <in data.unity3d> <out>   |   patch_sections.py --repat
 import sys, struct, os, copy
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fsmparse, fsmwrite, UnityPy
-REPATCH = '--repatch' in sys.argv     # a bundle already patched by this script: only apply the lone-slope wrap (the earlier pipeline stages' inputs are not kept)
+REPATCH = '--repatch' in sys.argv     # a bundle already patched by this script (the earlier pipeline stages' inputs are not kept)
 src, dst = [x for x in sys.argv[1:] if not x.startswith('--')][:2]
 VAR = 'ModSectionDelay'
 WAIT = 'HutongGames.PlayMaker.Actions.Wait'
 SUB = int(os.environ.get('SUB', '3'))                      # sub-steps per lane block
 SCALE_PREFAB = os.environ.get('NOSCALE') is None
-UNCHAINED = True              # the K sub-steps live inside one state (chained sub-states hung the game at game over)
+# the SUB sub-steps live inside one state (chained sub-states hung the game at game over)
 SETROT = 'HutongGames.PlayMaker.Actions.SetRotation'
 SETROT_HASH = 71409303       # copied from the game's own SetRotation actions
 REST_Q = (-0.70710678, 0.0, 0.0, 0.70710678)
@@ -63,108 +63,90 @@ def inline_float(a, k):
     """value of inline FsmFloat param k: ('var', name) or float"""
     pos, sz = a['ppos'][k], a['psize'][k]; d = a['bytes'][pos:pos+sz]
     return ('var', d[5:].decode()) if (sz > 4 and d[4]) else struct.unpack_from('<f', d)[0]
+STEP = 10.0 / SUB            # one slab along the block's axis, in the spawn transform's self space: a block is (0, -10, -10)
+SLAB_LABEL = 'Mod slab step'
+# A block covers the BLOCK_LEN ahead of the spawn point it was spawned at (the slope prefab's collision plane
+# is centred 7 along the course in front of its root). So a lane step [Translate(block), Spawn] becomes
+# [Translate(block), Spawn, Translate(slab), Spawn, Translate(slab), Spawn, Translate(-2 slabs)]: three slabs
+# covering the same block, the spawn point back where the step left it. (The first version translated a
+# slab before each spawn, which put the three slabs one slab late: every section's lane ended 9.4 short.)
+def pend_of(a, i): n = len(a['names']); return a['start'][i + 1] if i + 1 < n else len(a['pname'])
+def rebuild_actions(a, items, src_tr):
+    """Rebuild the action arrays from items: an int keeps that action; ('T', y, z) is a copy of the translate
+    action src_tr with x cleared and constants y, z; ('T0', i, y, z) is action i with y, z replaced by constants;
+    ('R', j) is SetRotation(quaternion = ModQj, world) on the spawn transform."""
+    data = bytes(a['bytes']); nonef = b'\x00' * 4 + b'\x01'
+    go_k = next(k for k in range(a['start'][src_tr], pend_of(a, src_tr)) if a['pname'][k] == 'gameObject')
+    pn, pt, pp, ps, starts, names, custom, enabled, opened, hashes = [], [], [], [], [], [], [], [], [], []
+    for it in items:
+        starts.append(len(pn))
+        if isinstance(it, tuple) and it[0] == 'R':
+            qb = b'\x00' * 16 + b'\x01' + QVARS[it[1] - 1].encode(); none3 = b'\x00' * 12 + b'\x01'
+            for nm, ty, bts in [('gameObject', 20, None), ('quaternion', 35, qb), ('vector', 28, none3), ('xAngle', 15, nonef), ('yAngle', 15, nonef), ('zAngle', 15, nonef), ('space', 7, struct.pack('<i', 0)), ('everyFrame', 1, b'\x00'), ('lateUpdate', 1, b'\x00')]:
+                pn.append(nm); pt.append(ty)
+                if bts is None: pp.append(a['ppos'][go_k]); ps.append(0)
+                else: pp.append(len(data)); ps.append(len(bts)); data += bts
+            names.append(SETROT); custom.append(''); enabled.append(True); opened.append(False); hashes.append(SETROT_HASH)
+            continue
+        if isinstance(it, tuple): i = src_tr if it[0] == 'T' else it[1]; over = {'y': it[-2], 'z': it[-1]}; clearx = it[0] == 'T'
+        else: i = it; over = {}; clearx = False
+        for k in range(a['start'][i], pend_of(a, i)):
+            pn.append(a['pname'][k]); pt.append(a['ptype'][k])
+            if a['pname'][k] in over: bts = struct.pack('<f', over[a['pname'][k]]) + b'\x00'; pp.append(len(data)); ps.append(len(bts)); data += bts
+            elif clearx and a['pname'][k] == 'x': pp.append(len(data)); ps.append(len(nonef)); data += nonef
+            else: pp.append(a['ppos'][k]); ps.append(a['psize'][k])
+        names.append(a['names'][i]); custom.append(SLAB_LABEL if (isinstance(it, tuple) and it[0] == 'T') else a['custom'][i]); enabled.append(a['enabled'][i]); opened.append(a['open'][i]); hashes.append(a['hash'][i])
+    a['names'] = names; a['custom'] = custom; a['enabled'] = enabled; a['open'] = opened; a['hash'] = hashes
+    a['start'] = starts; a['pname'] = pn; a['ptype'] = pt; a['ppos'] = pp; a['psize'] = ps; a['bytes'] = data
+def slab_items(spawn_i):
+    """after a spawn of the slope prefab at the spawn point: two more slabs ahead, then back"""
+    return [('T', -STEP, -STEP), spawn_i, ('T', -STEP, -STEP), spawn_i, ('T', 2 * STEP, 2 * STEP)]
 def subdivide(st):
     """st = a split sub-state [Translate SpawnPos Fwd(y=-10, z=BlockLength), Pmt Spawn slope, ..., Wait]"""
     a = st['actions']; n = len(a['names'])
     if n < 3 or not a['names'][0].endswith('.Translate') or not a['custom'][0].startswith('Translate SpawnPos') or not a['names'][1].endswith('.PmtSpawn') or not a['enabled'][1]: return None
-    pend = lambda i: a['start'][i + 1] if i + 1 < n else len(a['pname'])
-    p0, p1 = a['start'][0], pend(0); names0 = {a['pname'][k]: k for k in range(p0, p1)}
+    p0, p1 = a['start'][0], pend_of(a, 0); names0 = {a['pname'][k]: k for k in range(p0, p1)}
     if inline_float(a, names0['y']) != -10.0 or inline_float(a, names0['z']) != ('var', 'BlockLength'): return None
-    gk = next(k for k in range(a['start'][1], pend(1)) if a['pname'][k] == 'gameObject')
+    gk = next(k for k in range(a['start'][1], pend_of(a, 1)) if a['pname'][k] == 'gameObject')
     go = a['gameObject'][a['ppos'][gk]]
     if go['use'] or go['ptr'] != SLOPE_PREFAB: return None
-    if UNCHAINED:
-        t = copy.deepcopy(st); b = t['actions']
-        # [Translate, Spawn] repeated SUB times (translate consts -10/SUB), then the other actions and the Wait
-        keep = [0, 'R', 1] * SUB + list(range(2, n))          # translate, SetRotation(ModQj), spawn; ... ; wait
-        go_k = next(k for k in range(a['start'][0], pend(0)) if a['pname'][k] == 'gameObject')   # the spawn transform (owner-default index)
-        data = bytes(a['bytes']); val = struct.pack('<f', -10.0 / SUB) + b'\x00'
-        pn, pt, pp, ps, starts, names, custom, enabled, opened, hashes = [], [], [], [], [], [], [], [], [], []
-        j = 0
-        for i in keep:
-            starts.append(len(pn))
-            if i == 'R':
-                j += 1
-                qb = b'\x00' * 16 + b'\x01' + QVARS[j - 1].encode(); none3 = b'\x00' * 12 + b'\x01'; nonef = b'\x00' * 4 + b'\x01'
-                for nm, ty, bts in [('gameObject', 20, None), ('quaternion', 35, qb), ('vector', 28, none3), ('xAngle', 15, nonef), ('yAngle', 15, nonef), ('zAngle', 15, nonef), ('space', 7, struct.pack('<i', 0)), ('everyFrame', 1, b'\x00'), ('lateUpdate', 1, b'\x00')]:
-                    pn.append(nm); pt.append(ty)
-                    if bts is None: pp.append(a['ppos'][go_k]); ps.append(0)
-                    else: pp.append(len(data)); ps.append(len(bts)); data += bts
-                names.append(SETROT); custom.append(''); enabled.append(True); opened.append(False); hashes.append(SETROT_HASH)
-                continue
-            s0, e0 = a['start'][i], pend(i)
-            pn += a['pname'][s0:e0]; pt += a['ptype'][s0:e0]; pp += a['ppos'][s0:e0]; ps += a['psize'][s0:e0]
-            names.append(a['names'][i]); custom.append(a['custom'][i]); enabled.append(a['enabled'][i]); opened.append(a['open'][i]); hashes.append(a['hash'][i])
-        b['names'] = names; b['custom'] = custom; b['enabled'] = enabled; b['open'] = opened; b['hash'] = hashes
-        b['start'] = starts; b['pname'] = pn; b['ptype'] = pt; b['ppos'] = pp; b['psize'] = ps
-        for jj in range(SUB):                                   # the translates' y and z become constants of -10/SUB
-            t0 = starts[3 * jj]
-            for nm in ('y', 'z'):
-                k = next(k for k in range(t0, starts[3 * jj + 1]) if pn[k] == nm)
-                pp[k] = len(data); ps[k] = len(val); data += val
-        b['bytes'] = data
-        return [t]
-    subs = []
-    for j in range(SUB):
-        t = copy.deepcopy(st); b = t['actions']
-        last = j == SUB - 1
-        keep = list(range(0, n)) if last else [0, 1, n - 1]          # translate, spawn, (others), wait
-        # rebuild action arrays from the kept indices
-        pn, pt, pp, ps, starts = [], [], [], [], []
-        for i in keep:
-            starts.append(len(pn)); s0, e0 = a['start'][i], pend(i)
-            pn += a['pname'][s0:e0]; pt += a['ptype'][s0:e0]; pp += a['ppos'][s0:e0]; ps += a['psize'][s0:e0]
-        b['names'] = [a['names'][i] for i in keep]; b['custom'] = [a['custom'][i] for i in keep]; b['enabled'] = [a['enabled'][i] for i in keep]; b['open'] = [a['open'][i] for i in keep]; b['hash'] = [a['hash'][i] for i in keep]
-        b['start'] = starts; b['pname'] = pn; b['ptype'] = pt; b['ppos'] = pp; b['psize'] = ps
-        # the translate's y and z become constants of -10/SUB
-        data = bytes(a['bytes']); val = struct.pack('<f', -10.0 / SUB) + b'\x00'
-        for nm in ('y', 'z'):
-            try: k = next(k for k in range(starts[0], starts[1]) if pn[k] == nm)
-            except StopIteration: raise RuntimeError('%s: %s not in %s (starts %s, keep %s, n %d, names %s)' % (st['name'], nm, pn[starts[0]:starts[1]], starts, keep, n, [x.split('.')[-1] for x in a['names']]))
-            pp[k] = len(data); ps[k] = len(val); data += val
-        b['bytes'] = data
-        if j > 0: t['name'] = '%s.%d' % (st['name'], j)
-        if not last: t['transitions'] = [{'event': {'name': 'FINISHED', 'sys': True, 'glob': False}, 'to': '%s.%d' % (st['name'], j + 1), 'linkStyle': 0, 'linkConstraint': 0, 'color': False}]
-        subs.append(t)
-    return subs
-SLAB_LABEL = 'Mod slab step'
+    t = copy.deepcopy(st); b = t['actions']
+    items = [0, ('R', 1), 1, ('T', -STEP, -STEP), ('R', 2), 1, ('T', -STEP, -STEP), ('R', 3), 1, ('T', 2 * STEP, 2 * STEP)] + list(range(2, n))
+    rebuild_actions(b, items, 0)
+    return [t]
+def spawn_prefab(a, i):
+    gk = next((k for k in range(a['start'][i], pend_of(a, i)) if a['pname'][k] == 'gameObject'), None)
+    if gk is None or a['ptype'][gk] != 19: return None
+    go = a['gameObject'][a['ppos'][gk]]; return None if go['use'] else go['ptr']
 def wrap_lone_slopes(st):
-    """A spawn of the (now 1/SUB long) slope prefab that is not one of a lane step's SUB sub-steps still has to
-    cover a full block: the first block of every section, spawned after the gap between sections, left a hole
-    2/SUB of a block long. Spawn it SUB times: step back 2/SUB of a block along the block's own axis first
-    (self space: one block is (0, -10, -10)) and forward 1/SUB between the slabs, so the spawn point ends up
-    where it was. Returns the number of spawns wrapped; a second run finds nothing to do."""
+    """A spawn of the (now 1/SUB long) slope prefab outside a lane step (the first block of every section, after
+    the drop between sections) still has to cover a full block: two more slabs ahead of it, then the spawn
+    point back where it was. Returns the number wrapped; a second run finds nothing to do."""
     a = st['actions']; n = len(a['names'])
-    pend = lambda i: a['start'][i + 1] if i + 1 < n else len(a['pname'])
-    def prefab(i):
-        gk = next((k for k in range(a['start'][i], pend(i)) if a['pname'][k] == 'gameObject'), None)
-        return a['gameObject'][a['ppos'][gk]] if gk is not None and a['ptype'][gk] == 19 else None
-    lone = []
-    for i in range(n):
-        if not a['names'][i].endswith('.PmtSpawn') or not a['enabled'][i]: continue
-        go = prefab(i)
-        if not go or go['use'] or go['ptr'] != SLOPE_PREFAB: continue
-        if i and (a['names'][i - 1] == SETROT or a['custom'][i - 1] == SLAB_LABEL): continue
-        lone.append(i)
+    lone = [i for i in range(n) if a['names'][i].endswith('.PmtSpawn') and a['enabled'][i] and spawn_prefab(a, i) == SLOPE_PREFAB
+            and not (i and a['names'][i - 1] == SETROT) and not (i + 1 < n and a['custom'][i + 1] == SLAB_LABEL)]
     if not lone: return 0
     src = next(i for i in range(n) if a['names'][i].endswith('.Translate') and a['custom'][i].startswith('Translate SpawnPos'))
-    step = 10.0 / SUB; items = []
-    for i in range(n):
-        items += ([('T', 2 * step), i] + [('T', -step), i] * (SUB - 1)) if i in lone else [i]
-    data = bytes(a['bytes']); nonef = b'\x00' * 4 + b'\x01'
-    pn, pt, pp, ps, starts, names, custom, enabled, opened, hashes = [], [], [], [], [], [], [], [], [], []
-    for it in items:
-        starts.append(len(pn)); new = isinstance(it, tuple); i = src if new else it
-        for k in range(a['start'][i], pend(i)):
-            pn.append(a['pname'][k]); pt.append(a['ptype'][k])
-            if new and a['pname'][k] in ('x', 'y', 'z'):
-                bts = nonef if a['pname'][k] == 'x' else struct.pack('<f', it[1]) + b'\x00'
-                pp.append(len(data)); ps.append(len(bts)); data += bts
-            else: pp.append(a['ppos'][k]); ps.append(a['psize'][k])
-        names.append(a['names'][i]); custom.append(SLAB_LABEL if new else a['custom'][i]); enabled.append(True if new else a['enabled'][i]); opened.append(False if new else a['open'][i]); hashes.append(a['hash'][i])
-    a['names'] = names; a['custom'] = custom; a['enabled'] = enabled; a['open'] = opened; a['hash'] = hashes
-    a['start'] = starts; a['pname'] = pn; a['ptype'] = pt; a['ppos'] = pp; a['psize'] = ps; a['bytes'] = data
+    items = []
+    for i in range(n): items += ([i] + slab_items(i)) if i in lone else [i]
+    rebuild_actions(a, items, src)
     return len(lone)
+def fixup_old_slabs(st):
+    """Bundles patched by the first version: lane steps were [T(slab) R S] x3 (slabs one slab late) and lone
+    spawns [T(+2 slabs) S T(slab) S T(slab) S] (two slabs early). Move them to the forward convention."""
+    a = st['actions']; n = len(a['names']); items = []; fixed = 0; i = 0
+    def isT(i, y): return i < n and a['names'][i].endswith('.Translate') and all(abs(inline_float(a, k) - y) < 1e-3 if a['pname'][k] in ('y', 'z') and not isinstance(inline_float(a, k), tuple) else True for k in range(a['start'][i], pend_of(a, i))) and any(a['pname'][k] == 'y' and not isinstance(inline_float(a, k), tuple) and abs(inline_float(a, k) - y) < 1e-3 for k in range(a['start'][i], pend_of(a, i)))
+    isS = lambda i: i < n and a['names'][i].endswith('.PmtSpawn') and spawn_prefab(a, i) == SLOPE_PREFAB
+    while i < n:
+        if isT(i, -STEP) and i + 8 < n and a['names'][i + 1] == SETROT and isS(i + 2) and isT(i + 3, -STEP) and a['names'][i + 4] == SETROT and isT(i + 6, -STEP) and a['names'][i + 7] == SETROT and isS(i + 8):
+            items += [('T0', i, -10.0, -10.0)] + list(range(i + 1, i + 9)) + [('T', 2 * STEP, 2 * STEP)]; i += 9; fixed += 1; continue
+        if isT(i, 2 * STEP) and a['custom'][i] == SLAB_LABEL and i + 5 < n and isS(i + 1) and isT(i + 2, -STEP) and isS(i + 3) and isT(i + 4, -STEP) and isS(i + 5):
+            items += list(range(i + 1, i + 6)) + [('T', 2 * STEP, 2 * STEP)]; i += 6; fixed += 1; continue
+        items.append(i); i += 1
+    if fixed:
+        src = next(j for j in range(n) if a['names'][j].endswith('.Translate') and a['custom'][j].startswith('Translate SpawnPos'))
+        rebuild_actions(a, items, src)
+    return fixed
 def rebuild(raw, f, states):
     w = fsmwrite.W()
     for st in states: fsmwrite.write_state(w, st)
@@ -173,11 +155,12 @@ def rebuild(raw, f, states):
     g = fsmparse.parse(new); assert '_err' not in g, g.get('_err'); assert len(g['states']) == len(states)
     return new
 def repatch(raw):
-    """--repatch: only the lone-slope wrap, on a bundle this script patched before that pass existed"""
+    """--repatch: on a bundle this script patched before: move old slab groups to the forward convention and wrap lone spawns"""
     f = fsmparse.parse(raw); assert '_err' not in f
     assert any(x['name'] == VAR for x in f['variables']['float']), 'not a patched bundle'
+    fixed = sum(fixup_old_slabs(st) for st in f['states'])
     wrapped = sum(wrap_lone_slopes(st) for st in f['states'])
-    return rebuild(raw, f, f['states']), ['wrapped %d lone slope spawns' % wrapped]
+    return rebuild(raw, f, f['states']), ['moved %d old slab groups to the forward convention' % fixed, 'wrapped %d lone slope spawns' % wrapped]
 def patch(raw):
     raw = add_variable(raw); report = ['added float variable ' + VAR]
     f = fsmparse.parse(raw); assert '_err' not in f

@@ -514,7 +514,7 @@
     var spawnTrace = [];              // debug: [frame, s] whenever the game moved the spawn point
     var twistQueue = [];              // debug/test: forced rolls in degrees for the next planned laps (0 = straight lap)
     var LANE_HALF = 5;                // the ball's line is 5 along the lateral axis from the spawn point
-    var SUB = 3, SUBLEN = 14.1421 / 3;   // scene patch: each lane block step spawns SUB short blocks, each rotated by ModQ1..3
+    var BLOCK_LEN = 14.1421, SUB = 3, SUBLEN = BLOCK_LEN / 3;   // scene patch: each lane block step spawns SUB short blocks, each rotated by ModQ1..3
     var Q_VARS = ["ModQ1", "ModQ2", "ModQ3"];
     var TWIST_LEN = 200, TWIST_AT = 30;   // a 90-degree twist: length along the course (about 20 blocks, 4.5° each), distance into the lap
     var CURVE_LEN = 600, CURVE_AT = 10;   // a slow roll: spread over a lap and a half
@@ -836,10 +836,12 @@
             // with the rotation written last frame: remember it, the ball's frame follows these records
             track.moving = true; track.stillFrames = 0;
             if (sNow > sPrev) {
-                var L = sNow - sPrev, parts = (L > 13 && L < 15.5 && track.wroteRolls) ? SUB : 1;   // a lane step = SUB short blocks with their own rolls
+                // a block covers the BLOCK_LEN ahead of the spawn point it was spawned at (the slope's collision plane is
+                // centred 7 in front of its root); a lane step is SUB slabs with their own rolls, any other step one block
+                var L = sNow - sPrev, parts = (L > 13 && L < 15.5 && track.wroteRolls) ? SUB : 1;
                 for (var j = 0; j < parts; j++) {
                     var rj = parts === SUB ? track.wroteRolls[j] : track.wroteRoll, fx = frameAxes(rj).xh;
-                    track.sections.push({ s0: sPrev + L * j / parts, s1: sPrev + L * (j + 1) / parts, roll: rj, lat: vdot(gamePos, fx) + LANE_HALF * fx[0] });   // lane centre = game spawn line + 5 along world x, along the block's lateral axis
+                    track.sections.push({ s0: sNow + BLOCK_LEN * j / parts, s1: sNow + BLOCK_LEN * (j + 1) / parts, roll: rj, lat: vdot(gamePos, fx) + LANE_HALF * fx[0] });   // lane centre = game spawn line + 5 along world x, along the block's lateral axis
                 }
             }
             var fq = heap32(), liveRoll = fq && H.spawnLive >= 0 ? +(2 * Math.asin(Math.max(-1, Math.min(1, fq[H.spawnLive + 1] / PITCH_CX))) * 180 / Math.PI).toFixed(1) : null;
@@ -849,7 +851,8 @@
         track.lastSpawn = gamePos;
         // whatever spawns next: the rotation for its place on the course, and the spawn point moved sideways so the
         // lane's centre line stays where the game's own spawn line + 5 puts it
-        var rolls = [rollAt(sNow + 0.5 * SUBLEN), rollAt(sNow + 1.5 * SUBLEN), rollAt(sNow + 2.5 * SUBLEN)], th = rolls[1], fr = frameAxes(th);
+        var sNext = sNow + BLOCK_LEN;   // where the next step's block will start (a lane step; a section drop is a little longer)
+        var rolls = [rollAt(sNext + 0.5 * SUBLEN), rollAt(sNext + 1.5 * SUBLEN), rollAt(sNext + 2.5 * SUBLEN)], th = rolls[1], fr = frameAxes(th);
         writeSpawnRot(spawnQ(rolls[0])); writeSubRolls(rolls); track.wroteRoll = rolls[0]; track.wroteRolls = rolls;
         var d = v3(vsub(fr.xh, [1, 0, 0]), -LANE_HALF), dd = vsub(d, track.dApplied);
         if (vlen(dd) > 1e-4) { shiftSpawnBy(dd); track.dApplied = d; }

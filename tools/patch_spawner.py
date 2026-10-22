@@ -89,23 +89,31 @@ h = math.radians(-90) / 2; setrot('SpawnPos', (math.sin(h), 0.0, 0.0, math.cos(h
 h = math.radians(135) / 2; setrot('t_Spawner', (math.sin(h), 0.0, 0.0, math.cos(h)))
 
 # Trigger prefabs without a rotation action used to inherit the spawn point's +45 and now inherit -90:
-# re-express their box triggers in the new local frame (bounds of the old box rotated by Rx(135)).
+# re-express their box triggers in the new local frame. BoxCollider center/size are unscaled local units and
+# these prefabs are scaled non-uniformly (ScorePoint 100 x 40 x 3), so rotate in scaled space:
+# box' = S^-1 * AABB(Rx(135) * S * box), tall boxes clipped to +-30 so the diagonal slab's bounds stay tight.
+# (The first version rotated the unscaled values and put the score trigger ~113 units under the course.)
 import itertools
+CLIP_Y = 30.0
 def rot135(v):
     x, y, z = v; return (x, C * y - S_ * z, S_ * y + C * z)
 for (fk, pid), nm in list(gos.items()):
     if nm not in ('ScorePoint', 'SpeedUp', 'SpeedUpNoSpawning'): continue
-    go = objs[(fk, pid)].read()
+    go = objs[(fk, pid)].read(); scale = (1.0, 1.0, 1.0)
+    for c in go.m_Components:
+        pp = c.component if hasattr(c, 'component') else c; co = objs.get((fk, pp.path_id))
+        if co and co.type.name == 'Transform': t = co.read(); scale = (t.m_LocalScale.x, t.m_LocalScale.y, t.m_LocalScale.z)
     for c in go.m_Components:
         pp = c.component if hasattr(c, 'component') else c
         co = objs.get((fk, pp.path_id))
         if co and co.type.name == 'BoxCollider':
-            b = co.read(); cx, cy, cz = b.m_Center.x, b.m_Center.y, b.m_Center.z; sx, sy, sz = b.m_Size.x, b.m_Size.y, b.m_Size.z
-            pts = [rot135((cx + dx * sx / 2, cy + dy * sy / 2, cz + dz * sz / 2)) for dx, dy, dz in itertools.product((-1, 1), repeat=3)]
+            b = co.read(); cw = [v * scale[i] for i, v in enumerate((b.m_Center.x, b.m_Center.y, b.m_Center.z))]; hw = [abs(v * scale[i]) / 2 for i, v in enumerate((b.m_Size.x, b.m_Size.y, b.m_Size.z))]
+            hw[1] = min(hw[1], CLIP_Y)
+            pts = [rot135((cw[0] + dx * hw[0], cw[1] + dy * hw[1], cw[2] + dz * hw[2])) for dx, dy, dz in itertools.product((-1, 1), repeat=3)]
             lo = [min(p[i] for p in pts) for i in range(3)]; hi = [max(p[i] for p in pts) for i in range(3)]
-            b.m_Center.x, b.m_Center.y, b.m_Center.z = [(lo[i] + hi[i]) / 2 for i in range(3)]
-            b.m_Size.x, b.m_Size.y, b.m_Size.z = [max(1.0, hi[i] - lo[i]) for i in range(3)]
-            b.save(); report.append(f"{nm} trigger box -> center {tuple(round(v,2) for v in (b.m_Center.x,b.m_Center.y,b.m_Center.z))} size {tuple(round(v,2) for v in (b.m_Size.x,b.m_Size.y,b.m_Size.z))}")
+            b.m_Center.x, b.m_Center.y, b.m_Center.z = [(lo[i] + hi[i]) / 2 / scale[i] for i in range(3)]
+            b.m_Size.x, b.m_Size.y, b.m_Size.z = [max(1e-3, hi[i] - lo[i]) / abs(scale[i]) for i in range(3)]
+            b.save(); report.append(f"{nm} trigger box -> center {tuple(round(v,3) for v in (b.m_Center.x,b.m_Center.y,b.m_Center.z))} size {tuple(round(v,3) for v in (b.m_Size.x,b.m_Size.y,b.m_Size.z))} (scale {scale})")
 
 print("\n".join(report))
 data = env.file.save(packer="original"); open(dst, 'wb').write(data); print("wrote", dst, len(data))

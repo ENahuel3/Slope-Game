@@ -22,7 +22,7 @@
   {
    "tag": "v6-track",
    "title": "Track shaping with rigid blocks",
-   "notes": "Curves and 90-degree twists built one 14-unit block at a time; the last version before the three-slab geometry.",
+   "notes": "Curves and 90-degree twists built one 14-unit block at a time; the last version before the three-slab geometry. Score/speed-up trigger boxes repaired on 2026-10-22 (they missed the ball in every build since the spawner patch).",
    "date": "2026-10-17",
    "commit": "5571cfb"
   }
