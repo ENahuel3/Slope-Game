@@ -1,7 +1,9 @@
-"""Rebuild a UnityWebData1.0 container, replacing one entry. usage: pack_webdata.py <in .unityweb> <entry path> <replacement file> <out .unityweb>"""
+"""Rebuild a UnityWebData1.0 container, replacing one entry. usage: pack_webdata.py <in .unityweb> <entry path> <replacement file> <out .unityweb> [--raw]
+The input may be raw or gzip-wrapped; the output is gzip-wrapped with the Unity marker (tools/unitygz.py) unless --raw is given."""
 import struct, sys
-src, entry, repl, out = sys.argv[1:5]
-b = open(src, 'rb').read(); assert b.startswith(b'UnityWebData1.0\0')
+from unitygz import compress, decompress
+src, entry, repl, out = [x for x in sys.argv[1:] if not x.startswith('--')][:4]
+b = decompress(open(src, 'rb').read()); assert b.startswith(b'UnityWebData1.0\0')
 pos = 16; (begin,) = struct.unpack_from('<I', b, pos); pos += 4
 entries = []
 while pos < begin:
@@ -18,4 +20,5 @@ for path, data in entries:
     out_b += struct.pack('<III', off, len(data), len(path.encode())) + path.encode()
     blobs += data; off += len(data)
 out_b += blobs
-open(out, 'wb').write(out_b); print("wrote", out, len(out_b))
+final = bytes(out_b) if '--raw' in sys.argv else compress(bytes(out_b))
+open(out, 'wb').write(final); print("wrote", out, len(final), "bytes" + ("" if '--raw' in sys.argv else " (gzip, raw %d)" % len(out_b)))

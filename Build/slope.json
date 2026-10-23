@@ -8,8 +8,21 @@
 "asmMemoryUrl": "slope_memory.unityweb",
 "asmFrameworkUrl": "slope_framework.unityweb",
 "TOTAL_MEMORY": 268435456,
-"graphicsAPI": ["WebGL 2.0", "WebGL 1.0"],
-"webglContextAttributes": {"preserveDrawingBuffer": false},
+"graphicsAPI": [
+"WebGL 2.0",
+"WebGL 1.0"
+],
+"webglContextAttributes": {
+"preserveDrawingBuffer": false
+},
 "splashScreenStyle": "Dark",
-"backgroundColor": "#231F20"
+"backgroundColor": "#231F20",
+"cacheControl": {
+"dataUrl": "must-revalidate",
+"wasmCodeUrl": "must-revalidate",
+"wasmFrameworkUrl": "must-revalidate",
+"asmCodeUrl": "must-revalidate",
+"asmMemoryUrl": "must-revalidate",
+"asmFrameworkUrl": "must-revalidate"
+}
 }

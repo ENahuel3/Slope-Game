@@ -1,6 +1,7 @@
 import struct, sys, os
+from unitygz import decompress
 src, out = sys.argv[1], sys.argv[2]
-b = open(src, 'rb').read()
+b = decompress(open(src, 'rb').read())   # the bundle may be gzip-wrapped (tools/unitygz.py)
 assert b.startswith(b'UnityWebData1.0\0'), b[:16]
 pos = 16
 (begin,) = struct.unpack_from('<I', b, pos); pos += 4

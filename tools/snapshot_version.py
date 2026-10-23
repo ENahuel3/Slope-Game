@@ -23,6 +23,9 @@ if os.path.exists(dst) and not A.force: sys.exit(dst + ' exists (--force to repl
 commit = git('rev-parse', '--short', A.src); date = git('show', '-s', '--format=%cs', A.src)
 tmp = tempfile.mkdtemp()
 subprocess.check_call('git -C %s archive %s index.html TemplateData Build/slope.json Build/slope_data.unityweb | tar -x -C %s' % (REPO, A.src, tmp), shell=True)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import unitygz
+dp = os.path.join(tmp, 'Build', 'slope_data.unityweb'); db = open(dp, 'rb').read()
+if not unitygz.is_gzip(db): open(dp, 'wb').write(unitygz.compress(db)); print('data bundle compressed (%d -> %d bytes)' % (len(db), os.path.getsize(dp)))   # older commits shipped it raw
 def same_as_root(rel):
     """the file at <commit>:rel is byte-identical to the root's current copy"""
     try: return git('rev-parse', '%s:%s' % (A.src, rel)) == git('rev-parse', 'HEAD:%s' % rel) and os.path.exists(os.path.join(REPO, rel))

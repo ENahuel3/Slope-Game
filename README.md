@@ -25,6 +25,10 @@ Clearing and restarting instantly is the tricky part. A death queues a `death co
 
 Fork this repository, open **Settings → Pages**, set the source to the `mod` branch (root), and the game will be served at `https://<your-user>.github.io/Slope-Game/` after a minute or two. If a network blocks the URL, renaming the repository changes it. There is no build step; it is static files.
 
+## Load time
+
+`Build/slope_data.unityweb` (the scene data, 8.6 MB raw) is stored gzip-compressed with the comment marker Unity's loader looks for (`UnityWeb Compressed Content (gzip)`; `unityloader41.js` only inflates a gzip stream that carries it and passes any other file through untouched, so a plain `gzip` would break the load). GitHub Pages does not compress `.unityweb` files itself, so this cuts the first-visit download from about 14 MB to 8 MB; `tools/unitygz.py` compresses or decompresses a bundle, `tools/pack_webdata.py` writes the compressed form by default (`--raw` for the old one) and `tools/unpack_webdata.py` reads either. `Build/slope.json` also turns on the loader's IndexedDB cache (`cacheControl: must-revalidate`): a repeat visit sends conditional requests for the three engine files, gets `304 Not Modified` back and reads them from the cache, about 0.3 MB of transfer instead of 8 MB, independent of the browser's HTTP cache evicting them. `tools/bench_load.py` (needs `playwright`) serves the repository locally, loads the page in headless Chromium at a chosen bandwidth, reports the bytes and the time to the menu, then starts a run on a curved track to prove the game plays; `--runs 2 --profile DIR` shows the second visit served from the cache.
+
 ## Versions
 
 The page at the site root is always the latest version. Older releases are complete copies under `versions/<tag>/`, listed in `versions/index.json`, and the HUD's **Version** selector (`TemplateData/versions.js`) switches between them; an old version shows a note with a link back to the latest. A snapshot shares the engine files, the loader and the music tracks with the root when they are byte-identical (those files have not changed since the fork and must not be removed or modified in place; a changed file is copied into the snapshot instead), so each one costs about 9 MB on the site and nothing in the repository when its files are already in the history. Because every snapshot is self-contained, a broken latest version never takes the older ones down: players just pick one that works.
@@ -36,7 +40,7 @@ python3 tools/snapshot_version.py v7-slabs --from HEAD --title "Three-slab geome
 python3 tools/snapshot_version.py --latest --title "What the root version is now"
 ```
 
-Every version that has been live is kept, including broken ones (the picker is how a player escapes a bad latest version): `v4-stack`, `v5-gravity`, `v6-track`, `v7-slabs`, `v8-gapwrap`, `v9-forward`, and so on. The rule is enforced by `.githooks/pre-push` (install once per clone with `git config core.hooksPath .githooks`): a push to `mod` is refused while the version it replaces, the remote's current head, is not in `versions/index.json`.
+Every version that has been live is kept, including broken ones (the picker is how a player escapes a bad latest version): `v4-stack`, `v5-gravity`, `v6-track`, `v7-slabs`, `v8-gapwrap`, `v9-forward`, and so on. The rule is enforced by `.githooks/pre-push` (install once per clone with `git config core.hooksPath .githooks`): a push to `mod` is refused while the version it replaces, the remote's current head, is not in `versions/index.json` (by commit hash, or by having the same `index.html`, `TemplateData` and `Build` trees as a listed version, so a commit that only touched the versions, the tools or this file needs no snapshot of its own).
 
 ## Credits
 

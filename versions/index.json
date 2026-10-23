@@ -1,7 +1,7 @@
 {
  "latest": {
   "title": "Forward slab placement, score triggers repaired",
-  "notes": "Same as v9-forward until the continuous roll rework lands.",
+  "notes": "Same as v9-forward in play. Since 2026-10-23 the data bundle is gzip-compressed and the loader keeps the build in IndexedDB (load time only).",
   "date": "2026-10-23"
  },
  "versions": [

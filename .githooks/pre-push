@@ -8,10 +8,18 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     case "$remote_sha" in 0000000000000000000000000000000000000000) continue;; esac
     short=$(git rev-parse --short "$remote_sha" 2>/dev/null || echo "$remote_sha")
     if ! python3 - "$remote_sha" "$short" <<'PY'
-import json, sys
+import json, sys, subprocess
 full, short = sys.argv[1], sys.argv[2]
 tags = {v.get('commit', '') for v in json.load(open('versions/index.json'))['versions']}
-sys.exit(0 if any(t and (full.startswith(t) or t.startswith(short)) for t in tags) else 1)
+if any(t and (full.startswith(t) or t.startswith(short)) for t in tags): sys.exit(0)
+# not listed by hash: it still counts as frozen when its game files are those of a listed version
+# (a commit that only touched versions/, tools/ or the README does not need a snapshot of its own)
+GAME = ['index.html', 'TemplateData', 'Build']
+def tree(c):
+    try: return [subprocess.check_output(['git', 'rev-parse', '%s:%s' % (c, g)], stderr=subprocess.DEVNULL).strip() for g in GAME]
+    except subprocess.CalledProcessError: return None
+mine = tree(full)
+sys.exit(0 if mine and any(t and tree(t) == mine for t in tags) else 1)
 PY
     then
         echo "pre-push: the live version $short is not in versions/index.json. Freeze it before replacing it:" >&2
