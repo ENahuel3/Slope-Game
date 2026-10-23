@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Three-slab geometry, section gaps fixed",
-  "notes": "Every lane block is three slabs; the first block of each section is three slabs too (the gap fix of 2026-10-21).",
-  "date": "2026-10-21"
+  "title": "Forward slab placement, score triggers repaired",
+  "notes": "Same as v9-forward until the continuous roll rework lands.",
+  "date": "2026-10-23"
  },
  "versions": [
   {
@@ -25,6 +25,27 @@
    "notes": "Curves and 90-degree twists built one 14-unit block at a time; the last version before the three-slab geometry. Score/speed-up trigger boxes repaired on 2026-10-22 (they missed the ball in every build since the spawner patch).",
    "date": "2026-10-17",
    "commit": "5571cfb"
+  },
+  {
+   "tag": "v7-slabs",
+   "title": "Three-slab geometry (first build)",
+   "notes": "Lane blocks as three slabs with per-slab roll. Known bad: slabs sat one slab late (lane ends 9.4 short of each jump/drop) and the score triggers missed the ball (no score, void after the start tunnel).",
+   "date": "2026-10-17",
+   "commit": "1f4c746"
+  },
+  {
+   "tag": "v8-gapwrap",
+   "title": "Section-start wrap, version picker, stack on straight only",
+   "notes": "Added the two extra slabs at each section start and the Version selector. Known bad: lane still ended 9.4 short at section ends; score triggers still missed the ball.",
+   "date": "2026-10-22",
+   "commit": "43347c1"
+  },
+  {
+   "tag": "v9-forward",
+   "title": "Forward slab placement, score triggers repaired",
+   "notes": "Slabs cover the block ahead of the spawn point (vanilla spans), score/speed-up triggers hit the ball again. Last incremental-roll geometry before the continuous roll rework.",
+   "date": "2026-10-22",
+   "commit": "2b44fbf"
   }
  ]
 }

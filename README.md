@@ -36,7 +36,7 @@ python3 tools/snapshot_version.py v7-slabs --from HEAD --title "Three-slab geome
 python3 tools/snapshot_version.py --latest --title "What the root version is now"
 ```
 
-Snapshots so far: `v4-stack` (2026-10-15, stacked courses / instant restart / music / rainbow), `v5-gravity` (2026-10-16, gravity curves and ramps), `v6-track` (2026-10-17, track shaping with rigid blocks).
+Every version that has been live is kept, including broken ones (the picker is how a player escapes a bad latest version): `v4-stack`, `v5-gravity`, `v6-track`, `v7-slabs`, `v8-gapwrap`, `v9-forward`, and so on. The rule is enforced by `.githooks/pre-push` (install once per clone with `git config core.hooksPath .githooks`): a push to `mod` is refused while the version it replaces, the remote's current head, is not in `versions/index.json`.
 
 ## Credits
 

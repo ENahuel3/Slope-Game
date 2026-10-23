@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Refuse to publish the mod branch while the version it replaces (the remote's current head) is not frozen
+# under versions/<tag>/ and listed in versions/index.json. Freeze it first:
+#   python3 tools/snapshot_version.py vN-name --from origin/mod --title "..." --notes "..."
+# Install once per clone: git config core.hooksPath .githooks
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$remote_ref" = "refs/heads/mod" ] || continue
+    case "$remote_sha" in 0000000000000000000000000000000000000000) continue;; esac
+    short=$(git rev-parse --short "$remote_sha" 2>/dev/null || echo "$remote_sha")
+    if ! python3 - "$remote_sha" "$short" <<'PY'
+import json, sys
+full, short = sys.argv[1], sys.argv[2]
+tags = {v.get('commit', '') for v in json.load(open('versions/index.json'))['versions']}
+sys.exit(0 if any(t and (full.startswith(t) or t.startswith(short)) for t in tags) else 1)
+PY
+    then
+        echo "pre-push: the live version $short is not in versions/index.json. Freeze it before replacing it:" >&2
+        echo "  python3 tools/snapshot_version.py vN-name --from $short --title \"...\" --notes \"...\"" >&2
+        exit 1
+    fi
+done
+exit 0
