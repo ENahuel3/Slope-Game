@@ -78,4 +78,13 @@ check('a new run after a real death still builds a stack', () => {
     c.musicStopped=true; vm.runInContext('examineFrame([])',c); expect(c.gameRunning,false);
     c.start(); expect(c.builds,2);
 });
+check('raw asset copies cannot be mistaken for the live ball', () => {
+    const code=source.slice(source.indexOf('    function trackBall()'), source.indexOf('    // ---- quaternion helpers'));
+    const live=3000010, heap=new Float32Array(live+10);
+    heap.set([99,0,0], 10); heap.set([5,9.5,-4],live);
+    const c=vm.createContext({H:{ball:-1,ballCands:[10,live]}, LIVE_MIN:3000000,
+        heap32:()=>heap, performance:{now:()=>1000}, ballPos:null, ballT:0, ballVel:[0,0,0], note(){}});
+    vm.runInContext(code+'; trackBall();',c);
+    expect(c.H.ball,live);
+});
 process.exitCode = failures ? 1 : 0;

@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Starting-tunnel reset protection",
-  "notes": "Late music-start confirmations no longer rebuild an already-live stack. Stuck-ball startup grace uses four real seconds; hidden tabs and frame gaps do not trigger false resets. Genuine jams still restart.",
+  "title": "More Morts and King Julien blocks",
+  "notes": "Three times as many Morts: 87 per skyline chunk. Red obstacle faces show King Julien while Mort Jackson plays and revert immediately with other music. Starting-tunnel reset protection retained.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -123,6 +123,13 @@
    "notes": "Downloaded Mort model with original colors, corrected HUD/editor shortcuts and music-source lifetime. Before startup reset-loop protection.",
    "date": "2026-10-24",
    "commit": "4fdc5eb"
+  },
+  {
+   "tag": "v20-tunnel",
+   "title": "Starting-tunnel reset protection",
+   "notes": "Startup grace in seconds, no false stuck resets after delayed frames, and no stack rebuild loop from late music confirmations. Before the denser Mort crowd and King Julien obstacles.",
+   "date": "2026-10-24",
+   "commit": "dd3c6d4"
   }
  ]
 }

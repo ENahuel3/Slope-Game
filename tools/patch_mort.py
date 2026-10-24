@@ -115,7 +115,8 @@ def apply(env):
     sa=next(o.assets_file for o in env.objects if o.assets_file.name.endswith('sharedassets0.assets'))
     target=next(o for o in sa.objects.values() if o.type.name=='Mesh' and o.read().m_Name=='buildingsMort')
     write_mesh(target,*mort_geometry(pillar_points(sa)))
-    configure_renderer(sa)
+    material = configure_renderer(sa)
+    configure_crowd(sa, material)
     return target.path_id
 
 def configure_renderer(sa):
@@ -126,6 +127,46 @@ def configure_renderer(sa):
         renderer=obj.read()
         if renderer.m_GameObject.m_PathID==go:
             renderer.m_Materials[0].m_FileID=0; renderer.m_Materials[0].m_PathID=material; renderer.save()
+    return material
+
+def configure_crowd(sa, material=None):
+    """Three staggered instances of the mesh: 87 figures without 32-bit indices.
+    Children inherit the pooled root's enable/despawn lifetime; only the root
+    keeps a pool FSM. Reusing the same mesh also avoids tripling download size.
+    """
+    if material is None: material = mort_material(sa)
+    go = next(o for o in sa.objects.values() if o.type.name == 'GameObject' and o.read().m_Name == 'buildingsMort')
+    root = go.read_typetree()
+    parts = {sa.objects[c['component']['m_PathID']].type.name: c['component']['m_PathID'] for c in root['m_Component']}
+    transform = sa.objects[parts['Transform']].read_typetree()
+    existing = {o.read().m_Name for o in sa.objects.values() if o.type.name == 'GameObject'}
+    def ptr(pid): return {'m_FileID': 0, 'm_PathID': pid}
+    def clone(source, pid, data):
+        obj = copy.copy(sa.objects[source]); obj.path_id = pid; obj.data = None
+        sa.objects[pid] = obj; obj.save_typetree(data)
+    for number, advance in [(1, 40), (2, 80)]:
+        name = 'MortCrowd' + str(number)
+        if name in existing: continue
+        base = max(sa.objects) + 1
+        child = copy.deepcopy(root); child['m_Name'] = name
+        child['m_Component'] = [{'component': ptr(base + i)} for i in (1, 2, 3)]
+        clone(go.path_id, base, child)
+        tr = copy.deepcopy(transform)
+        tr['m_GameObject'] = ptr(base); tr['m_Father'] = ptr(parts['Transform']); tr['m_Children'] = []
+        tr['m_LocalPosition'] = {'x': 0., 'y': -advance / C, 'z': 0.}
+        tr['m_LocalRotation'] = {'x': 0., 'y': 0., 'z': 0., 'w': 1.}
+        clone(parts['Transform'], base + 1, tr)
+        for key, offset in [('MeshFilter', 2), ('MeshRenderer', 3)]:
+            data = sa.objects[parts[key]].read_typetree()
+            data['m_GameObject'] = ptr(base)
+            # The renderer's newly assigned palette is in saved data until
+            # the bundle is reloaded; use the material explicitly here.
+            if key == 'MeshRenderer':
+                data['m_Materials'][0] = ptr(material)
+            clone(parts[key], base + offset, data)
+        transform['m_Children'].append(ptr(base + 1))
+    sa.objects[parts['Transform']].save_typetree(transform)
+    print('Mort crowd: 3 staggered mesh instances, 87 figures per chunk')
 
 if __name__=='__main__':
     if len(sys.argv)!=3: sys.exit(__doc__)

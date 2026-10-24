@@ -10,7 +10,7 @@ usage: patch_buildings.py <in data.unity3d> <out data.unity3d>"""
 import sys, os, struct, math, copy, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import UnityPy, fsmparse, fsmwrite, figures
-from patch_mort import mort_geometry, configure_renderer
+from patch_mort import mort_geometry, configure_renderer, configure_crowd
 src, dst = sys.argv[1], sys.argv[2]
 BUILDINGS = 104; MESH = 45
 env = UnityPy.load(src)
@@ -144,5 +144,6 @@ assert done
 # reloaded; make the newly cloned Mort prefab visible before assigning color.
 env = UnityPy.load(env.file.save(packer="original"))
 sa = next(o.assets_file for o in env.objects if o.assets_file.name.endswith('sharedassets0.assets'))
-configure_renderer(sa)
+material = configure_renderer(sa)
+configure_crowd(sa, material)
 out = env.file.save(packer="original"); open(dst, 'wb').write(out); print('wrote', dst, len(out))

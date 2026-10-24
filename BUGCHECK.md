@@ -120,3 +120,35 @@ resets, zero stalls, and zero page errors.
 
 The new latest-version entry is **Starting-tunnel reset protection**, dated
 2026-10-24. The pre-existing local service-file edit remains outside these commits.
+
+## More Morts / King Julien blocks — 2026-10-24
+
+- Increased the crowd from 29 to 87 per skyline chunk by attaching two staggered
+  child renderers that reuse the existing mesh. The children follow the pooled
+  root's lifetime and each draw stays below the 16-bit vertex limit. Download
+  size for the Unity scene is essentially unchanged.
+- Added `TemplateData/julien.js` and local PNG assets. All four red obstacle
+  textures are recognized by their compressed/decoded data fingerprints. During
+  Mort Jackson, each draw temporarily uses a texture with Julien's PNG head and
+  crown inside the original red border, then restores Unity's binding. Switching
+  to Original or Aria Math restores plain obstacles immediately. No collision or
+  obstacle geometry changed. Source credit is in the theme directory's README.
+- While checking the rebuilt scene, found the ball selector could pick a changed
+  position copy in raw asset memory. Ball candidates now use the same live-memory
+  filter as other tracked scene transforms. A regression verifies that raw asset
+  copies cannot steer the autopilot or drive the stuck watchdog.
+- `tools/julien_check.py` passes 9 checks on WebGL 2 and 9 on WebGL 1, including all
+  four red textures, immediate music switching, Night/Rainbow, restored GL texture
+  bindings, and zero GL/page errors. Restart/heap regressions and prior keyboard/
+  audio regressions also pass. Both existing-scene and fresh-scene crowd builders
+  were checked. Screenshots/logs are in `/tmp/slope-julien-*`.
+- Preserved the prior published root (`dd3c6d4`) as dated `v20-tunnel` before this
+  release; the new latest-version title/notes/date describe these changes.
+
+Accurate model replacement is still pending an accessible source archive. The
+more accurate **Mort V2 by calvinwil5782** on Sketchfab was visually checked, but
+its archive download requires a Sketchfab login (the download API returns 401).
+The original-game Models Resource downloads also return a Cloudflare challenge.
+The existing model remains in use; another available Warehouse model was checked
+and rejected because it was less accurate. Candidate/source details are in
+`tools/assets/mort/README.md`; do not describe this release as a new Mort model.

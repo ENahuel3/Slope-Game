@@ -616,7 +616,7 @@
         function finish() {
             try {
                 if (!H.grav.length) H.grav = grav;
-                if (!H.ballCands.length) H.ballCands = ballCands;
+                if (!H.ballCands.length) H.ballCands = liveOnly(ballCands);
                 if (!H.spawn.length) {
                     var all = liveOnly(spawnCands); H.spawnCacheCands = all.slice();
                     for (var i0 = 0; i0 < all.length; i0++) {
@@ -696,7 +696,7 @@
     function trackBall() {
         var f = heap32(); if (!f) return;
         if (H.ball < 0) {
-            for (var i = 0; i < H.ballCands.length; i++) { var a = H.ballCands[i]; if (Math.abs(f[a] - 5) > 0.05 || Math.abs(f[a + 1] - 10.5) > 0.05 || Math.abs(f[a + 2] + 4) > 0.05) { H.ball = a; note("ball tracked at " + a); break; } }
+            for (var i = 0; i < H.ballCands.length; i++) { var a = H.ballCands[i]; if (a < LIVE_MIN) continue; if (Math.abs(f[a] - 5) > 0.05 || Math.abs(f[a + 1] - 10.5) > 0.05 || Math.abs(f[a + 2] + 4) > 0.05) { H.ball = a; note("ball tracked at " + a); break; } }
             if (H.ball < 0) return;
         }
         var now = performance.now();
@@ -1105,6 +1105,7 @@
         setStack: setStackTarget,
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
+        music: function () { return musicId; },
         setGravity: setGravityMode,
         setTwistQueue: function (q) { twistQueue = q.slice(); },   // degrees per upcoming lap, 0 = straight
         setLaneHalf: function (v) { LANE_HALF = +v; },               // debug/test
