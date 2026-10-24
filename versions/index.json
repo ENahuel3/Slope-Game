@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Stacked courses no longer freeze",
-  "notes": "The mod wrote its FSM variables (ModQ1-3, ModSectionDelay) into every heap object that referenced the variable name, 21 of 22 of them not variables; candidates are now filtered by object header and class, which ends the abort(218) runtime freezes after lap spawn bursts with stacked courses and after game over.",
+  "title": "Continuous roll",
+  "notes": "Twists and curves are real helicoid geometry: smooth ribbons, the camera rolls with the lane. One block per spawner step again.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -53,6 +53,13 @@
    "notes": "Same play as v9-forward; the scene bundle is gzip-compressed and the loader keeps the build in IndexedDB. Known bad: stacked courses (and the game-over screen) could abort the runtime (abort(218)) a few seconds after a lap spawn burst or a death, from the mod's stray heap writes; fixed in the next version.",
    "date": "2026-10-23",
    "commit": "5a9b4ae"
+  },
+  {
+   "tag": "v11-nofreeze",
+   "title": "Freeze fix, gzip bundle",
+   "notes": "Heap writes limited to the real FSM variable objects (the random freezes), data bundle gzip-wrapped for a faster load. Last version with incremental (per-block) roll geometry.",
+   "date": "2026-10-24",
+   "commit": "7ea677a"
   }
  ]
 }

@@ -516,10 +516,10 @@
     var spawnTrace = [];              // debug: [frame, s] whenever the game moved the spawn point
     var twistQueue = [];              // debug/test: forced rolls in degrees for the next planned laps (0 = straight lap)
     var LANE_HALF = 5;                // the ball's line is 5 along the lateral axis from the spawn point
-    var BLOCK_LEN = 14.1421, SUB = 3, SUBLEN = BLOCK_LEN / 3;   // scene patch: each lane block step spawns SUB short blocks, each rotated by ModQ1..3
-    var Q_VARS = ["ModQ1", "ModQ2", "ModQ3"];
-    var TWIST_LEN = 200, TWIST_AT = 30;   // a 90-degree twist: length along the course (about 20 blocks, 4.5° each), distance into the lap
-    var CURVE_LEN = 600, CURVE_AT = 10;   // a slow roll: spread over a lap and a half
+    var BLOCK_LEN = 14.1421;          // a lane block along the course
+    var RATE_DEG = 4.5, RATE = RATE_DEG * Math.PI / 180;   // roll per block inside a roll: the twisted block prefabs (scene patch) are helicoids of exactly this much
+    var TWIST_AT = 30;                // a 90-degree twist (20 blocks) starts this far into the lap
+    var CURVE_AT = 10;                // a slow roll (120..240 degrees, one block at a time) starts this far into the lap
     var SECTION_DELAY = 0.001;        // ModSectionDelay (scene patch): any positive Wait takes a frame, so one block per frame
     var CAM_T = 0.2;                  // camera rig follows the ball's (continuous) frame with this per-frame fraction
     var sectionDelayWritten = -1, frameDt = 1 / 60, lastFrameT = 0;
@@ -529,6 +529,7 @@
 
     function heap32() { return game && game.Module ? game.Module.HEAPF32 : null; }
     function heapU32() { return game && game.Module ? game.Module.HEAPU32 : null; }
+    function heapU8() { return game && game.Module ? game.Module.HEAPU8 : null; }
     function heapU16() { return game && game.Module ? game.Module.HEAPU16 : null; }
     function fbits(f) { var b = new Float32Array([f]); return new Uint32Array(b.buffer)[0]; }
     function findTriple(a, b, c) {
@@ -618,7 +619,7 @@
         var u = heapU32(), f = heap32(), u16 = heapU16(); if (!u) return;
         var t0 = performance.now(), N = u.length, STEP = 4 << 20;
         var B = { g: fbits(G0), b5: fbits(5), b105: fbits(10.5), bm4: fbits(-4), one: fbits(1), b10: fbits(10), bm10: fbits(-10), b300: fbits(300) };
-        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay", "ModQ1", "ModQ2", "ModQ3"].filter(function (nm) { return !H.vars[nm]; });
+        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay", "ModQ1", "ModBlock", "ModBlockFlat", "ModBlockP", "ModBlockN", "ModHold", "ModMark"].filter(function (nm) { return !H.vars[nm]; });
         var firsts = {}; names.forEach(function (nm) { firsts[nm.charCodeAt(0)] = (firsts[nm.charCodeAt(0)] || []).concat([nm]); });
         var strs = {}, owner = {}, flags = null, found = {};
         names.forEach(function (nm) { strs[nm] = []; found[nm] = []; });
@@ -771,10 +772,10 @@
     function vlen(a) { return Math.sqrt(vdot(a, a)); }
     // ---- per-run track state -------------------------------------------------
     function resetTrackRun() {
-        track = { segs: [], sections: [], endRoll: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0, camQ: [0, 0, 0, 1], dApplied: [0, 0, 0], fallFrames: 0, wroteRoll: 0, lastPlanS: -1000 };
+        track = { jobs: [], sections: [], roll: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0, camQ: [0, 0, 0, 1], dApplied: [0, 0, 0], fallFrames: 0, wroteA0: 0, wroteA1: 0, wroteDir: 0, lastPlanS: -1000 };
         note("track reset" + (twistQueue.length ? " (forced " + twistQueue[0] + ")" : ""));
         ballPos = null; ballVel = [0, 0, 0];
-        writeSpawnRot(spawnQ(0)); writeSubRolls([0, 0, 0]); writeRigQ([0, 0, 0, 1]); writeChaseLocal(0, 3.056, -1.207);
+        writeSpawnRot(spawnQ(0)); writeQuatVar("ModQ1", spawnQ(0)); writeBlockChoice(0); writeRigQ([0, 0, 0, 1]); writeChaseLocal(0, 3.056, -1.207);
     }
     function writeSpawnRot(q) {
         var f = heap32(); if (!f || H.spawnLive < 0) return;
@@ -783,33 +784,21 @@
         if (b >= 0) { f[b] = q[0]; f[b + 1] = q[1]; f[b + 2] = q[2]; f[b + 3] = q[3]; }
     }
     function writeRigQ(q) { var f = heap32(); if (!f || H.rig < 0) return; f[H.rig] = q[0]; f[H.rig + 1] = q[1]; f[H.rig + 2] = q[2]; f[H.rig + 3] = q[3]; }
-    // The roll profile: smooth steps between constant stretches, in order along the course.
-    function rollAt(s) {
-        var segs = track.segs, a = 0;
-        for (var i = 0; i < segs.length; i++) {
-            var sg = segs[i];
-            if (s <= sg.s0) return sg.a0;
-            if (s >= sg.s1) { a = sg.a1; continue; }
-            var u = (s - sg.s0) / (sg.s1 - sg.s0); u = u * u * (3 - 2 * u);
-            return sg.a0 + (sg.a1 - sg.a0) * u;
-        }
-        return a;
-    }
+    // The roll of the course as actually built: every block record carries the roll at its start (a0) and end (a1); a
+    // twisted block is a helicoid between them, so the frame is linear within a block and continuous across blocks.
     function sectionIndexAt(s) {      // index of the block record the ball is on (the course as actually built)
         var secs = track.sections, k = -1;
         for (var i = 0; i < secs.length; i++) { if (s < secs[i].s0) break; k = i; }
         return k;
     }
     function sectionAt(s) { var k = sectionIndexAt(s); return k >= 0 ? track.sections[k] : null; }
-    // The roll of the ball's frame is continuous: linear between the centres of consecutive blocks (each block
-    // is rigid at its own roll, so this matches the geometry at the block centres and never steps).
     function sectionRollAt(s) {
         var secs = track.sections, k = sectionIndexAt(s); if (k < 0) return 0;
-        var a = secs[k], ca = (a.s0 + a.s1) / 2;
-        if (s >= ca && k + 1 < secs.length) { var b = secs[k + 1], cb = (b.s0 + b.s1) / 2; if (cb > ca && b.s0 - a.s1 < 30) return a.roll + (b.roll - a.roll) * Math.min(1, (s - ca) / (cb - ca)); }
-        if (s < ca && k > 0) { var p = secs[k - 1], cp = (p.s0 + p.s1) / 2; if (ca > cp && a.s0 - p.s1 < 30) return p.roll + (a.roll - p.roll) * Math.max(0, (s - cp) / (ca - cp)); }
-        return a.roll;
+        var a = secs[k];
+        if (s >= a.s1) { if (k + 1 < secs.length && secs[k + 1].s0 > a.s1) { var b = secs[k + 1]; return a.a1 + (b.a0 - a.a1) * Math.min(1, (s - a.s1) / (b.s0 - a.s1)); } return a.a1; }
+        return a.a0 + (a.a1 - a.a0) * (s - a.s0) / (a.s1 - a.s0);
     }
+    function rollAt(s) { return track ? sectionRollAt(s) : 0; }
     function keyEvent(type, key, code) {
         var e = new KeyboardEvent(type, { key: key, code: key, bubbles: true, cancelable: true });
         try { Object.defineProperty(e, "keyCode", { get: function () { return code; } }); Object.defineProperty(e, "which", { get: function () { return code; } }); } catch (x) {}
@@ -825,24 +814,29 @@
         if (want) keyEvent("keydown", want, want === "ArrowLeft" ? 37 : 39);
         autoKey = want;
     }
-    function rollingAt(s) { var segs = track.segs; for (var i = 0; i < segs.length; i++) if (s > segs[i].s0 && s < segs[i].s1) return segs[i]; return null; }
+    function rollingAt(s) { var sec = sectionAt(s); return sec && sec.a1 !== sec.a0 ? sec : null; }
+    // A roll is a job: from s0 on, the next `blocks` lane blocks are helicoids of RATE in direction dir, one block at a
+    // time as the spawner gets to them; the roll of the course after them stays. Jobs run in order.
     function planNextLap(sEnd) {              // called when a run has finished spawning: decide the roll of the next one
-        var mode = gravityMode, step = 0, len = 0, at = 0;
+        var mode = gravityMode, step = 0, at = 0;
         if (sEnd < track.lastPlanS + 20) return;   // the spawner idling where it already planned (start of a run)
         track.lastPlanS = sEnd; track.laps++;
-        if (twistQueue.length) { step = twistQueue.shift(); len = TWIST_LEN; at = TWIST_AT; }
+        if (twistQueue.length) { step = twistQueue.shift(); at = TWIST_AT; }
         else if (mode === "twists" || (mode === "both" && Math.random() < 0.5)) {
-            if (Math.random() < 0.7) { step = Math.random() < 0.5 ? -90 : 90; len = TWIST_LEN; at = TWIST_AT; }
+            if (Math.random() < 0.7) { step = Math.random() < 0.5 ? -90 : 90; at = TWIST_AT; }
         } else if (mode === "curves" || mode === "both") {
-            step = (Math.random() < 0.5 ? -1 : 1) * (120 + Math.random() * 120); len = CURVE_LEN; at = CURVE_AT;
+            step = (Math.random() < 0.5 ? -1 : 1) * (120 + Math.random() * 120); at = CURVE_AT;
         }
         if (!step) return;
-        var last = track.segs.length ? track.segs[track.segs.length - 1].s1 : 0;
-        var s0 = Math.max(sEnd + at, last), a1 = track.endRoll + step * Math.PI / 180;
-        track.segs.push({ s0: s0, s1: s0 + len, a0: track.endRoll, a1: a1 });
-        track.endRoll = a1; trackDebug.twists++;
-        note("lap " + track.laps + ": roll " + Math.round(step) + " over s " + Math.round(s0) + ".." + Math.round(s0 + len));
+        var blocks = Math.max(1, Math.round(Math.abs(step) / RATE_DEG)), dir = step > 0 ? 1 : -1;
+        track.jobs.push({ s0: sEnd + at, dir: dir, blocks: blocks }); trackDebug.twists++;
+        note("lap " + track.laps + ": roll " + (dir * blocks * RATE_DEG) + " over " + blocks + " blocks from s " + Math.round(sEnd + at));
     }
+    function nextBlockDir(s) {               // twist direction for a block starting at s: the oldest unfinished job, once reached
+        for (var i = 0; i < track.jobs.length; i++) { var j = track.jobs[i]; if (j.blocks > 0) return s >= j.s0 ? j.dir : 0; }
+        return 0;
+    }
+    function consumeBlock() { for (var i = 0; i < track.jobs.length; i++) { if (track.jobs[i].blocks > 0) { track.jobs[i].blocks--; return; } } }
     function watchSpawner() {
         var sp = spawnPos(); if (!sp) return;
         var gamePos = vsub(sp, track.dApplied);                  // where the game itself has put the spawn point
@@ -853,28 +847,26 @@
         }
         var sNow = vdot(gamePos, FWD0), sPrev = vdot(track.lastSpawn, FWD0);
         if (vlen(vsub(gamePos, track.lastSpawn)) > 0.05) {
-            // the game spawned a section (one per frame with the scene patch's delay; a whole run when it is 0),
-            // with the rotation written last frame: remember it, the ball's frame follows these records
+            // the game spawned a step (one per frame with the scene patch's delay; a whole run when it is 0) with the
+            // prefab and rotation written last frame: a block covers the BLOCK_LEN ahead of the new spawn point
             track.moving = true; track.stillFrames = 0;
             if (sNow > sPrev) {
-                // a block covers the BLOCK_LEN ahead of the spawn point it was spawned at (the slope's collision plane is
-                // centred 7 in front of its root); a lane step is SUB slabs with their own rolls, any other step one block
-                var L = sNow - sPrev, parts = (L > 13 && L < 15.5 && track.wroteRolls) ? SUB : 1;
-                for (var j = 0; j < parts; j++) {
-                    var rj = parts === SUB ? track.wroteRolls[j] : track.wroteRoll, fx = frameAxes(rj).xh;
-                    track.sections.push({ s0: sNow + BLOCK_LEN * j / parts, s1: sNow + BLOCK_LEN * (j + 1) / parts, roll: rj, lat: vdot(gamePos, fx) + LANE_HALF * fx[0] });   // lane centre = game spawn line + 5 along world x, along the block's lateral axis
-                }
+                // only a step that spawned a block from ModBlock can be a helicoid; a rigid piece (tilted lane, thin lanes, dogleg,
+                // jump) keeps the roll it was spawned at, so the roll does not advance across it
+                var laneStep = fsmFloat("ModMark") > 0.5, a1 = laneStep ? track.wroteA1 : track.wroteA0, fx = frameAxes(track.wroteA0).xh;   // ModMark: the step spawned a block from ModBlock (scene patch)
+                track.sections.push({ s0: sNow, s1: sNow + BLOCK_LEN, a0: track.wroteA0, a1: a1, lat: vdot(gamePos, fx) + LANE_HALF * fx[0] });   // lane centre = game spawn line + 5 along world x, along the block's lateral axis
+                track.roll = a1; if (laneStep && track.wroteDir) consumeBlock();
             }
-            var fq = heap32(), liveRoll = fq && H.spawnLive >= 0 ? +(2 * Math.asin(Math.max(-1, Math.min(1, fq[H.spawnLive + 1] / PITCH_CX))) * 180 / Math.PI).toFixed(1) : null;
-            spawnTrace.push([frameNo, +sNow.toFixed(1), +vdot(gamePos, N0).toFixed(1), +gamePos[0].toFixed(1), +(track.wroteRoll * 180 / Math.PI).toFixed(1), +(sNow - sPrev).toFixed(0), liveRoll, track.wroteRolls ? +(track.wroteRolls[2] * 180 / Math.PI).toFixed(1) : null]); if (spawnTrace.length > 400) spawnTrace.shift();
+            spawnTrace.push([frameNo, +sNow.toFixed(1), +gamePos[0].toFixed(1), +(track.wroteA0 * 180 / Math.PI).toFixed(1), +(track.wroteA1 * 180 / Math.PI).toFixed(1), +(sNow - sPrev).toFixed(0)]); if (spawnTrace.length > 400) spawnTrace.shift();
         }
         else if (track.moving && ++track.stillFrames >= 8) { track.moving = false; planNextLap(sNow); }   // a run just finished: the jump block sits here
         track.lastSpawn = gamePos;
-        // whatever spawns next: the rotation for its place on the course, and the spawn point moved sideways so the
-        // lane's centre line stays where the game's own spawn line + 5 puts it
-        var sNext = sNow + BLOCK_LEN;   // where the next step's block will start (a lane step; a section drop is a little longer)
-        var rolls = [rollAt(sNext + 0.5 * SUBLEN), rollAt(sNext + 1.5 * SUBLEN), rollAt(sNext + 2.5 * SUBLEN)], th = rolls[1], fr = frameAxes(th);
-        writeSpawnRot(spawnQ(rolls[0])); writeSubRolls(rolls); track.wroteRoll = rolls[0]; track.wroteRolls = rolls;
+        // whatever spawns next starts where the last block ended: its start roll goes to the spawn transform (every piece
+        // copies it) and to ModQ1, its prefab (flat, or a helicoid of +-RATE) to ModBlock, and the spawn point is moved
+        // sideways so the lane's centre line stays where the game's own spawn line + 5 puts it
+        var a0 = track.roll, dir = nextBlockDir(sNow + BLOCK_LEN), a1 = a0 + dir * RATE, fr = frameAxes(a0);
+        writeSpawnRot(spawnQ(a0)); writeQuatVar("ModQ1", spawnQ(a0)); writeBlockChoice(dir);
+        track.wroteA0 = a0; track.wroteA1 = a1; track.wroteDir = dir;
         var d = v3(vsub(fr.xh, [1, 0, 0]), -LANE_HALF), dd = vsub(d, track.dApplied);
         if (vlen(dd) > 1e-4) { shiftSpawnBy(dd); track.dApplied = d; }
     }
@@ -883,8 +875,17 @@
         var f = heap32(), objs = H.vars[name]; if (!f || !objs) return;
         for (var i = 0; i < objs.length; i++) { var a = (objs[i] + 24) >> 2; f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3]; }
     }
-    function writeSubRolls(rolls) {        // the three short blocks of the next lane step take these rolls (SetRotation in the patched FSM)
-        for (var j = 0; j < SUB; j++) writeQuatVar(Q_VARS[j], spawnQ(rolls[j]));
+    function writeFloatVar(name, v) { var f = heap32(), objs = H.vars[name]; if (!f || !objs) return; for (var i = 0; i < objs.length; i++) f[(objs[i] + 24) >> 2] = v; }
+    function readGoVar(name) { var u = heapU32(), objs = H.vars[name]; return u && objs && objs.length ? u[(objs[0] + 24) >> 2] : 0; }   // FsmGameObject value: a reference at +24
+    function writeGoVar(name, ptr) { var u = heapU32(), objs = H.vars[name]; if (!u || !objs || !ptr) return; for (var i = 0; i < objs.length; i++) u[(objs[i] + 24) >> 2] = ptr; }
+    var blockPtr = null;                   // the three block prefabs' object pointers, read once from ModBlockFlat / ModBlockP / ModBlockN
+    function writeBlockChoice(dir) {       // the prefab the spawner's next lane block comes from: flat, or a helicoid of +RATE / -RATE
+        if (!blockPtr) {
+            var p0 = readGoVar("ModBlockFlat"), p1 = readGoVar("ModBlockP"), p2 = readGoVar("ModBlockN");
+            if (!(p0 && p1 && p2 && readGoVar("ModBlock") === p0)) return;   // not discovered yet, or not the layout we expect
+            blockPtr = { "0": p0, "1": p1, "-1": p2 }; note("block prefabs: flat " + p0 + " P " + p1 + " N " + p2);
+        }
+        writeGoVar("ModBlock", blockPtr[String(dir)]);
     }
     function setSectionDelay(v) {
         var f = heap32(), objs = H.vars.ModSectionDelay; if (!f || !objs || !objs.length) return;
@@ -894,13 +895,16 @@
     function stepTrack(playing) {
         if (!trackReady()) return;
         var nowT = performance.now(); if (lastFrameT) frameDt = frameDt * 0.9 + Math.min(0.1, (nowT - lastFrameT) / 1000) * 0.1; lastFrameT = nowT;
-        var want = gravityMode !== "off" && gameRunning && !build && !restartSeq ? (sectionDelayOverride !== null ? sectionDelayOverride : SECTION_DELAY) : 0;
-        if (want !== sectionDelayWritten) setSectionDelay(want);
+        // one spawn step per mod frame while a track mode runs (the spawner's step states wait on ModGo, which the mod
+        // sets after writing the next block's prefab and roll; the state clears it), the vanilla one-frame burst otherwise
+        var perFrame = gravityMode !== "off" && gameRunning && !build && !restartSeq && (sectionDelayOverride === null || sectionDelayOverride > 0);
+        writeFloatVar("ModHold", perFrame ? 1000 : 0);               // every spawner step re-arms its Wait from this: 0 = burst, 1000 s = hold
+        setSectionDelay(0);                                          // ...and the mod releases one step per frame (the step re-arms before any further update)
         if (playing) resolveRig();
         if (gravityMode === "off" || !playing || !track) {
             if (gravWritten) writeGravity(0, G0, 0);
             if (autopilot && playing && gravityMode === "off") { trackBall(); if (ballPos) { var wantS = ballPos[0] > 5.6 ? "ArrowLeft" : ballPos[0] < 4.4 ? "ArrowRight" : null; if (wantS !== autoKey) { if (autoKey) keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39); if (wantS) keyEvent("keydown", wantS, wantS === "ArrowLeft" ? 37 : 39); autoKey = wantS; } } }   // test: straight-lane autopilot
-            if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0)); writeSubRolls([0, 0, 0]); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (vlen(track.dApplied) > 0) { shiftSpawnBy(v3(track.dApplied, -1)); track.dApplied = [0, 0, 0]; } }
+            if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0)); writeQuatVar("ModQ1", spawnQ(0)); writeBlockChoice(0); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (vlen(track.dApplied) > 0) { shiftSpawnBy(v3(track.dApplied, -1)); track.dApplied = [0, 0, 0]; } }
             return;
         }
         trackBall(); watchSpawner();
@@ -933,7 +937,7 @@
             writeChaseLocal(local[0], local[1], local[2]);
         }
         var deg = Math.round(rollAt(sb) * 180 / Math.PI), rolling = rollingAt(sb);
-        var label = rolling ? (Math.abs(rolling.a1 - rolling.a0) > 1.2 ? "rolling " : "twist ") + deg + "°" : (deg % 360 === 0 ? "" : deg + "°");
+        var label = rolling ? "rolling " + deg + "°" : (deg % 360 === 0 ? "" : deg + "°");
         if (gravBadge && gravBadge.textContent !== label) { gravBadge.textContent = label; gravBadge.classList.toggle("on", !!label); }
     }
     // The fall-out kill box hangs under the spawner; with the spawner rolled it would cut through the lane.
@@ -947,7 +951,7 @@
     function setGravityMode(m) {
         if (GRAVITY_MODES.indexOf(m) < 0) m = "off";
         gravityMode = m; lsSet(KEY_GRAVITY, m); refreshStackNote();
-        if (m === "off") { writeGravity(0, G0, 0); writeSpawnRot(spawnQ(0)); writeSubRolls([0, 0, 0]); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
+        if (m === "off") { writeGravity(0, G0, 0); writeSpawnRot(spawnQ(0)); writeQuatVar("ModQ1", spawnQ(0)); writeBlockChoice(0); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
     }
     ["keydown", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {
@@ -1128,9 +1132,9 @@
         fsmGet: function (name) { var f = heap32(); return varObjects(name, findFsmFloats(name)).map(function (a) { return [a, f[(a + 24) >> 2]]; }); },
         fsmGetInt: function (name) { var u = heapU32(); return varObjects(name, findFsmFloats(name)).map(function (a) { return [a, u[(a + 24) >> 2] | 0]; }); },
         fsmSet: function (name, v) { var f = heap32(), objs = varObjects(name, findFsmFloats(name)); objs.forEach(function (a) { f[(a + 24) >> 2] = v; }); return objs.length; },
-        setTwistParams: function (o) { if (o.len) TWIST_LEN = o.len; if (o.at) TWIST_AT = o.at; },   // debug/test
+        setTwistParams: function (o) { if (o.at) TWIST_AT = o.at; },   // debug/test
         roll: function () { return track && ballPos ? +(rollAt(vdot(ballPos, FWD0)) * 180 / Math.PI).toFixed(1) : null; },
-        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), s: ballPos ? +vdot(ballPos, FWD0).toFixed(1) : null, sections: track ? track.sections.length : 0, latErr: autoErr, latPred: autoPred, segs: track ? track.segs.map(function (sg) { return [Math.round(sg.s0), Math.round(sg.s1), Math.round(sg.a0 * 180 / Math.PI), Math.round(sg.a1 * 180 / Math.PI)]; }) : null, camQ: track ? track.camQ.map(function (v) { return +v.toFixed(2); }) : null, kill: H.kill, laps: track ? track.laps : 0, spawnPos: spawnPos(), spawnQ: (function () { var f = heap32(); return f && H.spawnLive >= 0 ? [f[H.spawnLive], f[H.spawnLive + 1], f[H.spawnLive + 2], f[H.spawnLive + 3]].map(function (v) { return +v.toFixed(3); }) : null; })(), dApplied: track ? track.dApplied.map(function (v) { return +v.toFixed(2); }) : null, rigPos: rigPos(), zforce: fsmFloat("zforce"), yforce: fsmFloat("yforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
+        track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), s: ballPos ? +vdot(ballPos, FWD0).toFixed(1) : null, sections: track ? track.sections.length : 0, latErr: autoErr, latPred: autoPred, jobs: track ? track.jobs.map(function (j) { return [Math.round(j.s0), j.dir, j.blocks]; }) : null, hold: fsmFloat("ModHold"), delay: fsmFloat("ModSectionDelay"), running: gameRunning, build: !!build, restarting: !!restartSeq, roll: track ? +(track.roll * 180 / Math.PI).toFixed(1) : null, blockPtr: blockPtr, secHead: track ? track.sections.slice(0, 4).map(function (x) { return [Math.round(x.s0), +(x.a0 * 180 / Math.PI).toFixed(1), +(x.a1 * 180 / Math.PI).toFixed(1)]; }) : null, secTail: track ? track.sections.slice(-3).map(function (x) { return [Math.round(x.s0), +(x.a0 * 180 / Math.PI).toFixed(1), +(x.a1 * 180 / Math.PI).toFixed(1)]; }) : null, camQ: track ? track.camQ.map(function (v) { return +v.toFixed(2); }) : null, kill: H.kill, laps: track ? track.laps : 0, spawnPos: spawnPos(), spawnQ: (function () { var f = heap32(); return f && H.spawnLive >= 0 ? [f[H.spawnLive], f[H.spawnLive + 1], f[H.spawnLive + 2], f[H.spawnLive + 3]].map(function (v) { return +v.toFixed(3); }) : null; })(), dApplied: track ? track.dApplied.map(function (v) { return +v.toFixed(2); }) : null, rigPos: rigPos(), zforce: fsmFloat("zforce"), yforce: fsmFloat("yforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
         heapVars: function () { return H.vars; },   // test: the variable objects per FSM variable name

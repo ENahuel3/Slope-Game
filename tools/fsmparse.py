@@ -72,8 +72,8 @@ def parse(b):
     try:
         f['events'] = r.arr(fsmEvent); f['globalTransitions'] = r.arr(transition)
         v = {'_pos': r.p}
-        v['float'] = r.arr(fsmFloat); v['int'] = r.arr(fsmInt); v['bool'] = r.arr(fsmBool); v['string'] = r.arr(fsmString); v['v2'] = r.arr(fsmV2); v['v3'] = r.arr(fsmV3)
-        v['color'] = r.arr(fsm4); v['rect'] = r.arr(fsm4); v['_quatPos'] = r.p; v['quat'] = r.arr(fsm4); v['gameObject'] = r.arr(fsmGO); v['object'] = r.arr(fsmObject)
+        v['float'] = r.arr(fsmFloat); v['int'] = r.arr(fsmInt); v['_boolPos'] = r.p; v['bool'] = r.arr(fsmBool); v['string'] = r.arr(fsmString); v['v2'] = r.arr(fsmV2); v['v3'] = r.arr(fsmV3)
+        v['color'] = r.arr(fsm4); v['rect'] = r.arr(fsm4); v['_quatPos'] = r.p; v['quat'] = r.arr(fsm4); v['_goPos'] = r.p; v['gameObject'] = r.arr(fsmGO); v['_objPos'] = r.p; v['object'] = r.arr(fsmObject)
         f['variables'] = v; f['_afterVars'] = r.p
     except Exception as e:
         f['_err'] = str(e)
