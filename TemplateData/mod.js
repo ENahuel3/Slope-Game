@@ -468,6 +468,9 @@
     var PITCH_SX = -0.70710678, PITCH_CX = 0.70710678;         // SpawnPos rest rotation after the scene patch: -90 degrees about x (blocks copy it)
     var H = { grav: [], spawn: [], spawnLive: -1, spawnCache: -1, rig: -1, chase: -1, ball: -1, ballCands: [], vars: {}, kill: -1 };
     var ballPos = null, ballVel = [0, 0, 0], ballT = 0;
+    var CAMERA_OFFSET = [0, 3.0560860633850098, -1.2071590423583984];
+    var CAMERA_ROTATION = [0.4355890154838562, 0, 0, 0.9001456499099731];
+    var cameraFollowing = false;
     var track = null;                 // per-run state, see resetTrackRun()
     var keysHeld = { left: false, right: false };
     var trackDebug = { laps: 0, twists: 0 };
@@ -479,7 +482,6 @@
     var TWIST_AT = 30;                // a 90-degree twist (20 blocks) starts this far into the lap
     var CURVE_AT = 10;                // a slow roll (120..240 degrees, one block at a time) starts this far into the lap
     var SECTION_DELAY = 0.001;        // ModSectionDelay (scene patch): any positive Wait takes a frame, so one block per frame
-    var CAM_T = 0.2;                  // camera rig follows the ball's (continuous) frame with this per-frame fraction
     var sectionDelayWritten = -1, frameDt = 1 / 60, lastFrameT = 0;
     var sectionDelayOverride = null;   // debug/test
     var autopilot = false, autoKey = null, autoErr = null, autoPred = null;   // debug/test: steer the ball toward the lane's centre line
@@ -558,16 +560,22 @@
     var varKlass = {};
     function headerOk(a) { var u = heapU32(); if (!u) return false; var k = u[a >> 2]; return k > 0 && (k & 3) === 0 && k < u.length * 4 && u[(a + 4) >> 2] === 0; }
     function majorityKlass(addrs) { var u = heapU32(), n = {}, best = 0, bk = 0; addrs.forEach(function (a) { if (!headerOk(a)) return; var k = u[a >> 2]; n[k] = (n[k] || 0) + 1; if (n[k] > best) { best = n[k]; bk = k; } }); return bk; }
-    function varKind(nm) { return /^ModQ/.test(nm) ? "quat" : /^Mod(Block|Building)/.test(nm) ? "go" : "float"; }
+    function varKind(nm) { return /^ModCamera(?:Offset|Position)$/.test(nm) ? "vec3" : /^ModQ/.test(nm) ? "quat" : /^Mod(Block|Building)/.test(nm) ? "go" : "float"; }
     function learnKlasses(found) {
         var u = heapU32(), f = heap32(); if (!u) return;
         if (!varKlass.float) varKlass.float = majorityKlass(["zforce", "yforce", "SteerForceLeft", "SteerForceRight"].reduce(function (acc, nm) { return acc.concat(liveOnly(found[nm] || H.vars[nm] || [])); }, []));
         if (!varKlass.quat) { var qs = ["ModQ1", "ModQ2", "ModQ3"].reduce(function (acc, nm) { return acc.concat(liveOnly(found[nm] || H.vars[nm] || [])); }, []);
             var rest = qs.filter(function (a) { return headerOk(a) && Math.abs(f[(a + 24) >> 2] - PITCH_SX) < 1e-3 && Math.abs(f[(a + 36) >> 2] - PITCH_CX) < 1e-3; });
             varKlass.quat = rest.length ? u[rest[0] >> 2] : majorityKlass(qs); }
+        if (!varKlass.vec3) {
+            var offsets = liveOnly(found.ModCameraOffset || H.vars.ModCameraOffset || []).filter(function (a) {
+                return headerOk(a) && Math.abs(f[(a + 24) >> 2]) < 1e-3 && Math.abs(f[(a + 28) >> 2] - CAMERA_OFFSET[1]) < 1e-3 && Math.abs(f[(a + 32) >> 2] - CAMERA_OFFSET[2]) < 1e-3;
+            });
+            varKlass.vec3 = majorityKlass(offsets);
+        }
         if (!varKlass.go) varKlass.go = majorityKlass(Object.keys(found).filter(function (nm) { return varKind(nm) === "go"; }).reduce(function (acc, nm) { return acc.concat(liveOnly(found[nm])); }, []));
     }
-    function varObjects(nm, list) { var u = heapU32(), k = varKlass[varKind(nm)]; return liveOnly(list).filter(function (a) { return headerOk(a) && (!k || u[a >> 2] === k); }); }
+    function varObjects(nm, list) { var u = heapU32(), k = varKlass[varKind(nm)]; if (varKind(nm) === "vec3" && !k) return []; return liveOnly(list).filter(function (a) { return headerOk(a) && (!k || u[a >> 2] === k); }); }
     // Heap discovery runs in slices (one per frame) so the page never freezes: pass A walks the heap as u32 with
     // exact bit patterns as cheap prefilters, pass B finds the managed strings of the FSM variable names, pass C
     // finds the variable objects pointing at them. trackReady() turns true when all three are done.
@@ -577,7 +585,7 @@
         var u = heapU32(), f = heap32(), u16 = heapU16(); if (!u) return;
         var t0 = performance.now(), N = u.length, STEP = 4 << 20;
         var B = { g: fbits(G0), b5: fbits(5), b105: fbits(10.5), bm4: fbits(-4), one: fbits(1), b10: fbits(10), bm10: fbits(-10), b300: fbits(300) };
-        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay", "ModQ1", "ModBlock", "ModBlockFlat", "ModBlockP", "ModBlockN", "ModBuilding", "ModBuildingFlat", "ModBuildingZombie", "ModBuildingMort", "ModHold", "ModMark"].filter(function (nm) { return !H.vars[nm]; });
+        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay", "ModQ1", "ModBlock", "ModBlockFlat", "ModBlockP", "ModBlockN", "ModBuilding", "ModBuildingFlat", "ModBuildingZombie", "ModBuildingMort", "ModHold", "ModMark", "ModCameraOffset", "ModQCamera", "ModCameraTick"].filter(function (nm) { return !H.vars[nm]; });
         var firsts = {}; names.forEach(function (nm) { firsts[nm.charCodeAt(0)] = (firsts[nm.charCodeAt(0)] || []).concat([nm]); });
         var strs = {}, owner = {}, flags = null, found = {};
         names.forEach(function (nm) { strs[nm] = []; found[nm] = []; });
@@ -687,11 +695,10 @@
         var a = H.spawnLive;
         return [f[a - 3], f[a - 2], f[a - 1]];
     }
-    // The rig ("Text") copies the ball's position each frame with x clamped to 3..7 and a fixed offset; its
-    // own position record is a stale local copy, so reproduce that rule instead of reading it.
-    function rigPos() { return ballPos ? [Math.min(7, Math.max(3, ballPos[0])), ballPos[1] - 4.018, ballPos[2] - 0.737] : null; }
+    // CameraDummy copies the ball position, clamping x to 3..7 in close mode.
+    // This diagnostic reproduces that rule; the rolled camera reads Sphere directly.
+    function rigPos() { return ballPos ? [Math.min(7, Math.max(3, ballPos[0])), ballPos[1], ballPos[2]] : null; }
     function writeChaseLocal(x, y, z) { var f = heap32(); if (!f || H.chase < 0) return; f[H.chase + 4] = x; f[H.chase + 5] = y; f[H.chase + 6] = z; }
-    var CHASE_WORLD_OFF = [0, 3.056 - 4.018, -1.207 - 0.737];   // chase target relative to the ball on a straight run (rig sits 4.0 below / 0.74 behind the ball)
 
     function trackBall() {
         var f = heap32(); if (!f) return;
@@ -732,7 +739,7 @@
     function resetTrackRun() {
         track = { jobs: [], sections: [], roll: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0, camQ: [0, 0, 0, 1], dApplied: [0, 0, 0], fallFrames: 0, wroteA0: 0, wroteA1: 0, wroteDir: 0, lastPlanS: -1000 };
         note("track reset" + (twistQueue.length ? " (forced " + twistQueue[0] + ")" : ""));
-        ballPos = null; ballVel = [0, 0, 0];
+        ballPos = null; ballVel = [0, 0, 0]; cameraFollowing = false; writeFloatVar("ModCameraTick", 0);
         writeSpawnRot(spawnQ(0)); writeQuatVar("ModQ1", spawnQ(0)); writeBlockChoice(0); writeRigQ([0, 0, 0, 1]); writeChaseLocal(0, 3.056, -1.207);
     }
     function writeSpawnRot(q) {
@@ -833,6 +840,15 @@
         var f = heap32(), objs = H.vars[name]; if (!f || !objs) return;
         for (var i = 0; i < objs.length; i++) { var a = (objs[i] + 24) >> 2; f[a] = q[0]; f[a + 1] = q[1]; f[a + 2] = q[2]; f[a + 3] = q[3]; }
     }
+    function followCamera(frame) {
+        var f = heap32(), objects = H.vars.ModCameraOffset;
+        if (!f || !varKlass.vec3 || !objects || !objects.length || !(H.vars.ModQCamera && H.vars.ModQCamera.length)) return;
+        var offset = qrot(frame, CAMERA_OFFSET);
+        objects.forEach(function (a) { var i = (a + 24) >> 2; f[i] = offset[0]; f[i + 1] = offset[1]; f[i + 2] = offset[2]; });
+        writeQuatVar("ModQCamera", qmul(frame, CAMERA_ROTATION));
+        if (!cameraFollowing || fsmFloat("ModCameraTick") < 0.5) setState("CameraDummy/Main Camera", "Mod follow roll");
+        writeFloatVar("ModCameraTick", 0); cameraFollowing = true;
+    }
     function writeFloatVar(name, v) { var f = heap32(), objs = H.vars[name]; if (!f || !objs) return; for (var i = 0; i < objs.length; i++) f[(objs[i] + 24) >> 2] = v; }
     function readGoVar(name) { var u = heapU32(), objs = H.vars[name]; return u && objs && objs.length ? u[(objs[0] + 24) >> 2] : 0; }   // FsmGameObject value: a reference at +24
     function writeGoVar(name, ptr) { var u = heapU32(), objs = H.vars[name]; if (!u || !objs || !ptr) return; for (var i = 0; i < objs.length; i++) u[(objs[i] + 24) >> 2] = ptr; }
@@ -860,6 +876,7 @@
         setSectionDelay(0);                                          // ...and the mod releases one step per frame (the step re-arms before any further update)
         if (playing) resolveRig();
         if (gravityMode === "off" || !playing || !track) {
+            if (playing && cameraFollowing) followCamera([0, 0, 0, 1]);
             if (gravWritten) writeGravity(0, G0, 0);
             if (autopilot && playing && gravityMode === "off") { trackBall(); if (ballPos) { var wantS = ballPos[0] > 5.6 ? "ArrowLeft" : ballPos[0] < 4.4 ? "ArrowRight" : null; if (wantS !== autoKey) { if (autoKey) keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39); if (wantS) keyEvent("keydown", wantS, wantS === "ArrowLeft" ? 37 : 39); autoKey = wantS; } } }   // test: straight-lane autopilot
             if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0)); writeQuatVar("ModQ1", spawnQ(0)); writeBlockChoice(0); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (vlen(track.dApplied) > 0) { shiftSpawnBy(v3(track.dApplied, -1)); track.dApplied = [0, 0, 0]; } }
@@ -881,19 +898,10 @@
         g = vadd(g, v3(vsub(fr.yh, [0, 1, 0]), yf / BALL_MASS));
         g = vadd(g, v3(vsub(fr.xh, [1, 0, 0]), steer / BALL_MASS));
         writeGravity(g[0], g[1], g[2]);
-        // --- camera: the rig takes the ball's frame; the chase target is re-aimed so the clamped rig does not matter
-        var camTarget = fr.R, cq = track.camQ;
-        if (vdot(cq, camTarget) + cq[3] * camTarget[3] < 0) camTarget = [-camTarget[0], -camTarget[1], -camTarget[2], -camTarget[3]];
-        cq = [cq[0] + (camTarget[0] - cq[0]) * CAM_T, cq[1] + (camTarget[1] - cq[1]) * CAM_T, cq[2] + (camTarget[2] - cq[2]) * CAM_T, cq[3] + (camTarget[3] - cq[3]) * CAM_T];
-        var nl2 = Math.sqrt(cq[0] * cq[0] + cq[1] * cq[1] + cq[2] * cq[2] + cq[3] * cq[3]);
-        cq = [cq[0] / nl2, cq[1] / nl2, cq[2] / nl2, cq[3] / nl2]; track.camQ = cq;
-        writeRigQ(cq);
-        var rp = rigPos();
-        if (rp) {
-            var desired = vadd(ballPos, qrot(cq, CHASE_WORLD_OFF));
-            var local = qrot(qconj(cq), vsub(desired, rp));
-            writeChaseLocal(local[0], local[1], local[2]);
-        }
+        // Native transform actions mark the camera dirty and run after physics.
+        // Raw writes into the rig's stale local record never rolled the rendered view.
+        track.camQ = fr.R.slice();
+        followCamera(fr.R);
         var deg = Math.round(rollAt(sb) * 180 / Math.PI), rolling = rollingAt(sb);
         var label = rolling ? "rolling " + deg + "°" : (deg % 360 === 0 ? "" : deg + "°");
         if (gravBadge && gravBadge.textContent !== label) { gravBadge.textContent = label; gravBadge.classList.toggle("on", !!label); }

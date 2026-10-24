@@ -70,11 +70,15 @@ def mort_geometry(points):
         # with a torso or putting the head entirely above the camera.
         head_height = max(80, min(150, top + cz))
         floor_y = -cz + (head_height - height) / C
-        cx = math.copysign(max(abs(cx), 240), cx)  # keep solid bodies well clear of the lane
+        side = 1 if cx > 5 else -1
+        cx = 5 + side * 240  # equal distance from the lane's x=5 centre on both sides
+        yaw = math.radians(side * 20); cy, sy = math.cos(yaw), math.sin(yaw)
         base=len(verts)
-        # Stand perpendicular to the 45-degree lane, with the tail following
-        # the lane behind Mort rather than forming a wall above his head.
-        verts.extend(to_local((x+cx, (y-z)*C+floor_y, (y+z)*C+cz)) for x,y,z in fig.v)
+        # Stand perpendicular to the lane and yaw 20 degrees inward around its
+        # normal. The tail points outward, away from the playable track.
+        for x, y, z in fig.v:
+            x, z = x*cy + z*sy, -x*sy + z*cy
+            verts.append(to_local((x+cx, (y-z)*C+floor_y, (y+z)*C+cz)))
         uvs.extend(fig.uv)
         tris.extend(tuple(i+base for i in t) for t in fig.t)
     print(f'Mort crowd: {len(chosen)} figures, {len(verts)} vertices, {len(tris)} triangles (every {every} slots)')

@@ -28,7 +28,8 @@ Sunny/Night depth capture working. Other materials/shaders are unchanged.
 The crowd remains **87 figures per skyline chunk**: three staggered instances
 of a 29-figure mesh. Each mesh has 51,794 vertices and stays below the engine's
 16-bit index limit. Mort stands perpendicular to the lane, so the longer tail
-follows the slope behind him. The two extra renderers are children of the pooled
+follows the slope behind him. Both sides stand 240 units from the lane center
+(x=5), and each figure turns 20° inward around the lane normal. The two extra renderers are children of the pooled
 root and disappear with it on restart. The actual model uses fewer than half as
 many triangles per figure as the previous double-sided placeholder.
 

@@ -182,3 +182,48 @@ also pass. Logs/screenshots: `/tmp/slope-mort-v2-*` and `/tmp/julien-game-*.png`
 The prior release is preserved as `v21-julien`, from `1ce9ddf`, dated 2026-10-24.
 The latest-version entry is **Accurate textured Mort V2**, dated 2026-10-24.
 The camera-orientation follow-up is a separate change after this release.
+
+## Locked roll camera and symmetric Mort crowd — 2026-10-24
+
+Mort placement now uses the track center x=5 and a fixed 240-unit distance on
+both sides (left x=-235, right x=245). Every figure turns 20 degrees inward
+around the slope normal. All 87 figures, source textures and cutout shading
+remain. Validation compares every packed mesh vertex with the generated layout.
+
+The old camera path wrote a cached Transform record in the heap; the actual
+rendered view stayed upright even with the lane at 180 degrees. The native
+SmoothLookAt action only runs after a fall, so changing its up vector cannot
+fix live play. `tools/patch_camera.py` adds a dedicated Main Camera state:
+read the current Sphere position, set world position, translate by the rotated
+chase offset, and set world rotation in LateUpdate. The mod supplies the course
+frame directly, preserving the chase pitch and removing frame-based easing.
+A native heartbeat recovers the state after ordinary camera events. Straight
+mode restores the original orientation; fresh straight runs and menu/death
+states retain their original native flow. Serialized-object comparison confirms
+that this patch changes only Main Camera FSM 282, leaving physics/collisions
+unchanged.
+
+Rebuild the native camera state once on a scene which does not already have it:
+`python tools/patch_camera.py input-data.unity3d output-data.unity3d`, then use
+`tools/pack_webdata.py` to replace the scene entry. Existing model rebuilds on
+this release preserve the camera state.
+
+Existing restart checks (9), runtime keyboard/audio checks (10), and Julien
+checks (9 each for WebGL 1 and 2) pass. Real rendered-camera testing is in
+`tools/camera_check.py`: it compares the uploaded view-matrix right vector with
+the lane frame while playing, checks both roll directions, and verifies returning
+to Straight. The test excludes menu/build/restart transitions and allows for the
+heap/render sampling delay under software WebGL. Samples run after both RAF
+loops to avoid comparing a new heap frame with an older uploaded matrix.
+The positive play run reached 85.5° with a maximum 0.07° error across 297
+rolled samples and successfully restored Straight, without page errors.
+A deterministic native-state sweep also covers 0°, 20°, ±90°, ±180°, ±270°
+and ±360° without depending on random obstacles or autopilot survival.
+The final sweep passes on both WebGL versions; the negative-direction play
+check reaches 56.4° with 0.07° maximum error and the positive check reaches
+28.1° with 0.08° maximum error. Both restore Straight and report no page errors.
+Screenshot review confirms inward-facing textured Morts and Julien obstacles.
+
+The previous accurate-model release is preserved as `v22-mort-v2`, from
+`5f7e617`, dated 2026-10-24. Latest: **Locked twist camera and inward-facing
+Morts**, dated 2026-10-24.

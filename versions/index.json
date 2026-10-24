@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Accurate textured Mort V2",
-  "notes": "Original textured Mort V2 by calvinwil5782 replaces the stylized model. All 87 Morts use the original face/body, tail and hair textures, with transparent fur cards and slope-aligned placement. King Julien obstacles and reset protection retained.",
+  "title": "Locked twist camera and inward-facing Morts",
+  "notes": "Camera follows the ball\u2019s course frame through twists and rolls. Accurate Mort V2 crowd sits equally far from both sides of the track, with every figure turned 20 degrees inward.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -137,6 +137,13 @@
    "notes": "87 low-poly Morts per skyline chunk, King Julien PNGs on red obstacles during Mort Jackson, and immediate restoration with other music. Before the accurate textured Mort V2 replacement.",
    "date": "2026-10-24",
    "commit": "1ce9ddf"
+  },
+  {
+   "tag": "v22-mort-v2",
+   "title": "Accurate textured Mort V2",
+   "notes": "87 original textured Mort V2 models, transparent fur cards and slope-aligned placement; King Julien blocks retained. Before the twist/roll camera-frame fix.",
+   "date": "2026-10-24",
+   "commit": "5f7e617"
   }
  ]
 }
