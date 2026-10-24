@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Forward slab placement, score triggers repaired",
-  "notes": "Same as v9-forward in play. Since 2026-10-23 the data bundle is gzip-compressed and the loader keeps the build in IndexedDB (load time only).",
-  "date": "2026-10-23"
+  "title": "Stacked courses no longer freeze",
+  "notes": "The mod wrote its FSM variables (ModQ1-3, ModSectionDelay) into every heap object that referenced the variable name, 21 of 22 of them not variables; candidates are now filtered by object header and class, which ends the abort(218) runtime freezes after lap spawn bursts with stacked courses and after game over.",
+  "date": "2026-10-24"
  },
  "versions": [
   {
@@ -46,6 +46,13 @@
    "notes": "Slabs cover the block ahead of the spawn point (vanilla spans), score/speed-up triggers hit the ball again. Last incremental-roll geometry before the continuous roll rework.",
    "date": "2026-10-22",
    "commit": "2b44fbf"
+  },
+  {
+   "tag": "v10-fastload",
+   "title": "Compressed data bundle, loader cache",
+   "notes": "Same play as v9-forward; the scene bundle is gzip-compressed and the loader keeps the build in IndexedDB. Known bad: stacked courses (and the game-over screen) could abort the runtime (abort(218)) a few seconds after a lap spawn burst or a death, from the mod's stray heap writes; fixed in the next version.",
+   "date": "2026-10-23",
+   "commit": "5a9b4ae"
   }
  ]
 }

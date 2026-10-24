@@ -1,6 +1,7 @@
 """Rebuild a UnityWebData1.0 container, replacing one entry. usage: pack_webdata.py <in .unityweb> <entry path> <replacement file> <out .unityweb> [--raw]
 The input may be raw or gzip-wrapped; the output is gzip-wrapped with the Unity marker (tools/unitygz.py) unless --raw is given."""
-import struct, sys
+import struct, sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from unitygz import compress, decompress
 src, entry, repl, out = [x for x in sys.argv[1:] if not x.startswith('--')][:4]
 b = decompress(open(src, 'rb').read()); assert b.startswith(b'UnityWebData1.0\0')

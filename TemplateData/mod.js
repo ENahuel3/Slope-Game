@@ -376,6 +376,7 @@
     var builds = 0, resetsSent = 0, deaths = 0, restarts = 0;
     var lastRestart = -1000, gameRunning = false;
     var frameNo = 0, debugLog = [];   // debugLog: last 40 decisions, for diagnostics
+    var lastLoopT = 0, worstGap = 0, worstGapFrame = 0, bigGaps = [];   // diagnostics: main-thread stalls between frames
     function note(ev) { debugLog.push(frameNo + ':' + ev); if (debugLog.length > 40) debugLog.shift(); }
 
     // build: null | { phase: "course" | "laps" | "settle" | "final", hidden, hiddenTarget, laps, since, started, tries, lastLift, startSent }
@@ -481,6 +482,7 @@
 
     function frameLoop() {
         frameNo++;
+        var nowL = performance.now(); if (lastLoopT) { var gapL = nowL - lastLoopT; if (gapL > worstGap) { worstGap = gapL; worstGapFrame = frameNo; } if (gapL > 300) { bigGaps.push([frameNo, Math.round(gapL)]); if (bigGaps.length > 60) bigGaps.shift(); } } lastLoopT = nowL;
         var draws = frameDraws; frameDraws = [];
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
         try { stepTrack(gameRunning && !build && !restartSeq); } catch (e) { if (!trackDebug.err) { trackDebug.err = String(e); note("track error: " + e); } }
@@ -589,6 +591,24 @@
     // so matches below this float index are copies inside the data file, not the scene.
     var LIVE_MIN = 3000000;
     function liveOnly(list) { return list.filter(function (a) { return a >= LIVE_MIN; }); }
+    // A variable-name match is only the object itself when it has an object header: a class pointer (4-aligned, inside
+    // the heap), a zero monitor word, and the class shared by the known variables of that type (FsmFloat: the game's
+    // own zforce/yforce; FsmQuaternion: the ModQ variable resting at the spawn rotation). The other matches are the
+    // name inside raw FSM data and unrelated objects whose field happens to point at the string: writing the value
+    // at +24 of those corrupted memory the game uses at lap spawns and at game over (an abort(218) a few seconds later).
+    var varKlass = {};
+    function headerOk(a) { var u = heapU32(); if (!u) return false; var k = u[a >> 2]; return k > 0 && (k & 3) === 0 && k < u.length * 4 && u[(a + 4) >> 2] === 0; }
+    function majorityKlass(addrs) { var u = heapU32(), n = {}, best = 0, bk = 0; addrs.forEach(function (a) { if (!headerOk(a)) return; var k = u[a >> 2]; n[k] = (n[k] || 0) + 1; if (n[k] > best) { best = n[k]; bk = k; } }); return bk; }
+    function varKind(nm) { return /^ModQ/.test(nm) ? "quat" : /^ModBlock/.test(nm) ? "go" : "float"; }
+    function learnKlasses(found) {
+        var u = heapU32(), f = heap32(); if (!u) return;
+        if (!varKlass.float) varKlass.float = majorityKlass(["zforce", "yforce", "SteerForceLeft", "SteerForceRight"].reduce(function (acc, nm) { return acc.concat(liveOnly(found[nm] || H.vars[nm] || [])); }, []));
+        if (!varKlass.quat) { var qs = ["ModQ1", "ModQ2", "ModQ3"].reduce(function (acc, nm) { return acc.concat(liveOnly(found[nm] || H.vars[nm] || [])); }, []);
+            var rest = qs.filter(function (a) { return headerOk(a) && Math.abs(f[(a + 24) >> 2] - PITCH_SX) < 1e-3 && Math.abs(f[(a + 36) >> 2] - PITCH_CX) < 1e-3; });
+            varKlass.quat = rest.length ? u[rest[0] >> 2] : majorityKlass(qs); }
+        if (!varKlass.go) varKlass.go = majorityKlass(Object.keys(found).filter(function (nm) { return varKind(nm) === "go"; }).reduce(function (acc, nm) { return acc.concat(liveOnly(found[nm])); }, []));
+    }
+    function varObjects(nm, list) { var u = heapU32(), k = varKlass[varKind(nm)]; return liveOnly(list).filter(function (a) { return headerOk(a) && (!k || u[a >> 2] === k); }); }
     // Heap discovery runs in slices (one per frame) so the page never freezes: pass A walks the heap as u32 with
     // exact bit patterns as cheap prefilters, pass B finds the managed strings of the FSM variable names, pass C
     // finds the variable objects pointing at them. trackReady() turns true when all three are done.
@@ -648,7 +668,8 @@
                 if (!H.rigCands) H.rigCands = liveOnly(rigCands);
                 if (H.chase < 0) { var c = liveOnly(chase); if (c.length) H.chase = c[c.length - 1]; }
                 if (H.kill < 0) { var ks = liveOnly(kill); for (var k = 0; k < ks.length; k++) { var a = ks[k] - 7; if (Math.abs(f[a] - 0.125) < 0.01 && Math.abs(f[a + 1] + 5.15) < 0.01 && Math.abs(f[a + 2] - 18.779) < 0.01) { H.kill = a; break; } } if (H.kill < 0) H.kill = -2; }
-                names.forEach(function (nm) { H.vars[nm] = liveOnly(found[nm]); });
+                learnKlasses(found);
+                names.forEach(function (nm) { H.vars[nm] = varObjects(nm, found[nm]); });
                 note("heap (" + Math.round(performance.now() - t0) + " ms, sliced): gravity x" + H.grav.length + ", spawn recs " + H.spawn.length + ", rig cands " + H.rigCands.length + ", chase " + (H.chase >= 0) + ", kill " + (H.kill >= 0) + ", vars z/L/R/delay/q " + [H.vars.zforce, H.vars.SteerForceLeft, H.vars.SteerForceRight, H.vars.ModSectionDelay, H.vars.ModQ1].map(function (v) { return v ? v.length : 0; }).join("/"));
             } catch (e) { note("heap scan failed: " + e); }
             discover = null;
@@ -878,6 +899,7 @@
         if (playing) resolveRig();
         if (gravityMode === "off" || !playing || !track) {
             if (gravWritten) writeGravity(0, G0, 0);
+            if (autopilot && playing && gravityMode === "off") { trackBall(); if (ballPos) { var wantS = ballPos[0] > 5.6 ? "ArrowLeft" : ballPos[0] < 4.4 ? "ArrowRight" : null; if (wantS !== autoKey) { if (autoKey) keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39); if (wantS) keyEvent("keydown", wantS, wantS === "ArrowLeft" ? 37 : 39); autoKey = wantS; } } }   // test: straight-lane autopilot
             if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0)); writeSubRolls([0, 0, 0]); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (vlen(track.dApplied) > 0) { shiftSpawnBy(v3(track.dApplied, -1)); track.dApplied = [0, 0, 0]; } }
             return;
         }
@@ -1090,7 +1112,7 @@
         courseBatches: function () { return lastCourseCount; },
         log: function () { return debugLog.slice(); },
         frame: function () { return frameNo; },
-        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, building: !!build, restarting: !!restartSeq, music: musicId, shaderPatched: shaderPatched, shaderFailed: shaderFailed, rainbow: rainbowOn }; },
+        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaderPatched: shaderPatched, shaderFailed: shaderFailed, rainbow: rainbowOn }; },
         setStack: setStackTarget,
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
@@ -1103,14 +1125,16 @@
         frameDt: function () { return frameDt; },
         spawnTrace: function () { return spawnTrace.slice(); },
         profileScans: function () { var r = {}, t; t = performance.now(); findTriple(0, G0, 0); r.triple = Math.round(performance.now() - t); t = performance.now(); nearSeqMulti([[[PITCH_SX, 0, 0, PITCH_CX], 3e-4], [[0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3], [[0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4]]); r.near3 = Math.round(performance.now() - t); t = performance.now(); nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4); r.near1 = Math.round(performance.now() - t); t = performance.now(); ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"].forEach(findStringObjects); r.strings5 = Math.round(performance.now() - t); t = performance.now(); findFsmFloatsMulti(["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"]); r.multi = Math.round(performance.now() - t); return r; },
-        fsmGet: function (name) { var f = heap32(); return liveOnly(findFsmFloats(name)).map(function (a) { return [a, f[(a + 24) >> 2]]; }); },
-        fsmGetInt: function (name) { var u = heapU32(); return liveOnly(findFsmFloats(name)).map(function (a) { return [a, u[(a + 24) >> 2] | 0]; }); },
-        fsmSet: function (name, v) { var f = heap32(), objs = liveOnly(findFsmFloats(name)); objs.forEach(function (a) { f[(a + 24) >> 2] = v; }); return objs.length; },
+        fsmGet: function (name) { var f = heap32(); return varObjects(name, findFsmFloats(name)).map(function (a) { return [a, f[(a + 24) >> 2]]; }); },
+        fsmGetInt: function (name) { var u = heapU32(); return varObjects(name, findFsmFloats(name)).map(function (a) { return [a, u[(a + 24) >> 2] | 0]; }); },
+        fsmSet: function (name, v) { var f = heap32(), objs = varObjects(name, findFsmFloats(name)); objs.forEach(function (a) { f[(a + 24) >> 2] = v; }); return objs.length; },
         setTwistParams: function (o) { if (o.len) TWIST_LEN = o.len; if (o.at) TWIST_AT = o.at; },   // debug/test
         roll: function () { return track && ballPos ? +(rollAt(vdot(ballPos, FWD0)) * 180 / Math.PI).toFixed(1) : null; },
         track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), s: ballPos ? +vdot(ballPos, FWD0).toFixed(1) : null, sections: track ? track.sections.length : 0, latErr: autoErr, latPred: autoPred, segs: track ? track.segs.map(function (sg) { return [Math.round(sg.s0), Math.round(sg.s1), Math.round(sg.a0 * 180 / Math.PI), Math.round(sg.a1 * 180 / Math.PI)]; }) : null, camQ: track ? track.camQ.map(function (v) { return +v.toFixed(2); }) : null, kill: H.kill, laps: track ? track.laps : 0, spawnPos: spawnPos(), spawnQ: (function () { var f = heap32(); return f && H.spawnLive >= 0 ? [f[H.spawnLive], f[H.spawnLive + 1], f[H.spawnLive + 2], f[H.spawnLive + 3]].map(function (v) { return +v.toFixed(3); }) : null; })(), dApplied: track ? track.dApplied.map(function (v) { return +v.toFixed(2); }) : null, rigPos: rigPos(), zforce: fsmFloat("zforce"), yforce: fsmFloat("yforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
+        heapVars: function () { return H.vars; },   // test: the variable objects per FSM variable name
+        varKlass: function () { return varKlass; },
         openEditor: openPanel,
         init: function (gameInstance) {
             game = gameInstance;

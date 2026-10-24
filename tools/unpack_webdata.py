@@ -1,4 +1,5 @@
 import struct, sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from unitygz import decompress
 src, out = sys.argv[1], sys.argv[2]
 b = decompress(open(src, 'rb').read())   # the bundle may be gzip-wrapped (tools/unitygz.py)
