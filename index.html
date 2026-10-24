@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="TemplateData/style.css">
     <link rel="stylesheet" href="TemplateData/mod.css">
     <script>window.SLOPE_EDIT_API = "";</script> <!-- slope-edit service URL (edit-server/README.md); empty = editor offline -->
+    <script src="TemplateData/shaders.js"></script>
     <script src="TemplateData/mod.js"></script>
     <script src="TemplateData/versions.js"></script>
     <script src="TemplateData/UnityProgress.js"></script>
@@ -21,8 +22,9 @@ Changes vs upstream: ads, analytics and the promo banner are gone,
 the page is a proper HTML5 document, there is a fullscreen button
 (or press F), a session timer, a "Courses" number that stacks N courses exactly on top of each other
 at the start of every run (the rapid-Enter glitch, without the Enter),
-R to restart instantly, a Music selector, a moving neon-rainbow recolour
-of the green, and outbound calls to
+R to restart instantly, a Music selector, a Style selector (post-processing
+shader styles: rainbow, neon glow, synthwave, CRT and more, see
+TemplateData/shaders.js), and outbound calls to
 the id.net / y8 ad + leaderboard backend are blocked (see TemplateData/mod.js).
 Slope game itself is by Y8 Games / IDnet, not by this fork.
 -->
@@ -40,7 +42,9 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
         <label class="hud-label" for="hud-stack" title="How many courses get stacked on top of each other before a death clears them (the rapid-Enter glitch, automated)">Courses</label>
         <input id="hud-stack" class="hud-input" type="number" min="1" max="99" step="1" value="1" inputmode="numeric" title="Type a number: 1 = normal game">
         <span class="hud-sep"></span>
-        <label class="hud-label hud-check" for="hud-rainbow" title="Neon green becomes a moving rainbow"><input id="hud-rainbow" type="checkbox" checked> Rainbow</label>
+        <label class="hud-label" for="hud-style" title="Visual style: post-processing shaders over the game's frame (V cycles)">Style</label>
+        <select id="hud-style" class="hud-input hud-select" title="Visual style (V cycles, Shift+V backwards)"></select>
+        <input id="hud-fx" class="hud-range" type="range" min="0" max="100" step="1" value="100" title="Style intensity">
         <span class="hud-sep"></span>
         <label class="hud-label" for="hud-music" title="Soundtrack">Music</label>
         <select id="hud-music" class="hud-input hud-select" title="Soundtrack"></select>

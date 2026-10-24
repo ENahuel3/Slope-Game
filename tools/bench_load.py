@@ -45,7 +45,7 @@ try:
                               'stats': stats, 's0': s0, 's1': s1, 'fps': fr2 - fr, 'track': tr, 'errors': errors[:5],
                               'cache_logs': [l for l in logs if 'UnityCache' in l][:6], 'other_logs': [l for l in logs if 'UnityCache' not in l and l.startswith('error')][:8]})
             json.dump(out, open(os.environ.get('BENCH_OUT', '/dev/null'), 'a')); open(os.environ.get('BENCH_OUT', '/dev/null'), 'a').write('\n')
-            print('SUMMARY run=%d path=%s ready=%ss bytes=%d data=%s s0=%s s1=%s fps=%d shaders=%d/%d errors=%d cache=%s' % (run, A.path, out['ready_s'], total, [r for r in res if 'data' in r['name']], s0, s1, out['fps'], stats['shaderPatched'], stats['shaderFailed'], len(errors), out['cache_logs']))
+            print('SUMMARY run=%d path=%s ready=%ss bytes=%d data=%s s0=%s s1=%s fps=%d shaders=%s errors=%d cache=%s' % (run, A.path, out['ready_s'], total, [r for r in res if 'data' in r['name']], s0, s1, out['fps'], stats.get('shaders') and '%s/%d passes/%d failed' % (stats['shaders']['style'], stats['shaders']['passes'], stats['shaders']['failed']), len(errors), out['cache_logs']))
             (ctx.close() if browser is None else browser.close())
 finally:
     if srv: srv.terminate()

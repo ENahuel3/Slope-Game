@@ -15,15 +15,14 @@
  *    itself and rebuilds the stack in place, so there is no game-over screen
  *    and no waiting: this is the rapid-Enter glitch without the Enter.
  *
- * 3. Rainbow neon: every fragment shader is rewritten at compile time so
- *    that green-hued output pixels get their hue replaced by a moving
- *    rainbow (a sweep across the screen that cycles over time). Red stays
- *    red. The rotation is applied only for draws that hit the default
- *    framebuffer, so scenes that go through an image-effect pass are
- *    recoloured once, at the final blit.
+ * 3. Visual styles (Rainbow, Neon glow, Synthwave, CRT, ...) are post-
+ *    processing passes over the finished frame, in TemplateData/shaders.js
+ *    (loaded before this file). This file only exposes the ball's speed to
+ *    it (SlopeMod.speed) and keeps its own draw-call counting hook.
  *
- * 4. HUD: fullscreen (F, whole page so the HUD stays), R restarts, session
- *    timer, Courses / Rainbow / Music controls, auto-hide while playing.
+ * 4. HUD: fullscreen (F, whole page so the HUD stays), R restarts, V cycles
+ *    the style, session timer, Courses / Style / Music / Track controls,
+ *    auto-hide while playing.
  *
  * 5. Community editor: typing "awesome" opens a box that asks Claude Code
  *    (via edit-server/) to change this mod; see edit-server/README.md.
@@ -38,7 +37,6 @@
     // Settings (localStorage, with safe fallbacks)
     // ======================================================================
     var KEY_STACK = "slope-mod.stack";
-    var KEY_RAINBOW = "slope-mod.rainbow";
     var KEY_MUSIC = "slope-mod.music";
     var KEY_GRAVITY = "slope-mod.gravity";
     var STACK_MAX = 99;
@@ -47,7 +45,6 @@
     function lsSet(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) { /* storage blocked */ } }
 
     var stackTarget = (function () { var n = parseInt(lsGet(KEY_STACK), 10); return (n >= 1 && n <= STACK_MAX) ? n : 1; })();
-    var rainbowOn = lsGet(KEY_RAINBOW) !== "0";
     var TRACKS = [
         { id: "original", name: "Original" },
         { id: "aria", name: "Aria Math (Phonk Remix)", file: "TemplateData/music/aria-math-phonk-remix.mp3" },
@@ -135,7 +132,9 @@
     };
 
     // ======================================================================
-    // WebGL hooks shared by the stacker and the rainbow
+    // WebGL hook: draw-call counts for the stacker. (The visual styles live in
+    // shaders.js, which captured the raw entry points before this wrapper, so
+    // its own passes are not counted here.)
     // ======================================================================
     // Draw-call fingerprint of this build: a 5190-index draw is the city
     // skyline, which the game spawns once per restart (one second in) and
@@ -144,96 +143,14 @@
     var COURSE_BATCH = 5190;
 
     var frameDraws = [];          // index counts of draws in the frame being rendered
-    var defaultFbBound = true;    // is the default framebuffer the current draw target?
-    var currentProgram = null;
-    var hue = 0;                  // 0..1, advanced every frame when the rainbow is on
-    var rainbowTime = 0;          // seconds the rainbow has been running (drives the wave)
-    var shaderPatched = 0, shaderFailed = 0;
-
-    var HUE_UNIFORM = "_slopeRainbow";   // vec4: hue phase, 1/width, 1/height, time (s)
-    // GLSL helper: replace the hue of green-ish pixels, keep saturation/value.
-    // The new hue is a diagonal rainbow across the screen that scrolls with
-    // time and ripples with a travelling wave, so the whole scene visibly flows.
-    var GLSL_HELPER = [
-        "uniform vec4 " + HUE_UNIFORM + ";",
-        "vec3 slopeRainbow(vec3 c) {",
-        "  float mx = max(c.r, max(c.g, c.b)); float mn = min(c.r, min(c.g, c.b)); float d = mx - mn;",
-        "  if (" + HUE_UNIFORM + ".x < 0.0 || mx <= 0.0 || d < 0.03 * mx) return c;",
-        "  float h;",
-        "  if (mx == c.r) h = mod((c.g - c.b) / d, 6.0); else if (mx == c.g) h = (c.b - c.r) / d + 2.0; else h = (c.r - c.g) / d + 4.0;",
-        "  if (abs(h - 2.0) > 0.9) return c;",                       // keep anything that is not green-ish
-        "  vec2 uv = gl_FragCoord.xy * " + HUE_UNIFORM + ".yz;",      // 0..1 across the viewport
-        "  float t = " + HUE_UNIFORM + ".w;",
-        "  float band = uv.x * 1.4 + uv.y * 0.8;",                    // diagonal sweep, ~2 rainbows corner to corner
-        "  float wave = 0.22 * sin(uv.y * 7.0 - t * 2.6) + 0.12 * sin(uv.x * 11.0 + t * 1.7);",
-        "  float H = mod((" + HUE_UNIFORM + ".x + band + wave) * 6.0 + (h - 2.0), 6.0);",
-        "  float C = d; float X = C * (1.0 - abs(mod(H, 2.0) - 1.0)); float m = mx - C; vec3 r;",
-        "  if (H < 1.0) r = vec3(C, X, 0.0); else if (H < 2.0) r = vec3(X, C, 0.0); else if (H < 3.0) r = vec3(0.0, C, X);",
-        "  else if (H < 4.0) r = vec3(0.0, X, C); else if (H < 5.0) r = vec3(X, 0.0, C); else r = vec3(C, 0.0, X);",
-        "  return r + m;",
-        "}"
-    ].join("\n");
-
-    function patchFragmentShader(src) {
-        var out = null;
-        if (/\bSV_Target0\b/.test(src)) out = "SV_Target0";
-        else if (/gl_FragData\s*\[\s*0\s*\]/.test(src)) out = "gl_FragData[0]";
-        else if (/\bgl_FragColor\b/.test(src)) out = "gl_FragColor";
-        if (!out || !/void\s+main\s*\(\s*\)/.test(src)) return null;
-        var patched = src.replace(/void\s+main\s*\(\s*\)/, "void slope_main()");
-        // Appending keeps every declaration of the original in scope.
-        patched += "\n" + GLSL_HELPER + "\nvoid main() { slope_main(); " + out + " = vec4(slopeRainbow(" + out + ".rgb), " + out + ".a); }\n";
-        return patched;
-    }
 
     function hookContext(P) {
-        var origShaderSource = P.shaderSource, origCompile = P.compileShader;
-        var origUse = P.useProgram, origBindFb = P.bindFramebuffer;
         var origDE = P.drawElements, origDA = P.drawArrays;
         var origDEI = P.drawElementsInstanced, origDAI = P.drawArraysInstanced;
-
-        P.shaderSource = function (shader, src) {
-            shader.__slopeOrig = src;
-            var fs = this.getShaderParameter(shader, this.SHADER_TYPE) === this.FRAGMENT_SHADER;
-            var p = fs ? patchFragmentShader(src) : null;
-            if (p) { shader.__slopePatched = true; src = p; }
-            return origShaderSource.call(this, shader, src);
-        };
-        P.compileShader = function (shader) {
-            origCompile.call(this, shader);
-            if (shader.__slopePatched && !this.getShaderParameter(shader, this.COMPILE_STATUS)) {
-                // fall back to the untouched shader rather than break rendering
-                shaderFailed++;
-                if (window.console) console.warn("[slope-mod] rainbow patch rejected by compiler, using original shader:\n" + this.getShaderInfoLog(shader));
-                shader.__slopePatched = false;
-                origShaderSource.call(this, shader, shader.__slopeOrig);
-                origCompile.call(this, shader);
-            } else if (shader.__slopePatched) {
-                shaderPatched++;
-            }
-        };
-        P.useProgram = function (program) {
-            currentProgram = program;
-            return origUse.call(this, program);
-        };
-        P.bindFramebuffer = function (target, fb) {
-            if (target === this.FRAMEBUFFER || target === this.DRAW_FRAMEBUFFER) defaultFbBound = (fb === null);
-            return origBindFb.call(this, target, fb);
-        };
-        function beforeDraw(gl, count) {
-            frameDraws.push(count);
-            var prog = currentProgram;
-            if (!prog) return;
-            if (prog.__slopeHueLoc === undefined) prog.__slopeHueLoc = gl.getUniformLocation(prog, HUE_UNIFORM);
-            if (prog.__slopeHueLoc) {
-                if (rainbowOn && defaultFbBound) gl.uniform4f(prog.__slopeHueLoc, hue, 1 / (gl.drawingBufferWidth || 1), 1 / (gl.drawingBufferHeight || 1), rainbowTime);
-                else gl.uniform4f(prog.__slopeHueLoc, -1.0, 0.0, 0.0, 0.0);
-            }
-        }
-        P.drawElements = function (mode, count) { beforeDraw(this, count); return origDE.apply(this, arguments); };
-        P.drawArrays = function (mode, first, count) { beforeDraw(this, count); return origDA.apply(this, arguments); };
-        if (origDEI) P.drawElementsInstanced = function (mode, count) { beforeDraw(this, count); return origDEI.apply(this, arguments); };
-        if (origDAI) P.drawArraysInstanced = function (mode, first, count) { beforeDraw(this, count); return origDAI.apply(this, arguments); };
+        P.drawElements = function (mode, count) { frameDraws.push(count); return origDE.apply(this, arguments); };
+        P.drawArrays = function (mode, first, count) { frameDraws.push(count); return origDA.apply(this, arguments); };
+        if (origDEI) P.drawElementsInstanced = function (mode, count) { frameDraws.push(count); return origDEI.apply(this, arguments); };
+        if (origDAI) P.drawArraysInstanced = function (mode, first, count) { frameDraws.push(count); return origDAI.apply(this, arguments); };
     }
     if (window.WebGLRenderingContext) hookContext(WebGLRenderingContext.prototype);
     if (window.WebGL2RenderingContext) hookContext(WebGL2RenderingContext.prototype);
@@ -486,7 +403,6 @@
         var draws = frameDraws; frameDraws = [];
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
         try { stepTrack(gameRunning && !build && !restartSeq); } catch (e) { if (!trackDebug.err) { trackDebug.err = String(e); note("track error: " + e); } }
-        if (rainbowOn) { hue = (hue + 1 / 210) % 1; rainbowTime += 1 / 60; }   // hues scroll through a full cycle every 3.5 s
         requestAnimationFrame(frameLoop);
     }
     requestAnimationFrame(frameLoop);   // registered before Unity's loop, so it runs first each frame
@@ -981,7 +897,7 @@
     });
 
     var game = null;
-    var hud, timerEl, fsBtn, stackInput, rainbowBox, musicSel, gravSel;
+    var hud, timerEl, fsBtn, stackInput, musicSel, gravSel;
     var startedAt = Date.now();
     var hideTimer = null;
 
@@ -1000,7 +916,7 @@
         clearTimeout(hideTimer);
         hideTimer = setTimeout(function () {
             var ae = document.activeElement;
-            if (ae === stackInput || ae === musicSel || ae === gravSel) return;   // keep it visible while choosing
+            if (ae && hud.contains(ae) && ae.tagName !== "BUTTON") return;   // keep it visible while choosing
             hud.classList.add("hidden");
         }, 2500);
     }
@@ -1059,7 +975,7 @@
         panel.innerHTML =
             '<div class="edit-head"><span class="edit-title">Edit this game with Claude</span>' +
             '<button type="button" class="edit-close" title="Close (Esc)">×</button></div>' +
-            '<p class="edit-hint">Describe a change to the mod (visuals, HUD, rules, rainbow…). Claude Code edits the game files in a sandbox, the result is checked and published for everyone. Keep it small and specific.</p>' +
+            '<p class="edit-hint">Describe a change to the mod (visuals, styles, HUD, rules…). Claude Code edits the game files in a sandbox, the result is checked and published for everyone. Keep it small and specific.</p>' +
             '<textarea class="edit-box" rows="3" maxlength="700" placeholder="e.g. make the ball leave a short glowing trail"></textarea>' +
             '<div class="edit-row"><button type="button" class="edit-send hud-btn">Send to Claude</button><span class="edit-status"></span></div>' +
             '<pre class="edit-log"></pre>' +
@@ -1116,7 +1032,7 @@
         courseBatches: function () { return lastCourseCount; },
         log: function () { return debugLog.slice(); },
         frame: function () { return frameNo; },
-        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaderPatched: shaderPatched, shaderFailed: shaderFailed, rainbow: rainbowOn }; },
+        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaders: window.SlopeShaders ? SlopeShaders.stats() : null }; },
         setStack: setStackTarget,
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
@@ -1127,6 +1043,7 @@
         key: function (type, k) { keyEvent(type, k, k === "ArrowLeft" ? 37 : 39); },   // debug/test
         setAutopilot: function (on) { autopilot = !!on; if (!on && autoKey) { keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39); autoKey = null; } },
         frameDt: function () { return frameDt; },
+        speed: function () { return Math.sqrt(ballVel[0] * ballVel[0] + ballVel[1] * ballVel[1] + ballVel[2] * ballVel[2]); },   // units/s, for speed-driven styles (shaders.js)
         spawnTrace: function () { return spawnTrace.slice(); },
         profileScans: function () { var r = {}, t; t = performance.now(); findTriple(0, G0, 0); r.triple = Math.round(performance.now() - t); t = performance.now(); nearSeqMulti([[[PITCH_SX, 0, 0, PITCH_CX], 3e-4], [[0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3], [[0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4]]); r.near3 = Math.round(performance.now() - t); t = performance.now(); nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4); r.near1 = Math.round(performance.now() - t); t = performance.now(); ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"].forEach(findStringObjects); r.strings5 = Math.round(performance.now() - t); t = performance.now(); findFsmFloatsMulti(["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"]); r.multi = Math.round(performance.now() - t); return r; },
         fsmGet: function (name) { var f = heap32(); return varObjects(name, findFsmFloats(name)).map(function (a) { return [a, f[(a + 24) >> 2]]; }); },
@@ -1146,7 +1063,6 @@
             timerEl = document.getElementById("hud-timer");
             fsBtn = document.getElementById("hud-fs");
             stackInput = document.getElementById("hud-stack");
-            rainbowBox = document.getElementById("hud-rainbow");
             musicSel = document.getElementById("hud-music");
             gravSel = document.getElementById("hud-gravity");
             gravBadge = document.getElementById("hud-gravity-badge");
@@ -1164,12 +1080,6 @@
                 stackInput.addEventListener("focus", showHud);
                 stackInput.addEventListener("blur", showHud);
             }
-            if (rainbowBox) {
-                rainbowBox.checked = rainbowOn;
-                rainbowBox.addEventListener("change", function () {
-                    rainbowOn = rainbowBox.checked; lsSet(KEY_RAINBOW, rainbowOn ? "1" : "0"); rainbowBox.blur();
-                });
-            }
             if (musicSel) {
                 musicSel.innerHTML = "";
                 TRACKS.forEach(function (t) { var o = document.createElement("option"); o.value = t.id; o.textContent = t.name; musicSel.appendChild(o); });
@@ -1184,7 +1094,7 @@
             });
             document.addEventListener("keydown", function (e) {
                 var ae = document.activeElement;
-                if (ae === stackInput || ae === musicSel || ae === gravSel || (ae && ae.closest && ae.closest("#edit-panel"))) return;
+                if (ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA" || (ae.closest && ae.closest("#edit-panel")))) return;
                 if (e.ctrlKey || e.metaKey || e.altKey) return;
                 if (e.key === "f" || e.key === "F") toggleFullscreen();
                 else if (e.key === "r" || e.key === "R") requestRestart(false);
