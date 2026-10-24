@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev mode",
-  "notes": "Type devmode on the page: with the dev-mode password, Claude Code edits the page from a sandbox on the owner's Pi, freezing the version it replaces.",
+  "title": "Light modes, menu fixed",
+  "notes": "Light = Normal / Sunny / Night (depth-buffer ray marching) and the music-driven pillars; the game's menu and messages stay visible over the sky.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -95,6 +95,13 @@
    "notes": "Skyline pillars become a zombie horde with Aria Math and a crowd of Morts with Mort Jackson. Last version before the password-locked dev mode.",
    "date": "2026-10-24",
    "commit": "3adada2"
+  },
+  {
+   "tag": "v16-pillars",
+   "title": "Music-driven pillars",
+   "notes": "Light modes plus the music-driven skyline figures; known bad: the title menu is hidden under the sky with Light = Sunny or Night (fixed in the next version).",
+   "date": "2026-10-24",
+   "commit": "7d63ab3"
   }
  ]
 }
