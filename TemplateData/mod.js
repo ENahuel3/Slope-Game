@@ -293,7 +293,7 @@
     var builds = 0, resetsSent = 0, deaths = 0, restarts = 0, stuckRestarts = 0;
     var lastRestart = -1000, gameRunning = false;
     var frameNo = 0, debugLog = [];   // debugLog: last 40 decisions, for diagnostics
-    var lastLoopT = 0, worstGap = 0, worstGapFrame = 0, bigGaps = [];   // diagnostics: main-thread stalls between frames
+    var lastLoopT = 0, worstGap = 0, worstGapFrame = 0, bigGaps = [], lastDraws = [];   // diagnostics: main-thread stalls between frames, last frame's draw list
     function note(ev) { debugLog.push(frameNo + ':' + ev); if (debugLog.length > 40) debugLog.shift(); }
 
     // build: null | { phase: "course" | "laps" | "settle" | "final", hidden, hiddenTarget, laps, since, started, tries, lastLift, startSent }
@@ -410,11 +410,27 @@
         stepStuckWatch();
     }
 
+    // Background pillars follow the music: the skyline chunks are spawned from the ModBuilding FSM variable (scene
+    // patch tools/patch_buildings.py), which takes the original pillars, a zombie horde (Aria Math) or a crowd of
+    // Morts (Mort Jackson). A change applies from the next chunk, so from the next restart at the latest.
+    var buildingPtr = null, buildingWritten = 0;
+    function syncBuilding() {
+        if (!H.vars.ModBuilding) return;
+        if (!buildingPtr) {
+            var p0 = readGoVar("ModBuildingFlat"), pz = readGoVar("ModBuildingZombie"), pm = readGoVar("ModBuildingMort");
+            if (!(p0 && pz && pm && readGoVar("ModBuilding") === p0)) return;   // not discovered yet, or not the layout we expect
+            buildingPtr = { original: p0, aria: pz, billie: pm }; note("building prefabs: flat " + p0 + " zombie " + pz + " mort " + pm);
+        }
+        var want = buildingPtr[musicId] || buildingPtr.original;
+        if (want !== buildingWritten) { writeGoVar("ModBuilding", want); buildingWritten = want; }
+    }
     function frameLoop() {
         frameNo++;
         var nowL = performance.now(); if (lastLoopT) { var gapL = nowL - lastLoopT; if (gapL > worstGap) { worstGap = gapL; worstGapFrame = frameNo; } if (gapL > 300) { bigGaps.push([frameNo, Math.round(gapL)]); if (bigGaps.length > 60) bigGaps.shift(); } } lastLoopT = nowL;
         var draws = frameDraws; frameDraws = [];
+        lastDraws = draws;
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
+        try { syncBuilding(); } catch (e) { /* diagnostics only */ }
         try { stepTrack(gameRunning && !build && !restartSeq); } catch (e) { if (!trackDebug.err) { trackDebug.err = String(e); note("track error: " + e); } }
         requestAnimationFrame(frameLoop);
     }
@@ -529,7 +545,7 @@
     var varKlass = {};
     function headerOk(a) { var u = heapU32(); if (!u) return false; var k = u[a >> 2]; return k > 0 && (k & 3) === 0 && k < u.length * 4 && u[(a + 4) >> 2] === 0; }
     function majorityKlass(addrs) { var u = heapU32(), n = {}, best = 0, bk = 0; addrs.forEach(function (a) { if (!headerOk(a)) return; var k = u[a >> 2]; n[k] = (n[k] || 0) + 1; if (n[k] > best) { best = n[k]; bk = k; } }); return bk; }
-    function varKind(nm) { return /^ModQ/.test(nm) ? "quat" : /^ModBlock/.test(nm) ? "go" : "float"; }
+    function varKind(nm) { return /^ModQ/.test(nm) ? "quat" : /^Mod(Block|Building)/.test(nm) ? "go" : "float"; }
     function learnKlasses(found) {
         var u = heapU32(), f = heap32(); if (!u) return;
         if (!varKlass.float) varKlass.float = majorityKlass(["zforce", "yforce", "SteerForceLeft", "SteerForceRight"].reduce(function (acc, nm) { return acc.concat(liveOnly(found[nm] || H.vars[nm] || [])); }, []));
@@ -548,7 +564,7 @@
         var u = heapU32(), f = heap32(), u16 = heapU16(); if (!u) return;
         var t0 = performance.now(), N = u.length, STEP = 4 << 20;
         var B = { g: fbits(G0), b5: fbits(5), b105: fbits(10.5), bm4: fbits(-4), one: fbits(1), b10: fbits(10), bm10: fbits(-10), b300: fbits(300) };
-        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay", "ModQ1", "ModBlock", "ModBlockFlat", "ModBlockP", "ModBlockN", "ModHold", "ModMark"].filter(function (nm) { return !H.vars[nm]; });
+        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay", "ModQ1", "ModBlock", "ModBlockFlat", "ModBlockP", "ModBlockN", "ModBuilding", "ModBuildingFlat", "ModBuildingZombie", "ModBuildingMort", "ModHold", "ModMark"].filter(function (nm) { return !H.vars[nm]; });
         var firsts = {}; names.forEach(function (nm) { firsts[nm.charCodeAt(0)] = (firsts[nm.charCodeAt(0)] || []).concat([nm]); });
         var strs = {}, owner = {}, flags = null, found = {};
         names.forEach(function (nm) { strs[nm] = []; found[nm] = []; });
@@ -1067,6 +1083,7 @@
         track: function () { var f = heap32(); return { mode: gravityMode, heap: { grav: H.grav.length, spawn: H.spawn.length, spawnLive: H.spawnLive, spawnCache: H.spawnCache, rigCands: H.rigCands ? H.rigCands.length : -1, rig: H.rig, chase: H.chase, ball: H.ball, vars: Object.keys(H.vars).map(function (k) { return k + ":" + H.vars[k].length; }) }, pos: ballPos, vel: ballVel.map(function (v) { return +v.toFixed(1); }), s: ballPos ? +vdot(ballPos, FWD0).toFixed(1) : null, sections: track ? track.sections.length : 0, latErr: autoErr, latPred: autoPred, jobs: track ? track.jobs.map(function (j) { return [Math.round(j.s0), j.dir, j.blocks]; }) : null, hold: fsmFloat("ModHold"), delay: fsmFloat("ModSectionDelay"), running: gameRunning, build: !!build, restarting: !!restartSeq, roll: track ? +(track.roll * 180 / Math.PI).toFixed(1) : null, blockPtr: blockPtr, secHead: track ? track.sections.slice(0, 4).map(function (x) { return [Math.round(x.s0), +(x.a0 * 180 / Math.PI).toFixed(1), +(x.a1 * 180 / Math.PI).toFixed(1)]; }) : null, secTail: track ? track.sections.slice(-3).map(function (x) { return [Math.round(x.s0), +(x.a0 * 180 / Math.PI).toFixed(1), +(x.a1 * 180 / Math.PI).toFixed(1)]; }) : null, camQ: track ? track.camQ.map(function (v) { return +v.toFixed(2); }) : null, kill: H.kill, laps: track ? track.laps : 0, spawnPos: spawnPos(), spawnQ: (function () { var f = heap32(); return f && H.spawnLive >= 0 ? [f[H.spawnLive], f[H.spawnLive + 1], f[H.spawnLive + 2], f[H.spawnLive + 3]].map(function (v) { return +v.toFixed(3); }) : null; })(), dApplied: track ? track.dApplied.map(function (v) { return +v.toFixed(2); }) : null, rigPos: rigPos(), zforce: fsmFloat("zforce"), yforce: fsmFloat("yforce"), steer: [fsmFloat("SteerForceLeft"), fsmFloat("SteerForceRight")], grav: f && H.grav.length ? [f[H.grav[0]], f[H.grav[0] + 1], f[H.grav[0] + 2]].map(function (v) { return +v.toFixed(2); }) : null, keys: keysHeld }; },
         audio: function () { var a = audioEl; return a ? { paused: a.paused, time: a.currentTime, ready: a.readyState, src: a.src.split("/").pop(), error: a.error && a.error.code } : null; },
         restart: function () { if (game) requestRestart(false); },
+        drawCounts: function () { return lastDraws.slice(); },   // test: index/vertex counts of the last frame's draw calls
         heapVars: function () { return H.vars; },   // test: the variable objects per FSM variable name
         varKlass: function () { return varKlass; },
         openEditor: openPanel,
