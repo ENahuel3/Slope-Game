@@ -341,8 +341,8 @@
             "  if (up > 0.02) { vec3 e1 = vec3(1.0, 0.0, 0.0), e2 = cross(SKY_UP, e1); vec2 cp = vec2(dot(rdW, e1), dot(rdW, e2)) / (up + 0.15);",
             "    float cl = fbm(cp * 2.2 + vec2(uTime * 0.02, 0.0)); cl = smoothstep(0.52, 0.78, cl) * smoothstep(0.02, 0.2, up);",
             "    skyCol = mix(skyCol, vec3(1.0, 0.99, 0.97), cl * 0.85); }",
-            "  if (sky) { gl_FragColor = vec4(skyCol, 0.18 + 0.9 * pow(max(cosSun, 0.0), 10.0) + disc); return; }",
             "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
+            "  if (sky) { gl_FragColor = vec4(mix(skyCol, c, emis), (0.18 + 0.9 * pow(max(cosSun, 0.0), 10.0) + disc) * (1.0 - emis)); return; }",   // the UI has no depth: keep it over the sky
             "  vec3 col; float dist = 20.0;",
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
@@ -384,8 +384,8 @@
             "  skyCol += vec3(0.9, 0.93, 1.0) * star * 0.9;",
             "  if (up > 0.02) { vec3 e1 = vec3(1.0, 0.0, 0.0), e2 = cross(SKY_UP, e1); vec2 cp = vec2(dot(rdW, e1), dot(rdW, e2)) / (up + 0.15);",
             "    float haze = fbm(cp * 1.4 + vec2(uTime * 0.01, 3.0)); skyCol += vec3(0.05, 0.06, 0.12) * smoothstep(0.45, 0.8, haze) * smoothstep(0.02, 0.25, up); }",
-            "  if (sky) { gl_FragColor = vec4(skyCol, 0.35 * pow(max(cosMoon, 0.0), 14.0) + disc * 0.8); return; }",
             "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
+            "  if (sky) { gl_FragColor = vec4(mix(skyCol, c * (1.0 + 0.3 * emis), emis), (0.35 * pow(max(cosMoon, 0.0), 14.0) + disc * 0.8) * (1.0 - emis)); return; }",   // the UI has no depth: keep it over the sky
             "  vec3 col; float dist = 20.0;",
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",

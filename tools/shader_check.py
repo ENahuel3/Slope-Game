@@ -41,6 +41,21 @@ try:
             if page.evaluate("() => !!(window.SlopeMod && window.SlopeShaders && SlopeMod.log().some(l => /heap \\(/.test(l)))"): ready = True; break
             time.sleep(0.1)
         if not ready: print('SUMMARY ok=0 fail=1 out=%s (page never became ready; errors=%s)' % (out, errors[:3])); sys.exit(1)
+        # the title menu is 2D UI drawn without depth: under the lit modes it must stay readable over the sky
+        def bright_count(png):
+            try:
+                from PIL import Image
+            except ImportError:
+                return None
+            im = Image.open(png).convert('RGB'); px = im.getdata(); return sum(1 for r, g, b in px if g > 150 and r < 110 and b < 110)   # the menu's green text and frames
+        time.sleep(1.0); menu_png = os.path.join(out, 'menu-classic.png'); page.evaluate("() => { SlopeShaders.setStyle('classic'); SlopeShaders.setLight('normal'); }"); time.sleep(0.5); page.screenshot(path=menu_png); menu_ref = bright_count(menu_png)
+        for light in [l['id'] for l in page.evaluate("() => SlopeShaders.lights()") if l['id'] != 'normal']:
+            page.evaluate("l => SlopeShaders.setLight(l)", light); time.sleep(1.0)
+            png = os.path.join(out, 'menu-light-%s.png' % light); page.screenshot(path=png); n = bright_count(png)
+            good = (menu_ref is None) or (n is not None and menu_ref > 0 and n >= 0.7 * menu_ref)
+            ok += good; fail += (not good)
+            print('MENU  %-16s green=%s ref=%s %s' % ('light-' + light, n, menu_ref, 'ok' if good else 'FAIL(menu hidden under the sky)'))
+        page.evaluate("() => SlopeShaders.setLight('normal')"); time.sleep(0.3)
         # a straight track with the mod's test autopilot keeps the ball alive while the styles are checked
         page.evaluate("() => { SlopeMod.setGravity('off'); if (SlopeMod.setAutopilot) SlopeMod.setAutopilot(true); }"); page.keyboard.press('Enter'); time.sleep(1.0)
         styles = [s['id'] for s in page.evaluate("() => SlopeShaders.styles()")]
