@@ -1,0 +1,195 @@
+/* Slope mod: page chrome. The Unity canvas fills the viewport; the HUD
+   floats over the top edge and fades out while you play. */
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #231F20;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.webgl-content {
+    position: fixed;
+    inset: 0;
+}
+
+#gameContainer {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+}
+
+.hud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    color: #e8e8e8;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    user-select: none;
+}
+
+.hud.hidden {
+    opacity: 0;
+}
+
+.hud > * {
+    pointer-events: auto;
+}
+
+.hud-title {
+    font-weight: 800;
+    letter-spacing: 0.25em;
+    color: #00e676;
+    font-size: 15px;
+}
+
+.hud-sep {
+    width: 1px;
+    height: 16px;
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.hud-hint {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.hud-spacer {
+    flex: 1;
+    pointer-events: none;
+}
+
+.hud-timer {
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.hud-btn {
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+.hud-btn:hover {
+    background: rgba(0, 230, 118, 0.25);
+    border-color: #00e676;
+}
+
+/* stacked-courses input + rainbow toggle */
+.hud-label {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.8;
+    cursor: pointer;
+}
+
+.hud-input {
+    width: 52px;
+    appearance: textfield;
+    -moz-appearance: textfield;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    padding: 3px 6px;
+    text-align: center;
+}
+
+.hud-input.muted { opacity: 0.45; text-decoration: line-through; }
+
+.hud-input:focus {
+    outline: none;
+    border-color: #00e676;
+    background: rgba(0, 230, 118, 0.15);
+}
+
+.hud-select {
+    width: auto;
+    max-width: 220px;
+    text-align: left;
+    appearance: auto;
+    -moz-appearance: auto;
+}
+
+.hud-select option {
+    background: #231F20;
+    color: #fff;
+}
+
+.hud-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.hud-check input {
+    accent-color: #00e676;
+    margin: 0;
+}
+
+@media (max-width: 600px) {
+    .hud-hint, .hud-label { display: none; }
+}
+
+/* community editor panel (type "awesome") */
+.edit-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(440px, calc(100vw - 32px));
+    z-index: 20;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid rgba(0, 230, 118, 0.5);
+    border-radius: 10px;
+    background: rgba(10, 10, 12, 0.92);
+    color: #e8e8e8;
+    font-size: 13px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+}
+.edit-panel.open { display: flex; }
+.edit-head { display: flex; align-items: center; justify-content: space-between; }
+.edit-title { font-weight: 700; letter-spacing: 0.08em; color: #00e676; text-transform: uppercase; font-size: 12px; }
+.edit-close { appearance: none; border: 0; background: transparent; color: #aaa; font-size: 18px; cursor: pointer; line-height: 1; }
+.edit-close:hover { color: #fff; }
+.edit-hint { margin: 0; opacity: 0.75; font-size: 12px; line-height: 1.4; }
+.edit-box { width: 100%; box-sizing: border-box; resize: vertical; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(0,0,0,0.5); color: #fff; font: inherit; padding: 6px 8px; }
+.edit-box:focus { outline: none; border-color: #00e676; }
+.edit-row { display: flex; align-items: center; gap: 10px; }
+.edit-status { opacity: 0.9; }
+.edit-log { margin: 0; max-height: 160px; overflow: auto; white-space: pre-wrap; font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; color: #bdbdbd; background: rgba(0,0,0,0.35); border-radius: 6px; padding: 6px 8px; }
+.edit-log:empty { display: none; }
+.edit-budget { font-size: 11px; opacity: 0.6; }
+
+/* gravity modes: the canvas banks with sideways gravity; a badge names ramp events */
+.hud-gbadge { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #ffd54f; opacity: 0; transition: opacity 0.2s; }
+.hud-gbadge.on { opacity: 1; }
+
+/* version picker (TemplateData/versions.js): in the HUD when there is one, else a corner box; a note on old versions */
+.version-box { position: fixed; top: 8px; right: 14px; z-index: 11; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #e8e8e8; font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.version-note { position: fixed; right: 14px; bottom: 14px; z-index: 11; padding: 6px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #e8e8e8; font: 12px "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.version-note a { color: #00e676; }

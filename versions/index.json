@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Continuous roll",
-  "notes": "Twists and curves are real helicoid geometry: smooth ribbons, the camera rolls with the lane. One block per spawner step again.",
+  "title": "Shader styles",
+  "notes": "Visual styles (Rainbow, Neon glow, Synthwave, CRT arcade, Hyperspeed, Pixel, Noir, Matrix) as post-processing passes over the finished frame, with an intensity slider; V cycles. Same play as v12-roll.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -60,6 +60,13 @@
    "notes": "Heap writes limited to the real FSM variable objects (the random freezes), data bundle gzip-wrapped for a faster load. Last version with incremental (per-block) roll geometry.",
    "date": "2026-10-24",
    "commit": "7ea677a"
+  },
+  {
+   "tag": "v12-roll",
+   "title": "Continuous roll",
+   "notes": "Twists and curves as real helicoid geometry (one block per spawner step); the last version with the compile-time rainbow shader rewrite.",
+   "date": "2026-10-24",
+   "commit": "50e4d21"
   }
  ]
 }
