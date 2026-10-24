@@ -24,7 +24,7 @@
  *    the style, session timer, Courses / Style / Music / Track controls,
  *    auto-hide while playing.
  *
- * 5. Community editor: typing "awesome" opens a box that asks Claude Code
+ * 5. Dev mode: typing "devmode" opens a password-locked box that asks Claude Code
  *    (via edit-server/) to change this mod; see edit-server/README.md.
  *
  * 6. Track shaping (Curves / Turns): the course itself bends, built by
@@ -971,59 +971,82 @@
     }
 
     // ======================================================================
-    // 5. Community editor: type "awesome" to open a box that sends a request
+    // 5. Dev mode: type "devmode" to open a password-locked box that sends a request
     //    to the slope-edit service (edit-server/), which runs Claude Code on a
     //    sandboxed clone and publishes the change for everyone.
     // ======================================================================
     var EDIT_API = (window.SLOPE_EDIT_API || "").replace(/\/+$/, "");
-    var MAGIC = "awesome";
+    var MAGIC = "devmode";
     var typed = "";
-    var panel = null, editBox = null, editSend = null, editStatus = null, editLog = null, editBudget = null;
+    var panel = null, editBox = null, editSend = null, editStatus = null, editLog = null, editBudget = null, passRow = null, passBox = null, passBtn = null, editRow = null;
     var editJob = null, editPoll = null;
+    var DEV_TOKEN_KEY = "slope-dev.token";
+    function devToken() { try { return sessionStorage.getItem(DEV_TOKEN_KEY) || ""; } catch (e) { return ""; } }
+    function setDevToken(t) { try { if (t) sessionStorage.setItem(DEV_TOKEN_KEY, t); else sessionStorage.removeItem(DEV_TOKEN_KEY); } catch (e) {} }
 
     function api(pathname, opts) {
-        if (!EDIT_API) return Promise.reject(new Error("The editor is not connected on this page."));
-        return fetch(EDIT_API + pathname, Object.assign({ cache: "no-store" }, opts || {})).then(function (r) {
-            return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; });
+        if (!EDIT_API) return Promise.reject(new Error("Dev mode is not connected on this page."));
+        opts = Object.assign({ cache: "no-store" }, opts || {});
+        var h = Object.assign({}, opts.headers || {}); var t = devToken(); if (t) h["Authorization"] = "Bearer " + t; opts.headers = h;
+        return fetch(EDIT_API + pathname, opts).then(function (r) {
+            return r.json().then(function (j) {
+                if (r.status === 401) { setDevToken(""); showLocked(); }
+                if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j;
+            });
         });
     }
-    function fmtUsd(x) { return "$" + (Math.round(x * 100) / 100).toFixed(2); }
+    function fmtTok(n) { return n >= 1000 ? (Math.round(n / 100) / 10) + "k" : String(n); }
     function refreshBudget() {
         if (!editBudget) return;
         api("/api/status").then(function (st) {
+            if (st.locked) { showLocked(); return; }
             var b = st.budget;
-            editBudget.textContent = "Budget today " + fmtUsd(b.dayUsed) + " / " + fmtUsd(b.dayCap) + " · month " + fmtUsd(b.monthUsed) + " / " + fmtUsd(b.monthCap) +
+            editBudget.textContent = "Today " + fmtTok(b.dayTokens) + " / " + fmtTok(b.dayTokenCap) + " tokens" + (b.dayUsd ? " · $" + b.dayUsd.toFixed(2) : "") +
                 (st.queue ? " · " + st.queue + " waiting" : "") + (st.running ? " · one running" : "");
+            showUnlocked();
         }).catch(function (e) { editBudget.textContent = e.message; });
     }
+    function showLocked() { if (!panel) return; passRow.style.display = ""; editRow.style.display = "none"; editBox.style.display = "none"; editLog.style.display = "none"; editStatus.textContent = ""; setTimeout(function () { passBox.focus(); }, 50); }
+    function showUnlocked() { if (!panel) return; passRow.style.display = "none"; editRow.style.display = ""; editBox.style.display = ""; editLog.style.display = ""; }
     function buildPanel() {
         if (panel) return panel;
         panel = document.createElement("div");
         panel.id = "edit-panel";
         panel.className = "edit-panel";
         panel.innerHTML =
-            '<div class="edit-head"><span class="edit-title">Edit this game with Claude</span>' +
+            '<div class="edit-head"><span class="edit-title">Dev mode · edit this game with Claude Code</span>' +
             '<button type="button" class="edit-close" title="Close (Esc)">×</button></div>' +
-            '<p class="edit-hint">Describe a change to the mod (visuals, styles, HUD, rules…). Claude Code edits the game files in a sandbox, the result is checked and published for everyone. Keep it small and specific.</p>' +
-            '<textarea class="edit-box" rows="3" maxlength="700" placeholder="e.g. make the ball leave a short glowing trail"></textarea>' +
-            '<div class="edit-row"><button type="button" class="edit-send hud-btn">Send to Claude</button><span class="edit-status"></span></div>' +
+            '<p class="edit-hint">Describe a change to the page (visuals, styles, HUD, rules…). Claude Code edits the game files in a sandbox on the owner\'s server, the result is checked, the current version is frozen in the Version list, and the new one is published for everyone.</p>' +
+            '<div class="edit-row edit-pass"><input type="password" class="edit-passbox" placeholder="dev-mode password" autocomplete="off"><button type="button" class="edit-unlock hud-btn">Unlock</button></div>' +
+            '<textarea class="edit-box" rows="3" maxlength="1200" placeholder="e.g. make the ball leave a short glowing trail"></textarea>' +
+            '<div class="edit-row edit-send-row"><button type="button" class="edit-send hud-btn">Send to Claude</button><span class="edit-status"></span></div>' +
             '<pre class="edit-log"></pre>' +
             '<div class="edit-budget"></div>';
         document.body.appendChild(panel);
-        editBox = panel.querySelector(".edit-box"); editSend = panel.querySelector(".edit-send");
+        editBox = panel.querySelector(".edit-box"); editSend = panel.querySelector(".edit-send"); editRow = panel.querySelector(".edit-send-row");
         editStatus = panel.querySelector(".edit-status"); editLog = panel.querySelector(".edit-log"); editBudget = panel.querySelector(".edit-budget");
+        passRow = panel.querySelector(".edit-pass"); passBox = panel.querySelector(".edit-passbox"); passBtn = panel.querySelector(".edit-unlock");
         panel.querySelector(".edit-close").addEventListener("click", closePanel);
         editSend.addEventListener("click", submitEdit);
         editBox.addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submitEdit(); });
+        passBtn.addEventListener("click", unlock);
+        passBox.addEventListener("keydown", function (e) { if (e.key === "Enter") unlock(); });
         return panel;
+    }
+    function unlock() {
+        var pw = passBox.value || ""; if (!pw) return;
+        passBtn.disabled = true; editStatus.textContent = "Checking…";
+        api("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) })
+            .then(function (r) { setDevToken(r.token); passBox.value = ""; editStatus.textContent = ""; showUnlocked(); refreshBudget(); setTimeout(function () { editBox.focus(); }, 50); })
+            .catch(function (e) { editStatus.textContent = e.message; })
+            .then(function () { passBtn.disabled = false; });
     }
     function openPanel() {
         buildPanel(); panel.classList.add("open"); showHud();
-        if (!EDIT_API) { editStatus.textContent = "The editor is not connected on this page (no SLOPE_EDIT_API)."; editSend.disabled = true; }
-        else refreshBudget();
-        setTimeout(function () { editBox.focus(); }, 50);
+        if (!EDIT_API) { editStatus.textContent = "Dev mode is not connected on this page (no SLOPE_EDIT_API)."; editSend.disabled = true; passBtn.disabled = true; return; }
+        if (devToken()) refreshBudget(); else showLocked();
     }
-    function closePanel() { if (panel) panel.classList.remove("open"); if (editBox) editBox.blur(); }
+    function closePanel() { if (panel) panel.classList.remove("open"); if (editBox) editBox.blur(); if (passBox) passBox.blur(); }
     function setLog(lines) { editLog.textContent = (lines || []).join("\n"); editLog.scrollTop = editLog.scrollHeight; }
     function submitEdit() {
         var prompt = (editBox.value || "").trim();
@@ -1039,7 +1062,7 @@
             setLog(job.log);
             if (job.state === "queued") editStatus.textContent = "Queued" + (job.position > 1 ? " (" + (job.position - 1) + " ahead)" : "") + "…";
             else if (job.state === "running") editStatus.textContent = "Claude is working…";
-            else if (job.state === "done") { editStatus.textContent = "Published " + (job.commit || "") + " for " + fmtUsd(job.cost) + ". Live in about a minute; reload to see it."; if (job.summary) setLog(job.log.concat(["", job.summary])); }
+            else if (job.state === "done") { editStatus.textContent = "Published " + (job.commit || "") + " (" + fmtTok(job.tokens) + " tokens" + (job.version ? ", previous version kept as " + job.version : "") + "). Live in about a minute; reload to see it."; if (job.summary) setLog(job.log.concat(["", job.summary])); }
             else if (job.state === "failed") { editStatus.textContent = "Not applied."; if (job.summary) setLog(job.log.concat(["", job.summary])); }
             if (job.state === "done" || job.state === "failed") { editSend.disabled = false; refreshBudget(); return; }
             editPoll = setTimeout(pollJob, 2000);

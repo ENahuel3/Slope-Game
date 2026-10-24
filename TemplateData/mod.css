@@ -161,7 +161,7 @@ html, body {
     .hud-hint, .hud-label, .hud-range { display: none; }
 }
 
-/* community editor panel (type "awesome") */
+/* dev-mode panel (type "devmode") */
 .edit-panel {
     position: fixed;
     left: 16px;
@@ -201,3 +201,7 @@ html, body {
 .version-box { position: fixed; top: 8px; right: 14px; z-index: 11; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #e8e8e8; font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 .version-note { position: fixed; right: 14px; bottom: 14px; z-index: 11; padding: 6px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #e8e8e8; font: 12px "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 .version-note a { color: #00e676; }
+
+.edit-pass { gap: 8px; }
+.edit-passbox { flex: 1; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(0,0,0,0.5); color: #fff; font: inherit; padding: 6px 8px; }
+.edit-passbox:focus { outline: none; border-color: #00e676; }

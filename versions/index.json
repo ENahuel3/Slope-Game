@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Pillars follow the music",
-  "notes": "The skyline pillars become a horde of Minecraft-style zombies with Aria Math and a crowd of Mort-style lemurs with Mort Jackson; the original pillars with the original track.",
+  "title": "Dev mode",
+  "notes": "Type devmode on the page: with the dev-mode password, Claude Code edits the page from a sandbox on the owner's Pi, freezing the version it replaces.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -88,6 +88,13 @@
    "notes": "Normal, Sunny and Night lighting on top of the shader styles, the continuous roll and the stuck-ball watchdog.",
    "date": "2026-10-24",
    "commit": "6fb421a"
+  },
+  {
+   "tag": "v16-figures",
+   "title": "Music figures: zombie horde and Mort crowd",
+   "notes": "Skyline pillars become a zombie horde with Aria Math and a crowd of Morts with Mort Jackson. Last version before the password-locked dev mode.",
+   "date": "2026-10-24",
+   "commit": "3adada2"
   }
  ]
 }
