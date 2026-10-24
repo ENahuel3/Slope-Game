@@ -7,9 +7,9 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     [ "$remote_ref" = "refs/heads/mod" ] || continue
     case "$remote_sha" in 0000000000000000000000000000000000000000) continue;; esac
     short=$(git rev-parse --short "$remote_sha" 2>/dev/null || echo "$remote_sha")
-    if ! python3 - "$remote_sha" "$short" <<'PY'
+    if ! python3 - "$remote_sha" "$short" "$local_sha" <<'PY'
 import json, sys, subprocess
-full, short = sys.argv[1], sys.argv[2]
+full, short, local = sys.argv[1], sys.argv[2], sys.argv[3]
 tags = {v.get('commit', '') for v in json.load(open('versions/index.json'))['versions']}
 if any(t and (full.startswith(t) or t.startswith(short)) for t in tags): sys.exit(0)
 # not listed by hash: it still counts as frozen when its game files are those of a listed version
@@ -19,6 +19,7 @@ def tree(c):
     try: return [subprocess.check_output(['git', 'rev-parse', '%s:%s' % (c, g)], stderr=subprocess.DEVNULL).strip() for g in GAME]
     except subprocess.CalledProcessError: return None
 mine = tree(full)
+if mine and tree(local) == mine: sys.exit(0)   # the push changes no game file: nothing live is replaced
 sys.exit(0 if mine and any(t and tree(t) == mine for t in tags) else 1)
 PY
     then
