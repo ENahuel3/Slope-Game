@@ -1,7 +1,9 @@
-"""Figure meshes for the background pillars (tools/patch_buildings.py): a Minecraft-style zombie and a Mort-style
-mouse lemur, built from boxes and low-poly spheres, as (verts, uvs, tris) in a right-handed frame with +y up and the
-figure facing -z. Sizes are in the pillar prefab's world units; every box face and every sphere quad gets one tile of the
-game's neon-outline texture, so the figures read as crisp wireframes. Winding: `front` = 'ccw' or 'cw' viewed from outside."""
+"""Background figure meshes: a procedural Minecraft-style zombie and a downloaded
+Mort (Madagascar) model; attribution/rebuild details are in assets/mort/README.md.
+Meshes return vertices, UVs and triangles in a right-handed frame, +y up and
+facing -z. Zombies tile the neon-outline texture; Mort samples its color palette.
+Winding: front='ccw' or 'cw' viewed from outside.
+"""
 import math
 
 class Mesh:
@@ -50,20 +52,16 @@ def zombie(front, u=20.0):
     return m
 
 def mort(front, u=100.0):
-    """Mort the mouse lemur: a big round head with huge eyes and ears on a small body, hands together, a long tail
-    curling up behind. Feet at y=0, about 3.9u tall, 2.8u wide at the ears."""
+    """Downloaded Mort (Madagascar) model by Atherin; see assets/mort/README.md.
+    The import preserves its colors via a palette, baked shading, +y up, -z front.
+    """
+    import json
+    from pathlib import Path
+    data = json.loads((Path(__file__).resolve().parent / 'assets/mort/mesh.json').read_text())
     m = Mesh(front)
-    m.ellipsoid(0, 1.0*u, 0, 0.75*u, 0.95*u, 0.6*u, 8, 6)                      # body
-    m.ellipsoid(0, 2.85*u, 0, 1.0*u, 1.0*u, 0.95*u, 8, 6)                      # head
-    for sx in (-1, 1):
-        m.ellipsoid(sx*0.44*u, 2.95*u, -0.7*u, 0.48*u, 0.5*u, 0.38*u, 6, 4)    # eye (enormous)
-        m.ellipsoid(sx*0.95*u, 3.45*u, 0.05*u, 0.45*u, 0.5*u, 0.22*u, 6, 4)    # ear
-        m.ellipsoid(sx*0.32*u, 1.15*u, -0.6*u, 0.26*u, 0.26*u, 0.42*u, 4, 3)   # hand/arm held in front
-        m.ellipsoid(sx*0.35*u, 0.18*u, -0.1*u, 0.3*u, 0.18*u, 0.45*u, 4, 3)    # foot
-    m.ellipsoid(0, 2.55*u, -0.95*u, 0.2*u, 0.16*u, 0.2*u, 4, 3)                # nose
-    for k in range(3):                                                         # tail: three segments curling up behind
-        a = 0.5 + k * 0.7; r = 1.1*u
-        m.ellipsoid(0, 0.9*u + r * math.sin(a) * 0.9, 0.55*u + r * math.cos(a) * 0.9, 0.17*u, 0.42*u, 0.17*u, 4, 3, tilt=-(a - 0.3))
+    m.v = [tuple(c * u / 100 for c in p) for p in data['vertices']]
+    m.uv = [tuple(p) for p in data['uvs']]
+    m.t = [tuple(t if front == 'ccw' else (t[0], t[2], t[1])) for t in data['triangles']]
     return m
 
 def preview(meshes, path, size=400):

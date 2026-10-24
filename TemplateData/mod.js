@@ -165,7 +165,8 @@
     // ======================================================================
     var MUSIC_MIN_SECONDS = 10;
     var musicStopped = false, musicStarted = false;   // flags for the frame being examined
-    var musicNode = null;          // the game's current music source node
+    var musicNode = null;          // the currently audible (or suppressed) source
+    var musicRoot = null;          // the source Unity owns and will stop on death
     var audioEl = null;            // custom track player
     var absStart = null, absStop = null;
 
@@ -196,7 +197,8 @@
             this.__slopeDur = this.buffer ? this.buffer.duration : 0;
             if (this.__slopeDur < MUSIC_MIN_SECONDS) return absStart.apply(this, arguments);
             musicStarted = true;
-            musicNode = this;
+            musicRoot = musicNode = this;
+            this.__slopeDead = false;
             this.__slopeOffset = offset || 0;
             if (isCustomMusic()) {
                 this.__slopeSuppressed = true;              // the game's track stays silent
@@ -207,11 +209,18 @@
             return absStart.apply(this, arguments);
         };
         AudioBufferSourceNode.prototype.stop = function () {
-            if (this.__slopeDur >= MUSIC_MIN_SECONDS) {
+            if (this.__slopeDur >= MUSIC_MIN_SECONDS && this === musicRoot) {
                 musicStopped = true;
-                if (this === musicNode) pauseCustom();
-                if (this.__slopeSuppressed) return;        // never started: nothing to stop
+                pauseCustom();
+                this.__slopeDead = true;
+                if (musicNode && musicNode !== this) {
+                    // Switching back to Original creates a source Unity does not know about.
+                    // Its lifetime must still follow the source Unity stops.
+                    if (!musicNode.__slopeDead && !musicNode.__slopeSuppressed) absStop.apply(musicNode, arguments);
+                    musicNode.__slopeDead = true;
+                }
             }
+            if (this.__slopeSuppressed) return;            // never started, or already stopped for a music switch
             return absStop.apply(this, arguments);
         };
     }
@@ -221,7 +230,7 @@
         if (id === musicId) return;
         var was = musicId; musicId = id; lsSet(KEY_MUSIC, id);
         var node = musicNode;
-        if (!node) return;
+        if (!node || node.__slopeDead) return;             // changing the selection after death must stay silent
         if (was === "original" && isCustomMusic()) {
             // original playing -> silence it, keep its position, start the custom track
             node.__slopeOffset = musicNodeElapsed(node); node.__slopeStartedAt = undefined;
@@ -915,13 +924,19 @@
     // preventDefault() on every key event, which kills typing in any page
     // input. This listener is registered first (mod.js loads before the Unity
     // loader), so it can shield the HUD's input: events aimed at it stop here.
-    var STACK_INPUT_ID = "hud-stack";
     ["keydown", "keypress", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {
             var t = e.target;
-            if (!t || (t.id !== STACK_INPUT_ID && t.id !== "hud-music" && t.id !== "hud-gravity" && t.id !== "hud-version" && !(t.closest && t.closest("#edit-panel")))) return;
+            if (!t || !t.closest || !t.closest("#hud, #edit-panel")) return;
             e.stopImmediatePropagation();
-            if (type === "keydown" && (e.key === "Enter" || e.key === "Escape") && t.tagName !== "TEXTAREA") { e.preventDefault(); t.blur(); }
+            if (type !== "keydown") return;
+            // The shield also stops events reaching target/document listeners, so handle
+            // editor shortcuts here before returning control to the browser.
+            if (t.closest("#edit-panel")) {
+                if (e.key === "Escape") { e.preventDefault(); closePanel(); }
+                else if (e.key === "Enter" && t === passBox) { e.preventDefault(); unlock(); }
+                else if (e.key === "Enter" && t === editBox && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (!editSend.disabled) submitEdit(); }
+            } else if (e.key === "Escape" || (e.key === "Enter" && t.tagName !== "BUTTON")) { e.preventDefault(); t.blur(); }
         }, true);
     });
 
@@ -1028,9 +1043,7 @@
         passRow = panel.querySelector(".edit-pass"); passBox = panel.querySelector(".edit-passbox"); passBtn = panel.querySelector(".edit-unlock");
         panel.querySelector(".edit-close").addEventListener("click", closePanel);
         editSend.addEventListener("click", submitEdit);
-        editBox.addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submitEdit(); });
         passBtn.addEventListener("click", unlock);
-        passBox.addEventListener("keydown", function (e) { if (e.key === "Enter") unlock(); });
         return panel;
     }
     function unlock() {

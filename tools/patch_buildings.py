@@ -1,7 +1,8 @@
 """Background pillars as figures: the skyline prefab ('buildings', sharedassets0 GameObject 104, one mesh of 145
 pillars 60x60x3000 beside the track) gets two siblings whose mesh puts a figure on every pillar: a Minecraft-style
-zombie and a Mort-style mouse lemur (tools/figures.py), same neon-outline material, the figure's head at the
-pillar's top, facing the oncoming ball. The SpawnBuildingsPos FSM (level0) spawns its chunks from a new FSM
+zombie and a downloaded Mort model (tools/assets/mort/README.md). Zombies use the neon-outline material;
+Mort uses its source colors and baked shading, scaled/spaced for clear faces
+and an unobstructed lane. Zombies sit at the pillar tops. The SpawnBuildingsPos FSM (level0) spawns its chunks from a new FSM
 GameObject variable ModBuilding instead of the fixed prefab; ModBuildingFlat / ModBuildingZombie / ModBuildingMort
 hold the three prefabs so the mod can read their object pointers from the heap and write the one matching the
 music into ModBuilding (TemplateData/mod.js syncBuilding).
@@ -9,6 +10,7 @@ usage: patch_buildings.py <in data.unity3d> <out data.unity3d>"""
 import sys, os, struct, math, copy, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import UnityPy, fsmparse, fsmwrite, figures
+from patch_mort import mort_geometry, configure_renderer
 src, dst = sys.argv[1], sys.argv[2]
 BUILDINGS = 104; MESH = 45
 env = UnityPy.load(src)
@@ -62,8 +64,8 @@ def dup(pid, nid, patch=None):
     o = sa.objects[pid]; m = copy.copy(o); m.path_id = nid; m.data = None; sa.objects[nid] = m
     if patch: patch(m)
     return m
-def make_mesh(nid, name, fig, every=1):
-    verts, uvs, tris = skyline(fig, every)
+def make_mesh(nid, name, fig, every=1, geometry=None):
+    verts, uvs, tris = geometry if geometry is not None else skyline(fig, every)
     vdata = b''.join(struct.pack('<5f', *verts[i], *uvs[i]) for i in range(len(verts)))
     idata = b''.join(struct.pack('<3H', *t) for t in tris)
     xs = [v[0] for v in verts]; ys = [v[1] for v in verts]; zs = [v[2] for v in verts]
@@ -103,7 +105,7 @@ def make_prefab(base, name, mesh_id):
 BASE = (max(sa.objects) // 100 + 1) * 100
 GO_Z = BASE; GO_M = BASE + 20
 nz = make_mesh(GO_Z + 9, 'buildingsZombie', figures.zombie('ccw'), every=2)   # every other slot: the figures are wider than a pillar
-nm = make_mesh(GO_M + 9, 'buildingsMort', figures.mort('ccw'), every=2)
+nm = make_mesh(GO_M + 9, 'buildingsMort', figures.mort('ccw'), geometry=mort_geometry(pillars))
 make_prefab(GO_Z, 'buildingsZombie', GO_Z + 9); make_prefab(GO_M, 'buildingsMort', GO_M + 9)
 print('prefabs: buildingsZombie go#%d (%d verts, %d tris), buildingsMort go#%d (%d verts, %d tris)' % (GO_Z, nz[0], nz[1], GO_M, nm[0], nm[1]))
 # ---------------------------------------------------------------- the SpawnBuildingsPos FSM: prefab from the ModBuilding variable
@@ -138,4 +140,9 @@ for o in list(env.objects):
     g2 = fsmparse.parse(new); assert '_err' not in g2, g2.get('_err'); assert [x['name'] for x in g2['variables']['gameObject']][-4:] == ['ModBuilding', 'ModBuildingFlat', 'ModBuildingZombie', 'ModBuildingMort']
     o.set_raw_data(new); done = True; print('SpawnBuildingsPos: %d spawns take the ModBuilding variable; 4 GameObject variables added' % spawns)
 assert done
+# UnityPy reads objects from their original reader until a saved bundle is
+# reloaded; make the newly cloned Mort prefab visible before assigning color.
+env = UnityPy.load(env.file.save(packer="original"))
+sa = next(o.assets_file for o in env.objects if o.assets_file.name.endswith('sharedassets0.assets'))
+configure_renderer(sa)
 out = env.file.save(packer="original"); open(dst, 'wb').write(out); print('wrote', dst, len(out))

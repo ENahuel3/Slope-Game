@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Light modes, review fixes",
-  "notes": "Light shafts render; GL state handling hardened after review.",
+  "title": "Mort model and runtime fixes",
+  "notes": "Downloaded Mort (Madagascar) model by Atherin replaces the procedural placeholder, with original colors and baked shading. Dev-mode shortcuts and HUD keyboard controls fixed; switched music stops correctly on death and stays paused at game over.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -109,6 +109,13 @@
    "notes": "The game's menu stays visible over the sky. Known bad: the lit modes' light shafts never rendered (fixed in the next version).",
    "date": "2026-10-24",
    "commit": "c7958d2"
+  },
+  {
+   "tag": "v18-reviewfix",
+   "title": "Light modes, review fixes",
+   "notes": "Light shafts and GL-state review fixes. Last version before the downloaded Mort model and the HUD/editor keyboard and music-lifetime fixes.",
+   "date": "2026-10-24",
+   "commit": "b1fdef6"
   }
  ]
 }
