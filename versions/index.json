@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Shader styles",
-  "notes": "Visual styles (Rainbow, Neon glow, Synthwave, CRT arcade, Hyperspeed, Pixel, Noir, Matrix) as post-processing passes over the finished frame, with an intensity slider; V cycles. Same play as v12-roll.",
+  "title": "Stuck-ball watchdog",
+  "notes": "A ball that cannot move forward (wedged between stacked courses at a section drop, or in a rolled lane) is restarted after 1.5 s in a stack or a track mode; on top of the shader styles and the continuous roll.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -67,6 +67,13 @@
    "notes": "Twists and curves as real helicoid geometry (one block per spawner step); the last version with the compile-time rainbow shader rewrite.",
    "date": "2026-10-24",
    "commit": "50e4d21"
+  },
+  {
+   "tag": "v13-styles",
+   "title": "Shader styles, continuous roll",
+   "notes": "Post-processing shader styles (Rainbow, Neon glow, Synthwave, CRT, Hyperspeed, Pixel, Noir, Matrix) on the helicoid continuous-roll geometry. Known bad: a ball wedged between stacked courses at a section drop sat still forever (fixed in the next version by the stuck-ball watchdog).",
+   "date": "2026-10-24",
+   "commit": "fb293e2"
   }
  ]
 }

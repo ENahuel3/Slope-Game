@@ -290,7 +290,7 @@
     var SPAWNER = "t_Spawner", EVENT_MANAGER = "EventManager", SPHERE = "Sphere";
 
     var lastCourseCount = 0;      // skyline draws in the last frame (diagnostics)
-    var builds = 0, resetsSent = 0, deaths = 0, restarts = 0;
+    var builds = 0, resetsSent = 0, deaths = 0, restarts = 0, stuckRestarts = 0;
     var lastRestart = -1000, gameRunning = false;
     var frameNo = 0, debugLog = [];   // debugLog: last 40 decisions, for diagnostics
     var lastLoopT = 0, worstGap = 0, worstGapFrame = 0, bigGaps = [];   // diagnostics: main-thread stalls between frames
@@ -375,6 +375,18 @@
         note(withBeat ? "death -> instant restart" : "R -> restart");
     }
 
+    // A ball that cannot move forward never dies: wedged between two stacked courses at a section drop (the ball sits
+    // alive in the gap, steering still slides it sideways), or in a kink of a rolled lane. In the modded modes (a
+    // stack, or a track mode) such a run is restarted like a death; in a plain game the ball is left alone.
+    var stuck = { pos: null, since: 0 };
+    var STUCK_SECONDS = 1.5, STUCK_GRACE = 240;   // frames after a restart: the ball waits at the top of the drop first
+    function stepStuckWatch() {
+        if (!gameRunning || build || restartSeq || frameNo - lastRestart < STUCK_GRACE || (stackWanted() <= 1 && gravityMode === "off")) { stuck.pos = null; return; }
+        trackBall(); var p = ballPos; if (!p) return;
+        var now = performance.now();
+        if (!stuck.pos || Math.abs(p[1] - stuck.pos[1]) > 0.05 || Math.abs(p[2] - stuck.pos[2]) > 0.05) { stuck.pos = p.slice(); stuck.since = now; return; }   // any forward or vertical movement resets; sideways alone does not
+        if (now - stuck.since > STUCK_SECONDS * 1000) { stuckRestarts++; note("ball stuck at s=" + vdot(p, FWD0).toFixed(0) + " for " + STUCK_SECONDS + " s, restarting"); stuck.pos = null; requestRestart(false); }
+    }
     function examineFrame(draws) {
         var c = 0;
         for (var i = 0; i < draws.length; i++) if (draws[i] === COURSE_BATCH) c++;
@@ -395,6 +407,7 @@
             if (gravityMode !== "off") setState(SPAWNER, "Offset Buildings to Match Spawner");   // park a run that is still spawning block by block before the game's death flow interrupts it
             if (stackWanted() > 1) requestRestart(true);  // instant restart with the stack rebuilt
         }
+        stepStuckWatch();
     }
 
     function frameLoop() {
@@ -1032,7 +1045,7 @@
         courseBatches: function () { return lastCourseCount; },
         log: function () { return debugLog.slice(); },
         frame: function () { return frameNo; },
-        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaders: window.SlopeShaders ? SlopeShaders.stats() : null }; },
+        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, stuckRestarts: stuckRestarts, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaders: window.SlopeShaders ? SlopeShaders.stats() : null }; },
         setStack: setStackTarget,
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
