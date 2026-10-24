@@ -50,21 +50,26 @@ try:
         gl = page.evaluate("() => SlopeShaders.stats()")
         print('READY glVersion=%s vao=%s size=%sx%s styles=%s' % (gl['glVersion'], gl['vao'], page.evaluate("() => document.querySelector('canvas').width"), page.evaluate("() => document.querySelector('canvas').height"), ','.join(styles)))
 
-        def check(style, expect_passes):
+        def check(style, expect_passes, label=None, light='normal'):
             global ok, fail
+            label = label or style
             page.evaluate("s => SlopeShaders.setStyle(s)", style); time.sleep(A.settle)
             st0 = page.evaluate("() => SlopeShaders.stats()"); s0 = page.evaluate("() => SlopeMod.track().s"); fr0 = page.evaluate("() => SlopeMod.frame()"); e0 = len(errors)
             time.sleep(0.7)
             st1 = page.evaluate("() => SlopeShaders.stats()"); s1 = page.evaluate("() => SlopeMod.track().s"); fr1 = page.evaluate("() => SlopeMod.frame()"); running = page.evaluate("() => SlopeMod.stats().running")
-            png = os.path.join(out, style + '.png'); page.screenshot(path=png)
-            diff = img_diff(base_png, png) if style != 'classic' else None
+            png = os.path.join(out, label + '.png'); page.screenshot(path=png)
+            diff = img_diff(base_png, png) if expect_passes else None
             reasons = []
             if st1['style'] != style: reasons.append('style=%s' % st1['style'])
             if st1['presented'] <= st0['presented'] and expect_passes: reasons.append('nothing presented')
             if expect_passes and st1['passes'] < 1: reasons.append('passes=%d' % st1['passes'])
             if not expect_passes and st1['passes'] != 0: reasons.append('passes=%d' % st1['passes'])
             if st1['errors']: reasons.append('glErrors=%d' % st1['errors'])
-            if st1['failed'] or st1.get('styleFailed'): reasons.append('shaderFailed=%d' % st1['failed'])
+            if st1['failed'] or st1.get('styleFailed') or st1.get('lightFailed'): reasons.append('shaderFailed=%d' % st1['failed'])
+            if st1.get('light') != light: reasons.append('light=%s' % st1.get('light'))
+            if light != 'normal' and not st1.get('redirect'): reasons.append('depth capture not active')
+            if light != 'normal' and st1.get('glVersion') == 2 and st1.get('depth') != 'texture': reasons.append('no depth texture (%s)' % st1.get('depth'))
+            if light == 'normal' and st1.get('redirect'): reasons.append('depth capture still active')
             if fr1 <= fr0: reasons.append('game loop frozen (frame %s -> %s)' % (fr0, fr1))
             elif not (s1 is not None and s0 is not None and s1 > s0) and running: reasons.append('ball not advancing (s %s -> %s)' % (s0, s1))
             died = '' if running else ' (ball died, restarting)'
@@ -72,12 +77,18 @@ try:
             if len(errors) > e0: reasons.append('page errors: %s' % errors[e0:e0 + 2])
             good = not reasons
             ok += good; fail += (not good)
-            print('STYLE %-10s presented=+%d passes=%d errors=%d failed=%d ms=%s diff=%s s=+%.1f %s' % (style, st1['presented'] - st0['presented'], st1['passes'], st1['errors'], st1['failed'], st1['lastPassMs'], diff, (s1 or 0) - (s0 or 0), ('ok' if good else 'FAIL(' + '; '.join(reasons) + ')') + died))
+            print('STYLE %-16s presented=+%d passes=%d errors=%d failed=%d ms=%s diff=%s s=+%.1f %s' % (label, st1['presented'] - st0['presented'], st1['passes'], st1['errors'], st1['failed'], st1['lastPassMs'], diff, (s1 or 0) - (s0 or 0), ('ok' if good else 'FAIL(' + '; '.join(reasons) + ')') + died))
             if running is False:   # a death ends the run; start a new one so the next style has a moving ball
                 page.evaluate("() => SlopeMod.restart()"); time.sleep(2.0)
 
         for style in styles: check(style, style != 'classic')
         check('classic', False)
+        # lighting: each lit mode with Classic, then Night under a style, then back to Normal (the redirect must come off cleanly)
+        cam = page.evaluate("() => SlopeShaders.camera()"); print('CAMERA live=%s near=%s far=%s fovY=%s aspect=%s' % (cam['live'], cam['near'], cam['far'], cam['fovY'], cam['aspect']))
+        for light in [l['id'] for l in page.evaluate("() => SlopeShaders.lights()") if l['id'] != 'normal']:
+            page.evaluate("l => SlopeShaders.setLight(l)", light); time.sleep(0.3); check('classic', True, 'light-' + light, light)
+        page.evaluate("() => SlopeShaders.setLight('night')"); time.sleep(0.3); check(styles[3] if len(styles) > 3 else styles[-1], True, 'light-night-' + (styles[3] if len(styles) > 3 else styles[-1]), 'night')
+        page.evaluate("() => SlopeShaders.setLight('normal')"); time.sleep(0.3); check('classic', False, 'light-normal', 'normal')
         page.evaluate("() => SlopeShaders.setIntensity(0.5)"); check(styles[1] if len(styles) > 1 else 'classic', len(styles) > 1)
         browser.close()
 finally:

@@ -23,8 +23,9 @@ the page is a proper HTML5 document, there is a fullscreen button
 (or press F), a session timer, a "Courses" number that stacks N courses exactly on top of each other
 at the start of every run (the rapid-Enter glitch, without the Enter),
 R to restart instantly, a Music selector, a Style selector (post-processing
-shader styles: rainbow, neon glow, synthwave, CRT and more, see
-TemplateData/shaders.js), and outbound calls to
+shader styles: rainbow, neon glow, synthwave, CRT and more) and a Light
+selector (Normal / Sunny / Night; the last two ray-march the depth buffer,
+see TemplateData/shaders.js), and outbound calls to
 the id.net / y8 ad + leaderboard backend are blocked (see TemplateData/mod.js).
 Slope game itself is by Y8 Games / IDnet, not by this fork.
 -->
@@ -45,6 +46,9 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
         <label class="hud-label" for="hud-style" title="Visual style: post-processing shaders over the game's frame (V cycles)">Style</label>
         <select id="hud-style" class="hud-input hud-select" title="Visual style (V cycles, Shift+V backwards)"></select>
         <input id="hud-fx" class="hud-range" type="range" min="0" max="100" step="1" value="100" title="Style intensity">
+        <span class="hud-sep"></span>
+        <label class="hud-label" for="hud-light" title="Lighting: Sunny and Night ray-march the scene's depth for a sky, sun/moon shadows, light shafts and (at night) neon reflections (L cycles)">Light</label>
+        <select id="hud-light" class="hud-input hud-select" title="Lighting (L cycles, Shift+L backwards)"></select>
         <span class="hud-sep"></span>
         <label class="hud-label" for="hud-music" title="Soundtrack">Music</label>
         <select id="hud-music" class="hud-input hud-select" title="Soundtrack"></select>
