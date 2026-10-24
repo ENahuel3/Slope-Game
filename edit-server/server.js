@@ -217,6 +217,7 @@ function validate(job) {
         }
         if (/<script[\s>]/i.test(line) || /<iframe[\s>]/i.test(line)) return "The edit added a script or iframe tag; discarded.";
         if (/document\.cookie|\.credentials|localStorage\.getItem\(["']slope-dev/i.test(line)) return "The edit added something that reads credentials or cookies; discarded.";
+        if (/\beval\s*\(|new\s+Function\s*\(|\bimport\s*\(|\batob\s*\(|\bWebSocket\s*\(|\bEventSource\s*\(|\bnavigator\.sendBeacon|\bimportScripts\s*\(/i.test(line)) return "The edit added dynamic code loading or a side channel (eval / Function / import() / atob / WebSocket / sendBeacon); discarded.";
     }
     if (removed.concat(added).some(l => /SLOPE_EDIT_API/.test(l))) return "The edit changed the dev-mode endpoint line in index.html; discarded.";
     for (const f of files) if (f.endsWith(".html")) {
@@ -383,8 +384,12 @@ function send(res, code, body, origin) {
     res.writeHead(code, h); res.end(JSON.stringify(body));
 }
 function clientIp(req) {
-    const xf = req.headers["x-forwarded-for"];
-    return (xf ? String(xf).split(",")[0].trim() : req.socket.remoteAddress) || "?";
+    // behind the Funnel/serve proxy (which connects from loopback) the LAST entry is the one the proxy appended;
+    // a visitor can put anything in the earlier entries, so never trust those
+    const xf = req.headers["x-forwarded-for"], remote = req.socket.remoteAddress || "?";
+    const loopback = /^(::1|127\.|::ffff:127\.)/.test(remote);
+    if (xf && loopback) { const parts = String(xf).split(",").map(x => x.trim()).filter(Boolean); if (parts.length) return parts[parts.length - 1]; }
+    return remote;
 }
 function readJson(req, cb) {
     let body = "";
