@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Mort model and runtime fixes",
-  "notes": "Downloaded Mort (Madagascar) model by Atherin replaces the procedural placeholder, with original colors and baked shading. Dev-mode shortcuts and HUD keyboard controls fixed; switched music stops correctly on death and stays paused at game over.",
+  "title": "Starting-tunnel reset protection",
+  "notes": "Late music-start confirmations no longer rebuild an already-live stack. Stuck-ball startup grace uses four real seconds; hidden tabs and frame gaps do not trigger false resets. Genuine jams still restart.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -116,6 +116,13 @@
    "notes": "Light shafts and GL-state review fixes. Last version before the downloaded Mort model and the HUD/editor keyboard and music-lifetime fixes.",
    "date": "2026-10-24",
    "commit": "b1fdef6"
+  },
+  {
+   "tag": "v19-mort",
+   "title": "Mort model and runtime fixes",
+   "notes": "Downloaded Mort model with original colors, corrected HUD/editor shortcuts and music-source lifetime. Before startup reset-loop protection.",
+   "date": "2026-10-24",
+   "commit": "4fdc5eb"
   }
  ]
 }

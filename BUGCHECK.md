@@ -39,7 +39,7 @@ The temporary virtualenv contains Playwright and Pillow. On another machine,
 install those packages and Playwright Chromium in your preferred environment.
 
 Additional checks: 17/17 shader checks passed on WebGL 2 and 17/17 on WebGL 1,
-including menu visibility under both light modes. The 90-second three-course
+including menu visibility under both light modes. The initial three-course
 stack test reported no stalls or page errors. A combined curves/twists smoke
 test advanced into the rolled track and reached a normal death/game-over;
 the remaining observation time checks the game-over loop, not continued play.
@@ -86,3 +86,37 @@ The outgoing GitHub version is now preserved as `versions/v18-reviewfix/`
 (commit `b1fdef6`, dated 2026-10-24). `versions/index.json` describes the new
 root as **Mort model and runtime fixes**, dated 2026-10-24. This is the dated version history for the Mort model and runtime-fixes release.
 The original service-file edit remains intact.
+
+## Starting-tunnel reset protection — 2026-10-24
+
+Published the Mort/runtime release as `4fdc5eb`; GitHub Pages deployment succeeded.
+Its complete dated copy is now `versions/v19-mort/` before this next release.
+
+Reproduced the reported starting-tunnel reset pattern in full Chromium/Unity by
+introducing five 1.8-second main-thread delays at a high refresh rate. The old
+version restarted twice at course progress around -1 and 7, with zero deaths;
+the patched version progressed through the tunnel with zero watchdog resets
+under the same delays. Both runs had zero page errors. Details are in
+`/tmp/slope-pause-check.log` and the reproduction script is
+`/tmp/slope-pause-check.py` (local server on port 8769, old runtime supplied from
+`/tmp/slope-before-tunnel.js`).
+
+Changes in `TemplateData/mod.js`:
+
+- Startup grace is four real seconds instead of 240 animation frames, so fast
+  monitors do not shorten the wait at the beginning of a run.
+- Hidden tabs and gaps longer than 500 ms clear the stuck observation. A paused
+  or delayed physics update is not treated as 1.5 seconds of confirmed jamming.
+- A late/duplicate music-start confirmation cannot start another stack build
+  while the run is already live. New runs after actual deaths still build stacks.
+
+`node tools/restart_check.js` checks these cases using the actual watchdog and
+run-signal functions with controlled time/state. Four checks failed against the
+old runtime; all eight pass after the fix, including real jam recovery, sideways
+steering during a jam, forward movement, and starting again after death. The
+existing ten keyboard/audio browser regressions also pass. A full 60-second
+three-course run completed with four normal death/restart cycles, zero watchdog
+resets, zero stalls, and zero page errors.
+
+The new latest-version entry is **Starting-tunnel reset protection**, dated
+2026-10-24. The pre-existing local service-file edit remains outside these commits.

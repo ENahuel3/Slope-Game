@@ -300,7 +300,7 @@
 
     var lastCourseCount = 0;      // skyline draws in the last frame (diagnostics)
     var builds = 0, resetsSent = 0, deaths = 0, restarts = 0, stuckRestarts = 0;
-    var lastRestart = -1000, gameRunning = false;
+    var lastRestart = -1000, lastRestartAt = 0, gameRunning = false;
     var frameNo = 0, debugLog = [];   // debugLog: last 40 decisions, for diagnostics
     var lastLoopT = 0, worstGap = 0, worstGapFrame = 0, bigGaps = [], lastDraws = [];   // diagnostics: main-thread stalls between frames, last frame's draw list
     function note(ev) { debugLog.push(frameNo + ':' + ev); if (debugLog.length > 40) debugLog.shift(); }
@@ -387,12 +387,15 @@
     // A ball that cannot move forward never dies: wedged between two stacked courses at a section drop (the ball sits
     // alive in the gap, steering still slides it sideways), or in a kink of a rolled lane. In the modded modes (a
     // stack, or a track mode) such a run is restarted like a death; in a plain game the ball is left alone.
-    var stuck = { pos: null, since: 0 };
-    var STUCK_SECONDS = 1.5, STUCK_GRACE = 240;   // frames after a restart: the ball waits at the top of the drop first
+    var stuck = { pos: null, since: 0, lastTick: 0 };
+    var STUCK_SECONDS = 1.5, STUCK_GRACE_MS = 4000, STUCK_MAX_GAP_MS = 500;
     function stepStuckWatch() {
-        if (!gameRunning || build || restartSeq || frameNo - lastRestart < STUCK_GRACE || (stackWanted() <= 1 && gravityMode === "off")) { stuck.pos = null; return; }
+        var now = performance.now(), gap = now - stuck.lastTick; stuck.lastTick = now;
+        // Startup waits are measured in seconds, independent of display refresh rate.
+        // A suspended tab or delayed frame is not evidence that physics is stuck:
+        // Unity has not had a chance to advance the ball when this callback runs.
+        if (!gameRunning || build || restartSeq || now - lastRestartAt < STUCK_GRACE_MS || document.hidden || gap > STUCK_MAX_GAP_MS || (stackWanted() <= 1 && gravityMode === "off")) { stuck.pos = null; return; }
         trackBall(); var p = ballPos; if (!p) return;
-        var now = performance.now();
         if (!stuck.pos || Math.abs(p[1] - stuck.pos[1]) > 0.05 || Math.abs(p[2] - stuck.pos[2]) > 0.05) { stuck.pos = p.slice(); stuck.since = now; return; }   // any forward or vertical movement resets; sideways alone does not
         if (now - stuck.since > STUCK_SECONDS * 1000) { stuckRestarts++; note("ball stuck at s=" + vdot(p, FWD0).toFixed(0) + " for " + STUCK_SECONDS + " s, restarting"); stuck.pos = null; requestRestart(false); }
     }
@@ -400,7 +403,8 @@
         var c = 0;
         for (var i = 0; i < draws.length; i++) if (draws[i] === COURSE_BATCH) c++;
         lastCourseCount = c;
-        var restarted = musicStarted; if (restarted) { lastRestart = frameNo; gameRunning = true; resetTrackRun(); }
+        var wasRunning = gameRunning;
+        var restarted = musicStarted; if (restarted) { lastRestart = frameNo; lastRestartAt = performance.now(); gameRunning = true; resetTrackRun(); }
         var died = musicStopped && !musicStarted && frameNo - lastRestart > RESTART_GRACE;
         if (died) gameRunning = false;                 // (the skyline draw count is not used here: the camera may simply be looking away)
         musicStopped = musicStarted = false;
@@ -409,7 +413,7 @@
             stepRestart();
         } else if (build) {
             stepBuild(restarted);
-        } else if (restarted) {                         // a run just started (Enter at the menu / game over)
+        } else if (restarted && !wasRunning) {          // Enter at the menu / game over, not a late reset confirmation
             if (stackWanted() > 1) startBuild(1);
         } else if (died) {
             deaths++;
