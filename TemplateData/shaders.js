@@ -380,7 +380,7 @@
             "  float disc = smoothstep(0.99955, 0.99975, cosMoon); skyCol = mix(skyCol, vec3(0.92, 0.94, 1.0), disc);",
             "  vec3 cell = floor(rdW * 170.0); float h = hash3(cell);",
             "  float star = step(0.9935, h) * (0.6 + 0.4 * sin(uTime * (2.0 + 6.0 * hash3(cell + 1.0)) + h * 50.0));",
-            "  vec3 cf = fract(rdW * 170.0) - 0.5; star *= smoothstep(0.35, 0.05, length(cf)) * smoothstep(0.0, 0.15, up);",
+            "  vec3 cf = fract(rdW * 170.0) - 0.5; star *= (1.0 - smoothstep(0.05, 0.35, length(cf))) * smoothstep(0.0, 0.15, up);",
             "  skyCol += vec3(0.9, 0.93, 1.0) * star * 0.9;",
             "  if (up > 0.02) { vec3 e1 = vec3(1.0, 0.0, 0.0), e2 = cross(SKY_UP, e1); vec2 cp = vec2(dot(rdW, e1), dot(rdW, e2)) / (up + 0.15);",
             "    float haze = fbm(cp * 1.4 + vec2(uTime * 0.01, 3.0)); skyCol += vec3(0.05, 0.06, 0.12) * smoothstep(0.45, 0.8, haze) * smoothstep(0.02, 0.25, up); }",
@@ -444,7 +444,22 @@
     }
     var STYLES = {};
     var ORDER = [];
+    var BUFFERS = ["scene", "a", "b", "lit", "h1", "h2", "h3"];
+    function validChain(passes) {
+        for (var i = 0; i < passes.length; i++) {
+            var p = passes[i];
+            if (!FRAG[p.fs]) return "unknown shader '" + p.fs + "'";
+            if (BUFFERS.indexOf(p.in) < 0) return "unknown input '" + p.in + "'";
+            if (p.in2 && BUFFERS.indexOf(p.in2) < 0) return "unknown input '" + p.in2 + "'";
+            if (p.in3 && BUFFERS.indexOf(p.in3) < 0) return "unknown input '" + p.in3 + "'";
+            if (p.out !== "screen" && (BUFFERS.indexOf(p.out) < 0 || p.out === "scene")) return "bad output '" + p.out + "'";
+            if (p.out === p.in || p.out === p.in2 || p.out === p.in3) return "pass " + i + " reads and writes '" + p.out + "'";
+        }
+        return null;
+    }
     function define(id, def) {
+        var bad = validChain(def.passes || []);
+        if (bad) { warn("style '" + id + "' rejected: " + bad); return null; }
         if (!STYLES[id]) ORDER.push(id);
         STYLES[id] = { id: id, name: def.name || id, passes: def.passes || [], failed: false };
         return STYLES[id];
@@ -501,6 +516,7 @@
     // Context adoption and frame hooks
     // ======================================================================
     var gl = null, g = null, isGL2 = false, res = null, dirty = false;
+    var vaoMode = "none", vaoExt = null;   // "gl2" | "oes" | "none": how the pass quad's vertex state is kept
     var redirectActive = false;   // the game's default-framebuffer binds go to res.main (lighting on)
     var vpMat = null;             // last unity_MatrixVP upload (Float32Array[16], column-major)
     var stats = { frames: 0, presented: 0, passes: 0, errors: 0, failed: 0, lastPassMs: 0, vao: "none", depth: "none" };
@@ -509,6 +525,9 @@
 
     function adopt(ctx) {
         gl = ctx; g = bindRaw(ctx); isGL2 = !!(window.WebGL2RenderingContext && ctx instanceof WebGL2RenderingContext);
+        if (isGL2 && g.createVertexArray) vaoMode = "gl2";
+        else { try { vaoExt = g.getExtension("OES_vertex_array_object"); } catch (e) { vaoExt = null; } vaoMode = vaoExt ? "oes" : "none"; }
+        stats.vao = vaoMode;
         if (ctx.canvas && ctx.canvas.addEventListener) {
             ctx.canvas.addEventListener("webglcontextlost", function () { res = null; redirectActive = false; }, false);
         }
@@ -520,8 +539,10 @@
         var oBind = P.bindFramebuffer, oGetLoc = P.getUniformLocation, oU4 = P.uniform4fv, oM4 = P.uniformMatrix4fv;
         var oInv = P.invalidateFramebuffer, oInvSub = P.invalidateSubFramebuffer;
         P.bindFramebuffer = function (target, fb) {
-            var isDraw = target === this.FRAMEBUFFER || (this.DRAW_FRAMEBUFFER && target === this.DRAW_FRAMEBUFFER);
-            if (isDraw) this.__slopeFbNull = (fb === null);
+            var isRead = this.READ_FRAMEBUFFER && target === this.READ_FRAMEBUFFER;
+            if (target === this.FRAMEBUFFER) { this.__slopeFbNull = (fb === null); this.__slopeReadNull = (fb === null); }
+            else if (isRead) this.__slopeReadNull = (fb === null);
+            else this.__slopeFbNull = (fb === null);
             if (fb === null && redirectActive && this === gl && ensureMain()) fb = res.main.fbo;   // the lighting's capture target stands in for the canvas
             return oBind.call(this, target, fb);
         };
@@ -540,8 +561,9 @@
         P.uniform4fv = function (loc, v, srcOffset) { noteVP(this, loc, v, srcOffset); return oU4.apply(this, arguments); };
         P.uniformMatrix4fv = function (loc, transpose, v, srcOffset) { if (!transpose) noteVP(this, loc, v, srcOffset); return oM4.apply(this, arguments); };
         // Discarding the "canvas" while it is really the lighting's framebuffer would throw away the depth the pass needs.
-        if (oInv) P.invalidateFramebuffer = function () { if (redirectActive && this === gl && this.__slopeFbNull !== false) return; return oInv.apply(this, arguments); };
-        if (oInvSub) P.invalidateSubFramebuffer = function () { if (redirectActive && this === gl && this.__slopeFbNull !== false) return; return oInvSub.apply(this, arguments); };
+        function logicalNull(ctx, target) { return (ctx.READ_FRAMEBUFFER && target === ctx.READ_FRAMEBUFFER) ? ctx.__slopeReadNull !== false : ctx.__slopeFbNull !== false; }
+        if (oInv) P.invalidateFramebuffer = function (target) { if (redirectActive && this === gl && logicalNull(this, target)) return; return oInv.apply(this, arguments); };
+        if (oInvSub) P.invalidateSubFramebuffer = function (target) { if (redirectActive && this === gl && logicalNull(this, target)) return; return oInvSub.apply(this, arguments); };
         function wrapDraw(name) {
             var o = P[name];
             if (!o) return;
@@ -699,11 +721,16 @@
         var w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
         if (!(w > 0 && h > 0)) return false;
         if (res.main && res.main.w === w && res.main.h === h) return res.main.ok;
-        var prev = g.getParameter(gl.FRAMEBUFFER_BINDING), prevTex = g.getParameter(gl.TEXTURE_BINDING_2D);
+        var prev = g.getParameter(gl.FRAMEBUFFER_BINDING), prevRead = isGL2 ? g.getParameter(gl.READ_FRAMEBUFFER_BINDING) : null;
+        var prevTex = g.getParameter(gl.TEXTURE_BINDING_2D), prevRb = g.getParameter(gl.RENDERBUFFER_BINDING);
+        var prevUnpack = isGL2 ? g.getParameter(gl.PIXEL_UNPACK_BUFFER_BINDING) : null;
+        if (isGL2) g.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
         if (res.main) { dropTarget(res.main); if (res.main.rb) g.deleteRenderbuffer(res.main.rb); }
         res.main = makeMain(w, h);
         g.bindTexture(gl.TEXTURE_2D, prevTex);
-        g.bindFramebuffer(gl.FRAMEBUFFER, prev);
+        g.bindRenderbuffer(gl.RENDERBUFFER, prevRb);
+        if (isGL2) { g.bindBuffer(gl.PIXEL_UNPACK_BUFFER, prevUnpack); g.bindFramebuffer(gl.DRAW_FRAMEBUFFER, prev); g.bindFramebuffer(gl.READ_FRAMEBUFFER, prevRead); }
+        else g.bindFramebuffer(gl.FRAMEBUFFER, prev);
         if (!res.main.ok) warn("lighting framebuffer incomplete; lighting disabled");
         return res.main.ok;
     }
@@ -714,19 +741,19 @@
             if (res.main) { dropTarget(res.main); if (res.main.rb) g.deleteRenderbuffer(res.main.rb); }
             Object.keys(res.programs).forEach(function (k) { if (res.programs[k]) g.deleteProgram(res.programs[k].prog); });
             if (res.quad) g.deleteBuffer(res.quad);
-            if (res.vao && res.vaoMode === "gl2") g.deleteVertexArray(res.vao);
-            else if (res.vao && res.vaoExt) res.vaoExt.deleteVertexArrayOES(res.vao);
+            if (res.vao && vaoMode === "gl2") g.deleteVertexArray(res.vao);
+            else if (res.vao && vaoExt) vaoExt.deleteVertexArrayOES(res.vao);
         } catch (e) { /* context may be gone */ }
         res = null; redirectActive = false;
     }
     function ensureResources(w, h) {
         if (res && res.w === w && res.h === h) return true;
-        var programs = res ? res.programs : null, quad = res ? res.quad : null, vao = res ? res.vao : null, vaoMode = res ? res.vaoMode : null, vaoExt = res ? res.vaoExt : null, main = res ? res.main : null;
+        var programs = res ? res.programs : null, quad = res ? res.quad : null, vao = res ? res.vao : null, main = res ? res.main : null;
         if (res) { Object.keys(res.buffers).forEach(function (k) { dropTarget(res.buffers[k]); }); }
         var attrs = null; try { attrs = g.getContextAttributes(); } catch (e) { /* ignore */ }
         var sceneFmt = (attrs && attrs.alpha === false) ? gl.RGB : gl.RGBA;   // copyTexSubImage2D needs the texture to match the canvas
         var hw = Math.max(1, Math.round(w / 2)), hh = Math.max(1, Math.round(h / 2));
-        res = { w: w, h: h, programs: programs || {}, quad: quad, vao: vao, vaoMode: vaoMode, vaoExt: vaoExt, main: main, buffers: {} };
+        res = { w: w, h: h, programs: programs || {}, quad: quad, vao: vao, main: main, buffers: {} };
         res.buffers.scene = { tex: makeTex(w, h, sceneFmt, gl.LINEAR), fbo: null, w: w, h: h, ok: true };   // the capture is never rendered into
         res.buffers.a = makeTarget(w, h, gl.RGBA);
         res.buffers.b = makeTarget(w, h, gl.RGBA);
@@ -739,19 +766,14 @@
             res.quad = g.createBuffer();
             g.bindBuffer(gl.ARRAY_BUFFER, res.quad);
             g.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);   // one triangle covers the screen
-            if (isGL2 && g.createVertexArray) { res.vao = g.createVertexArray(); res.vaoMode = "gl2"; g.bindVertexArray(res.vao); }
-            else {
-                var ext = null; try { ext = g.getExtension("OES_vertex_array_object"); } catch (e) { /* none */ }
-                if (ext) { res.vaoExt = ext; res.vao = ext.createVertexArrayOES(); res.vaoMode = "oes"; ext.bindVertexArrayOES(res.vao); }
-                else res.vaoMode = "none";
-            }
-            if (res.vaoMode !== "none") {
+            if (vaoMode === "gl2") { res.vao = g.createVertexArray(); g.bindVertexArray(res.vao); }
+            else if (vaoMode === "oes") { res.vao = vaoExt.createVertexArrayOES(); vaoExt.bindVertexArrayOES(res.vao); }
+            if (vaoMode !== "none") {
                 g.bindBuffer(gl.ARRAY_BUFFER, res.quad);
                 g.enableVertexAttribArray(0);
                 g.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-                if (res.vaoMode === "gl2") g.bindVertexArray(null); else res.vaoExt.bindVertexArrayOES(null);
+                if (vaoMode === "gl2") g.bindVertexArray(null); else vaoExt.bindVertexArrayOES(null);
             }
-            stats.vao = res.vaoMode;
         }
         var ok = ["a", "b", "lit", "h1", "h2", "h3"].every(function (k) { return res.buffers[k].ok; });
         if (!ok) warn("framebuffers incomplete; post-processing disabled");
@@ -770,7 +792,11 @@
         s.arrayBuf = g.getParameter(gl.ARRAY_BUFFER_BINDING);
         s.activeTex = g.getParameter(gl.ACTIVE_TEXTURE);
         s.tex = [];
-        for (var i = 0; i < TEX_UNITS; i++) { g.activeTexture(gl.TEXTURE0 + i); s.tex.push(g.getParameter(gl.TEXTURE_BINDING_2D)); }
+        s.samplers = [];
+        for (var i = 0; i < TEX_UNITS; i++) {
+            g.activeTexture(gl.TEXTURE0 + i); s.tex.push(g.getParameter(gl.TEXTURE_BINDING_2D));
+            if (isGL2) { s.samplers.push(g.getParameter(gl.SAMPLER_BINDING)); g.bindSampler(i, null); }   // a sampler object would override the pass textures' filtering
+        }
         s.viewport = g.getParameter(gl.VIEWPORT);
         s.scissor = g.isEnabled(gl.SCISSOR_TEST);
         s.blend = g.isEnabled(gl.BLEND);
@@ -778,9 +804,14 @@
         s.stencil = g.isEnabled(gl.STENCIL_TEST);
         s.cull = g.isEnabled(gl.CULL_FACE);
         s.colorMask = g.getParameter(gl.COLOR_WRITEMASK);
-        if (isGL2) s.discard = g.isEnabled(gl.RASTERIZER_DISCARD);
-        if (res.vaoMode === "gl2") s.vao = g.getParameter(gl.VERTEX_ARRAY_BINDING);
-        else if (res.vaoMode === "oes") s.vao = g.getParameter(res.vaoExt.VERTEX_ARRAY_BINDING_OES);
+        s.sampleCov = g.isEnabled(gl.SAMPLE_COVERAGE); s.a2c = g.isEnabled(gl.SAMPLE_ALPHA_TO_COVERAGE);
+        s.renderbuffer = g.getParameter(gl.RENDERBUFFER_BINDING);
+        if (isGL2) {
+            s.discard = g.isEnabled(gl.RASTERIZER_DISCARD);
+            s.unpackBuf = g.getParameter(gl.PIXEL_UNPACK_BUFFER_BINDING);
+        }
+        if (vaoMode === "gl2") s.vao = g.getParameter(gl.VERTEX_ARRAY_BINDING);
+        else if (vaoMode === "oes") s.vao = g.getParameter(vaoExt.VERTEX_ARRAY_BINDING_OES);
         else {
             s.attribs = [];
             var n = g.getParameter(gl.MAX_VERTEX_ATTRIBS);
@@ -796,8 +827,8 @@
         return s;
     }
     function restoreState(s) {
-        if (res.vaoMode === "gl2") g.bindVertexArray(s.vao);
-        else if (res.vaoMode === "oes") res.vaoExt.bindVertexArrayOES(s.vao);
+        if (vaoMode === "gl2") g.bindVertexArray(s.vao);
+        else if (vaoMode === "oes") vaoExt.bindVertexArrayOES(s.vao);
         else {
             for (var a = 0; a < s.attribs.length; a++) { if (s.attribs[a]) g.enableVertexAttribArray(a); else g.disableVertexAttribArray(a); }
             g.bindBuffer(gl.ARRAY_BUFFER, s.attrib0.buf);
@@ -805,14 +836,16 @@
             g.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, s.elementBuf);
         }
         g.bindBuffer(gl.ARRAY_BUFFER, s.arrayBuf);
-        for (var i = 0; i < TEX_UNITS; i++) { g.activeTexture(gl.TEXTURE0 + i); g.bindTexture(gl.TEXTURE_2D, s.tex[i]); }
+        for (var i = 0; i < TEX_UNITS; i++) { g.activeTexture(gl.TEXTURE0 + i); g.bindTexture(gl.TEXTURE_2D, s.tex[i]); if (isGL2) g.bindSampler(i, s.samplers[i]); }
         g.activeTexture(s.activeTex);
+        g.bindRenderbuffer(gl.RENDERBUFFER, s.renderbuffer);
+        if (isGL2) g.bindBuffer(gl.PIXEL_UNPACK_BUFFER, s.unpackBuf);
         g.useProgram(s.program);
         // The game believes the canvas is bound whenever its own binding was null (or our stand-in). Whether that is the
         // real canvas or the lighting framebuffer for the next frame depends on the redirect decided this frame.
-        var gameNull = gl.__slopeFbNull !== false;
-        var fb = gameNull ? (redirectActive && res.main ? res.main.fbo : null) : s.fb;
-        var readFb = gameNull ? fb : s.readFb;
+        var standIn = redirectActive && res.main ? res.main.fbo : null;
+        var fb = gl.__slopeFbNull !== false ? standIn : s.fb;
+        var readFb = gl.__slopeReadNull !== false ? standIn : s.readFb;
         if (isGL2) { g.bindFramebuffer(gl.DRAW_FRAMEBUFFER, fb); g.bindFramebuffer(gl.READ_FRAMEBUFFER, readFb); }
         else g.bindFramebuffer(gl.FRAMEBUFFER, fb);
         g.viewport(s.viewport[0], s.viewport[1], s.viewport[2], s.viewport[3]);
@@ -822,6 +855,8 @@
         (s.stencil ? g.enable : g.disable)(gl.STENCIL_TEST);
         (s.cull ? g.enable : g.disable)(gl.CULL_FACE);
         if (isGL2) (s.discard ? g.enable : g.disable)(gl.RASTERIZER_DISCARD);
+        (s.sampleCov ? g.enable : g.disable)(gl.SAMPLE_COVERAGE);
+        (s.a2c ? g.enable : g.disable)(gl.SAMPLE_ALPHA_TO_COVERAGE);
         g.colorMask(s.colorMask[0], s.colorMask[1], s.colorMask[2], s.colorMask[3]);
     }
 
@@ -849,10 +884,12 @@
         if (!(w > 0 && h > 0)) return;
         if (!chain.length && !wasRedirected) { stats.passes = 0; redirectActive = false; return; }
         var tStart = now();
-        if (!ensureResources(w, h)) { if (style) style.failed = true; redirectActive = false; return; }
-        var state = saveState();
+        var state = saveState();   // before anything is allocated: allocation binds textures, buffers and framebuffers
         var drawn = 0;
         try {
+            g.activeTexture(gl.TEXTURE0);
+            if (isGL2) g.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
+            if (!ensureResources(w, h)) { if (style) style.failed = true; redirectActive = false; return; }
             var sceneBuf;
             if (wasRedirected && res.main.w === w && res.main.h === h) {
                 sceneBuf = res.main;   // the game drew into the stand-in this frame: colour and depth are already textures
@@ -868,10 +905,11 @@
                 chain = [{ fs: "lcomp", in: "scene", in2: "scene", in3: "scene", out: "screen", p: [0, 0, 0], q: [0] }];
             }
             g.disable(gl.SCISSOR_TEST); g.disable(gl.BLEND); g.disable(gl.DEPTH_TEST); g.disable(gl.STENCIL_TEST); g.disable(gl.CULL_FACE);
+            g.disable(gl.SAMPLE_COVERAGE); g.disable(gl.SAMPLE_ALPHA_TO_COVERAGE);
             if (isGL2) g.disable(gl.RASTERIZER_DISCARD);
             g.colorMask(true, true, true, true);
-            if (res.vaoMode === "gl2") g.bindVertexArray(res.vao);
-            else if (res.vaoMode === "oes") res.vaoExt.bindVertexArrayOES(res.vao);
+            if (vaoMode === "gl2") g.bindVertexArray(res.vao);
+            else if (vaoMode === "oes") vaoExt.bindVertexArrayOES(res.vao);
             else { g.bindBuffer(gl.ARRAY_BUFFER, res.quad); g.enableVertexAttribArray(0); g.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); }
 
             var t = (now() - t0) / 1000, hue = (t / HUE_PERIOD) % 1, speed = speedNorm();
@@ -900,12 +938,10 @@
                 var P = pass.p || [], Q = pass.q || [];
                 g.uniform4f(p.u.uP, P[0] || 0, P[1] || 0, P[2] || 0, P[3] || 0);
                 g.uniform4f(p.u.uQ, Q[0] || 0, Q[1] || 0, Q[2] || 0, Q[3] || 0);
-                if (p.u.uCam) {
-                    g.uniform4f(p.u.uCam, cam.a, cam.b, cam.near, cam.far);
-                    g.uniformMatrix3fv(p.u.uRot, false, rot);
-                    g.uniform4f(p.u.uLight, lv.dir[0], lv.dir[1], lv.dir[2], hasDepth);
-                    g.uniform4f(p.u.uLightUV, lv.uv[0], lv.uv[1], lv.front, hasDepth);
-                }
+                if (p.u.uCam) g.uniform4f(p.u.uCam, cam.a, cam.b, cam.near, cam.far);
+                if (p.u.uRot) g.uniformMatrix3fv(p.u.uRot, false, rot);
+                if (p.u.uLight) g.uniform4f(p.u.uLight, lv.dir[0], lv.dir[1], lv.dir[2], hasDepth);
+                if (p.u.uLightUV) g.uniform4f(p.u.uLightUV, lv.uv[0], lv.uv[1], lv.front, hasDepth);
                 g.drawArrays(gl.TRIANGLES, 0, 3);
                 drawn++;
             }
