@@ -152,3 +152,33 @@ The original-game Models Resource downloads also return a Cloudflare challenge.
 The existing model remains in use; another available Warehouse model was checked
 and rejected because it was less accurate. Candidate/source details are in
 `tools/assets/mort/README.md`; do not describe this release as a new Mort model.
+
+## Accurate Mort V2 — 2026-10-24
+
+The owner downloaded `mort-v2.zip`; imported its OBJ and original textures.
+Replaced the stylized model with **Mort V2 by calvinwil5782** (CC BY 4.0;
+Madagascar © DreamWorks). Source files, credit, archive hash, atlas build and
+shader details are in `tools/assets/mort/README.md` and `v2/source.json`.
+
+The importer maps the OBJ's three material names to body/face, tail and hair
+PNGs, preserves repeated UVs, and builds one RGBA atlas. A dedicated copy of the
+original unlit shader adds alpha cutout in both GLES 2 and GLES 3, with culling
+disabled for fur cards and depth writes retained. The original shader is unchanged.
+Mort stands perpendicular to the lane so his longer tail follows the slope.
+
+There are still 87 figures per skyline chunk. The base mesh now has 51,794
+vertices and 79,054 triangles (29 models), down from 192,502 triangles in the old
+base mesh. Comparing serialized scene objects confirms only the Mort mesh,
+texture and material change, plus the dedicated shader. Original pillars,
+zombies, obstacle geometry, collision and spawner FSMs are untouched.
+
+Both existing-scene and fresh-scene builds pass mesh/index/shader validation.
+The new shader exports with both expected alpha cutouts. Full-game screenshots
+confirm the textured model and Julien blocks; smoke runs have no page errors.
+WebGL 1 and 2 each pass all nine Julien/theme/GL-state checks with the new model,
+including Night/Rainbow. Existing restart/heap and keyboard/audio regressions
+also pass. Logs/screenshots: `/tmp/slope-mort-v2-*` and `/tmp/julien-game-*.png`.
+
+The prior release is preserved as `v21-julien`, from `1ce9ddf`, dated 2026-10-24.
+The latest-version entry is **Accurate textured Mort V2**, dated 2026-10-24.
+The camera-orientation follow-up is a separate change after this release.

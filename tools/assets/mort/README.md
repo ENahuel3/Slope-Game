@@ -1,58 +1,53 @@
-# Mort (Madagascar)
+# Mort V2 — textured skyline model
 
-Downloaded 2026-10-24 from **Mort (Madagascar)** by **Atherin**:
-https://3dwarehouse.sketchup.com/model/b9f027d3-8e8a-4db1-a757-23fbb8a3a6b2/Mort-Madagascar
+**Mort V2** by **calvinwil5782**, downloaded by the owner on 2026-10-24:
+https://sketchfab.com/3d-models/mort-v2-763eecc8409145059cff213fa646d4cd
 
-Character/franchise: DreamWorks Animation. The source listing credits Madagascar,
-Escape 2 Africa, and Madagascar 3: Europe's Most Wanted. This is a downloaded,
-static low-poly character model, not the earlier procedural mouse-lemur approximation.
+License listed by the creator: **Creative Commons Attribution 4.0 (CC BY 4.0)**.
+https://creativecommons.org/licenses/by/4.0/
+Character/franchise credit: **Madagascar © DreamWorks**.
 
-Public GLB supplied by 3D Warehouse (saved byte-for-byte as `source.glb`):
-https://download-warehouse.sketchup.com/warehouse/v1.0/content/public/61b9ee57-2f0f-4078-a86d-6c3e067463d2
+This replaces Atherin's stylized Warehouse model from the previous releases.
+The original OBJ/textures supplied in `mort-v2.zip` are kept under `v2/`, with
+source metadata and the archive SHA-256 in `v2/source.json`. The OBJ references
+an MTL missing from the download; material names unambiguously map `mort_tex`,
+`tail_tex` and `hair_tex` to their correspondingly named PNGs.
 
-Source SHA-256: 94d48253070a9ed5d05b3757b1efdc0db15681a8c323fc62f3d303f30ab7086e
+`tools/import_mort.py` preserves the OBJ texture UVs, including repeated UVs,
+and packs the original body/face, tail and hair PNGs into `atlas.png`. The
+provided shadowmap is retained in `v2/` but is not used as the body color map.
+`mesh.json` contains 1,786 position/UV vertices and 2,726 triangles. The model
+is scaled to 180 units tall and faces the approaching player.
 
-`mesh.json` and `palette.png` are derived by `tools/import_mort.py`. The converter
-applies the GLB scene transforms, rotates the character to face the player,
-scales it to 180 game units tall, welds duplicate
-position/material vertices, and bakes soft directional shading into a small
-palette texture. Both triangle windings preserve the source's double-sided
-materials in Unity, including the cream face/belly and yellow eyes. Original brown, cream, black, and yellow material colors are
-retained. No animation or runtime external fetch is added.
+`tools/mort_shader.py` clones the game's Unlit/Texture shader for this material
+only. The GLES 2 and GLES 3 fragments discard alpha below 0.25; backface culling
+is disabled for fur/whisker cards, and depth writes stay on. This preserves the
+original transparency without rectangular hair/tail backgrounds, while keeping
+Sunny/Night depth capture working. Other materials/shaders are unchanged.
 
-The base mesh contains 29 figures. Three staggered instances now show **87
-figures per skyline chunk**, reusing the same mesh data. Heads sit 80–150
-world-height units above the lane at each row so faces stay visible. Solid
-figures are kept at least 240 units to either side of the lane. Spacing is chosen to
-keep the entire crowd below Unity's 65,535-vertex limit; this also works on
-WebGL 1. The extra renderers are children of the pooled Mort root, so they disappear
-with it on restart. Each draw stays below the 16-bit vertex limit. The existing
-zombies, original pillars, music selector, and prefab pointers are retained.
+The crowd remains **87 figures per skyline chunk**: three staggered instances
+of a 29-figure mesh. Each mesh has 51,794 vertices and stays below the engine's
+16-bit index limit. Mort stands perpendicular to the lane, so the longer tail
+follows the slope behind him. The two extra renderers are children of the pooled
+root and disappear with it on restart. The actual model uses fewer than half as
+many triangles per figure as the previous double-sided placeholder.
 
-Rebuild the derived files (requires trimesh, numpy, Pillow):
+Rebuild derived assets (Pillow):
 
 ```bash
 python tools/import_mort.py
 ```
 
-Update an already-patched Unity scene (requires UnityPy and Pillow):
+Update an already-patched Unity scene (UnityPy and Pillow):
 
 ```bash
+mkdir -p /tmp/slope-data
 python tools/unpack_webdata.py Build/slope_data.unityweb /tmp/slope-data
 python tools/patch_mort.py /tmp/slope-data/data.unity3d /tmp/slope-data/mort-data.unity3d
 python tools/pack_webdata.py Build/slope_data.unityweb data.unity3d /tmp/slope-data/mort-data.unity3d Build/slope_data.unityweb
 ```
 
-Create the output directory before unpacking. `patch_buildings.py` also uses this
-model/material for fresh scene builds. The color palette is embedded in the
-scene bundle; the game does not need to load the GLB or JSON separately.
-
-Source model remains attributed to Atherin and the character to DreamWorks.
-3D Warehouse terms: https://3dwarehouse.sketchup.com/tos/
-
-A more accurate candidate is Mort V2 by calvinwil5782:
-https://sketchfab.com/3d-models/mort-v2-763eecc8409145059cff213fa646d4cd
-Its listing is CC Attribution, but the archive download requires a logged-in
-Sketchfab account. It has not been imported: this release increases the crowd
-of the existing model. Replacing it requires the actual archive, including its
-textures, and an importer that preserves those texture UVs.
+`patch_buildings.py` also uses this model/material when building the music
+prefabs from scratch. Geometry, atlas and shader are embedded in the scene;
+there is no external model/texture fetch at runtime. Original pillars, zombies,
+King Julien obstacles, music selection and game collisions retain their behavior.

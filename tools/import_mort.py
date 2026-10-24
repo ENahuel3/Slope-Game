@@ -1,58 +1,73 @@
-"""Convert Atherin's Mort GLB into the compact mesh/palette used by figures.py.
-Requires trimesh, numpy, Pillow. Run from any directory; source/outputs live in tools/assets/mort.
-The source uses flat material colors, so its materials fit in one shaded palette
-and the crowd needs only one draw call. Coordinates: +y up, face toward -z.
+"""Import the downloaded Mort V2 OBJ and its original textures into the skyline.
+Requires Pillow only. Run: python tools/import_mort.py
+Source/credit: tools/assets/mort/README.md. Keeps OBJ UVs (including repeated
+hair UVs), packs body/tail/hair into one atlas, and faces the model toward -z.
 """
 from pathlib import Path
 import json
-import numpy as np
-import trimesh
+import math
 from PIL import Image
 
 ASSETS = Path(__file__).resolve().parent / 'assets' / 'mort'
+SOURCE = ASSETS / 'v2'
 
 def main():
-    scene = trimesh.load(ASSETS / 'source.glb', force='scene')
-    colors, verts, faces, rows, lookup = [], [], [], [], {}
-    for name in sorted(scene.graph.nodes_geometry):
-        transform, geometry = scene.graph[name]
-        mesh = scene.geometry[geometry]
-        material = getattr(mesh.visual, 'material', None)
-        color = tuple(int(c) for c in getattr(material, 'baseColorFactor', (255, 255, 255, 255))[:3])
-        if color not in colors: colors.append(color)
-        row = colors.index(color)
-        indices = []
-        for point in trimesh.transform_points(mesh.vertices, transform):
-            key = tuple(np.round(point, 8)) + (row,)
-            if key not in lookup:
-                lookup[key] = len(verts); verts.append(point); rows.append(row)
-            indices.append(lookup[key])
-        faces.extend(tuple(indices[i] for i in face) for face in mesh.faces)
-    verts = np.asarray(verts)
-    # Source faces -x. Rotate about y so it faces -z, preserving winding.
-    center = (verts.min(axis=0) + verts.max(axis=0)) / 2
-    verts = np.column_stack((-(verts[:, 2] - center[2]), verts[:, 1] - verts[:, 1].min(), verts[:, 0] - center[0]))
-    verts *= 180 / verts[:, 1].max()  # readable skyline characters, clear of the lane
-    faces = np.asarray([f for f in faces if len(set(f)) == 3])
-    # Bake soft directional shading into UVs; the game's existing unlit shader
-    # samples a palette row. No new shaders, normals, or runtime downloads.
-    light = np.asarray((-.4, .75, -.6)); light /= np.linalg.norm(light)
-    face_normals = np.cross(verts[faces[:, 1]] - verts[faces[:, 0]], verts[faces[:, 2]] - verts[faces[:, 0]])
-    normals = np.zeros_like(verts)
-    for corner in range(3): np.add.at(normals, faces[:, corner], face_normals)
-    normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
-    shade = .58 + .42 * np.maximum(0, normals @ light)
-    uv = np.column_stack(((shade * 63 + .5) / 64, 1 - (np.asarray(rows) + .5) / len(colors)))
-    image = Image.new('RGB', (64, len(colors)))
-    for y, color in enumerate(colors):
-        for x in range(64): image.putpixel((x, y), tuple(round(c * x / 63) for c in color))
-    image.save(ASSETS / 'palette.png')
-    # The GLB's colored materials are explicitly double-sided (SketchUp faces
-    # include mixed winding). Preserve that with both windings while reusing
-    # vertices, rather than losing the cream face/belly or the yellow eyes.
-    faces = np.vstack((faces, faces[:, ::-1]))
-    payload = {'vertices': np.round(verts, 5).tolist(), 'uvs': np.round(uv, 6).tolist(), 'triangles': faces.tolist()}
+    vertices, uvs, groups = [], [], {}
+    material = None
+    for line in (SOURCE / 'mort.obj').read_text().splitlines():
+        fields = line.split()
+        if not fields: continue
+        if fields[0] == 'v': vertices.append(tuple(map(float, fields[1:4])))
+        elif fields[0] == 'vt': uvs.append(tuple(map(float, fields[1:3])))
+        elif fields[0] == 'usemtl': material = fields[1]; groups.setdefault(material, [])
+        elif fields[0] == 'f':
+            assert material is not None
+            face = [tuple(int(x) for x in token.split('/')[:2]) for token in fields[1:]]
+            assert all(v > 0 and t > 0 for v, t in face)
+            groups[material].append(face)
+    expected = {'mort_tex': 'mort.png', 'tail_tex': 'tail.png', 'hair_tex': 'hair.png'}
+    assert set(groups) == set(expected), set(groups)
+    atlas = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0))
+    slots, cursor = {}, 4
+    for material, filename in expected.items():
+        image = Image.open(SOURCE / filename).convert('RGBA')
+        coords = [uvs[t - 1] for face in groups[material] for _, t in face]
+        u0 = math.floor(min(u for u, v in coords)); v0 = math.floor(min(v for u, v in coords))
+        nx = math.ceil(max(u for u, v in coords) - u0); ny = math.ceil(max(v for u, v in coords) - v0)
+        width, height = image.size; tw, th = width * nx, height * ny
+        assert cursor + tw + 4 <= atlas.width and th + 8 <= atlas.height
+        # One-pixel wrapped gutters protect bilinear sampling at UV seams.
+        for iy in range(ny):
+            for ix in range(nx): atlas.paste(image, (cursor + ix * width, 4 + iy * height))
+        atlas.paste(atlas.crop((cursor + tw - 1, 4, cursor + tw, 4 + th)), (cursor - 1, 4))
+        atlas.paste(atlas.crop((cursor, 4, cursor + 1, 4 + th)), (cursor + tw, 4))
+        atlas.paste(atlas.crop((cursor - 1, 4 + th - 1, cursor + tw + 1, 4 + th)), (cursor - 1, 3))
+        atlas.paste(atlas.crop((cursor - 1, 4, cursor + tw + 1, 5)), (cursor - 1, 4 + th))
+        slots[material] = (cursor, 4, width, height, th, u0, v0)
+        cursor += tw + 8
+    ymin = min(p[1] for p in vertices); ymax = max(p[1] for p in vertices)
+    scale = 180 / (ymax - ymin)
+    # The OBJ is +y up and faces +z. A 180-degree yaw preserves winding.
+    verts = [(-x * scale, (y - ymin) * scale, -z * scale) for x, y, z in vertices]
+    result_v, result_uv, triangles, lookup = [], [], [], {}
+    for material, faces in groups.items():
+        x, y, width, height, th, u0, v0 = slots[material]
+        for face in faces:
+            indices = []
+            for vi, ti in face:
+                key = (vi, ti, material)
+                if key not in lookup:
+                    lookup[key] = len(result_v)
+                    result_v.append(verts[vi - 1])
+                    u, v = uvs[ti - 1]
+                    # OBJ v=0 is at the bottom; PNG rows start at the top.
+                    result_uv.append(((x + (u - u0) * width) / atlas.width,
+                                      1 - (y + th - (v - v0) * height) / atlas.height))
+                indices.append(lookup[key])
+            for i in range(1, len(indices) - 1): triangles.append((indices[0], indices[i], indices[i + 1]))
+    atlas.save(ASSETS / 'atlas.png')
+    payload = {'vertices': result_v, 'uvs': result_uv, 'triangles': triangles}
     (ASSETS / 'mesh.json').write_text(json.dumps(payload, separators=(',', ':')) + '\n')
-    print(f'Mort: {len(verts)} vertices, {len(faces)} triangles, {len(colors)} palette colors, height 180')
+    print(f'Mort V2: {len(result_v)} vertices, {len(triangles)} triangles, original RGBA texture atlas {atlas.size}, height 180')
 
 if __name__ == '__main__': main()

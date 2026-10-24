@@ -1,7 +1,7 @@
 """Background figure meshes: a procedural Minecraft-style zombie and a downloaded
 Mort (Madagascar) model; attribution/rebuild details are in assets/mort/README.md.
 Meshes return vertices, UVs and triangles in a right-handed frame, +y up and
-facing -z. Zombies tile the neon-outline texture; Mort samples its color palette.
+facing -z. Zombies tile the neon-outline texture; Mort samples its original textures in an atlas.
 Winding: front='ccw' or 'cw' viewed from outside.
 """
 import math
@@ -52,8 +52,8 @@ def zombie(front, u=20.0):
     return m
 
 def mort(front, u=100.0):
-    """Downloaded Mort (Madagascar) model by Atherin; see assets/mort/README.md.
-    The import preserves its colors via a palette, baked shading, +y up, -z front.
+    """Textured Mort V2 by calvinwil5782; see assets/mort/README.md.
+    The import preserves the original texture UVs, +y up and -z front.
     """
     import json
     from pathlib import Path

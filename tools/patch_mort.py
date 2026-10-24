@@ -1,6 +1,6 @@
 """Replace the existing Mort skyline mesh/material in a patched Unity scene.
 Usage: patch_mort.py INPUT-data.unity3d OUTPUT-data.unity3d
-Requires UnityPy and Pillow. The source GLB conversion is tools/import_mort.py.
+Requires UnityPy and Pillow. The source OBJ/texture conversion is tools/import_mort.py.
 Also exports helpers used by patch_buildings.py when creating a scene from scratch.
 """
 from pathlib import Path
@@ -12,6 +12,7 @@ import sys
 import UnityPy
 from PIL import Image
 import figures
+from mort_shader import cutout_shader
 
 C = math.sqrt(.5)
 def to_world(p):
@@ -50,14 +51,13 @@ def pillar_points(sa):
     return sorted(points, key=lambda p:(p[2],p[0]))
 
 def mort_geometry(points):
-    # Unity uses clockwise front faces; the imported source also preserves
-    # both windings for its double-sided colored materials.
+    # Mort's cutout material is double-sided for the source's fur cards.
     fig = figures.mort('cw')
     rows = collections.defaultdict(list)
     for p in points: rows[round(p[2]/10)].append(p)
     # Keep a complete downloaded model in every slot we use while staying below
     # Unity's 16-bit mesh-index limit on both WebGL 1 and 2.
-    every = 2
+    every = 5  # preserve the 29-figure layout / 87 figures across three instances
     while True:
         chosen = [p for r in sorted(rows) for k,p in enumerate(sorted(rows[r])) if k % every == 0]
         if len(chosen) * len(fig.v) < 65535: break
@@ -68,10 +68,13 @@ def mort_geometry(points):
         # The old pillars have arbitrary skyscraper heights. Keep the face
         # visible above the local 45-degree lane instead of filling the view
         # with a torso or putting the head entirely above the camera.
-        top = -cz + max(80, min(150, top + cz))
+        head_height = max(80, min(150, top + cz))
+        floor_y = -cz + (head_height - height) / C
         cx = math.copysign(max(abs(cx), 240), cx)  # keep solid bodies well clear of the lane
         base=len(verts)
-        verts.extend(to_local((x+cx,y+top-height,z+cz)) for x,y,z in fig.v)
+        # Stand perpendicular to the 45-degree lane, with the tail following
+        # the lane behind Mort rather than forming a wall above his head.
+        verts.extend(to_local((x+cx, (y-z)*C+floor_y, (y+z)*C+cz)) for x,y,z in fig.v)
         uvs.extend(fig.uv)
         tris.extend(tuple(i+base for i in t) for t in fig.t)
     print(f'Mort crowd: {len(chosen)} figures, {len(verts)} vertices, {len(tris)} triangles (every {every} slots)')
@@ -94,22 +97,29 @@ def write_mesh(obj, verts, uvs, tris):
 
 def mort_material(sa):
     existing = next((o for o in sa.objects.values() if o.type.name=='Material' and o.read().m_Name=='MortPalette'),None)
-    if existing: return existing.path_id
-    base = max(sa.objects)+1
+    shader_id = cutout_shader(sa)
     def duplicate(pid,nid):
         obj=copy.copy(sa.objects[pid]); obj.path_id=nid; obj.data=None; sa.objects[nid]=obj
         return obj
-    tex=duplicate(27,base).read()
-    tex.m_Name='MortPalette'
-    tex.set_image(Image.open(Path(__file__).resolve().parent/'assets/mort/palette.png'), target_format=4, mipmap_count=1)
+    if existing:
+        mat = existing.read(); material_id = existing.path_id
+        texture_id = next(env.m_Texture.m_PathID for name,env in mat.m_SavedProperties.m_TexEnvs if name=='_MainTex')
+        tex = sa.objects[texture_id].read()
+    else:
+        texture_id = max(sa.objects)+1
+        tex = duplicate(27,texture_id).read()
+        material_id = max(sa.objects)+1
+        mat = duplicate(3,material_id).read()
+    tex.m_Name='MortV2Atlas'
+    tex.set_image(Image.open(Path(__file__).resolve().parent/'assets/mort/atlas.png'), target_format=4, mipmap_count=1)
     tex.m_TextureSettings.m_FilterMode=1
     tex.save()
-    mat=duplicate(3,base+1).read()
     mat.m_Name='MortPalette'
+    mat.m_Shader.m_FileID=0; mat.m_Shader.m_PathID=shader_id
     for name,env in mat.m_SavedProperties.m_TexEnvs:
-        if name=='_MainTex': env.m_Texture.m_FileID=0; env.m_Texture.m_PathID=base
+        if name=='_MainTex': env.m_Texture.m_FileID=0; env.m_Texture.m_PathID=texture_id
     mat.save()
-    return base+1
+    return material_id
 
 def apply(env):
     sa=next(o.assets_file for o in env.objects if o.assets_file.name.endswith('sharedassets0.assets'))

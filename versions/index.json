@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "More Morts and King Julien blocks",
-  "notes": "Three times as many Morts: 87 per skyline chunk. Red obstacle faces show King Julien while Mort Jackson plays and revert immediately with other music. Starting-tunnel reset protection retained.",
+  "title": "Accurate textured Mort V2",
+  "notes": "Original textured Mort V2 by calvinwil5782 replaces the stylized model. All 87 Morts use the original face/body, tail and hair textures, with transparent fur cards and slope-aligned placement. King Julien obstacles and reset protection retained.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -130,6 +130,13 @@
    "notes": "Startup grace in seconds, no false stuck resets after delayed frames, and no stack rebuild loop from late music confirmations. Before the denser Mort crowd and King Julien obstacles.",
    "date": "2026-10-24",
    "commit": "dd3c6d4"
+  },
+  {
+   "tag": "v21-julien",
+   "title": "More Morts and King Julien blocks",
+   "notes": "87 low-poly Morts per skyline chunk, King Julien PNGs on red obstacles during Mort Jackson, and immediate restoration with other music. Before the accurate textured Mort V2 replacement.",
+   "date": "2026-10-24",
+   "commit": "1ce9ddf"
   }
  ]
 }

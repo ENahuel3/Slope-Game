@@ -1,0 +1,16 @@
+{
+  "title": "Mort V2",
+  "author": "calvinwil5782",
+  "source": "https://sketchfab.com/3d-models/mort-v2-763eecc8409145059cff213fa646d4cd",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "character_credit": "Madagascar (c) DreamWorks",
+  "downloaded": "2026-10-24",
+  "archive": "mort-v2.zip",
+  "archive_sha256": "26caaf8e7d2c49814153c837a5adaff21cd7f587ed23f1a7b6d0e5904800d098",
+  "materials": {
+    "mort_tex": "mort.png",
+    "tail_tex": "tail.png",
+    "hair_tex": "hair.png"
+  }
+}
