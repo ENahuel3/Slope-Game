@@ -100,7 +100,7 @@
         ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced', 'drawRangeElements'].forEach(function (method) {
             var draw = P[method]; if (!draw) return;
             P[method] = function () {
-                if (!window.SlopeMod || SlopeMod.music() !== 'billie') return draw.apply(this, arguments);
+                if (!window.SlopeMod || !SlopeMod.julien()) return draw.apply(this, arguments);
                 var bound = units(this), changes = [], oldActive = this.TEXTURE0 + (this.__julienActive || 0);
                 try {
                     for (var i = 0; i < bound.length; i++) {

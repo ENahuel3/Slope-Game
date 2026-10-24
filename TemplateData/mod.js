@@ -54,6 +54,11 @@
     var gravityMode = (function () { var m = lsGet(KEY_GRAVITY); return GRAVITY_MODES.indexOf(m) >= 0 ? m : "off"; })();
     var musicId = (function () { var id = lsGet(KEY_MUSIC); return TRACKS.some(function (t) { return t.id === id; }) ? id : "original"; })();
 
+    function themeSetting(name) { var saved = lsGet("slope-mod." + name); return saved === null ? musicId === "billie" : saved === "true"; }
+    var mortEnabled = themeSetting("mort"), julienEnabled = themeSetting("julien");
+    function setMort(on) { mortEnabled = !!on; lsSet("slope-mod.mort", mortEnabled); var el = document.getElementById("hud-mort"); if (el) el.checked = mortEnabled; syncBuilding(); }
+    function setJulien(on) { julienEnabled = !!on; lsSet("slope-mod.julien", julienEnabled); var el = document.getElementById("hud-julien"); if (el) el.checked = julienEnabled; }
+
     // ======================================================================
     // 1. Network shim
     // ======================================================================
@@ -423,9 +428,9 @@
         stepStuckWatch();
     }
 
-    // Background pillars follow the music: the skyline chunks are spawned from the ModBuilding FSM variable (scene
-    // patch tools/patch_buildings.py), which takes the original pillars, a zombie horde (Aria Math) or a crowd of
-    // Morts (Mort Jackson). A change applies from the next chunk, so from the next restart at the latest.
+    // Background pillars use the Mort toggle, otherwise follow the music. Skyline chunks use
+    // ModBuilding (tools/patch_buildings.py): original pillars, Aria zombies or Mort models.
+    // Changes apply to new chunks, or the whole crowd after restarting.
     var buildingPtr = null, buildingWritten = 0;
     function syncBuilding() {
         if (!H.vars.ModBuilding) return;
@@ -434,7 +439,7 @@
             if (!(p0 && pz && pm && readGoVar("ModBuilding") === p0)) return;   // not discovered yet, or not the layout we expect
             buildingPtr = { original: p0, aria: pz, billie: pm }; note("building prefabs: flat " + p0 + " zombie " + pz + " mort " + pm);
         }
-        var want = buildingPtr[musicId] || buildingPtr.original;
+        var want = mortEnabled ? buildingPtr.billie : musicId === "aria" ? buildingPtr.aria : buildingPtr.original;
         if (want !== buildingWritten) { writeGoVar("ModBuilding", want); buildingWritten = want; }
     }
     function frameLoop() {
@@ -940,6 +945,8 @@
         window.addEventListener(type, function (e) {
             var t = e.target;
             if (!t || !t.closest || !t.closest("#hud, #edit-panel")) return;
+            // Returning focus to the closed menu button must still allow play.
+            if (t.id === "mod-menu-button" && !(modMenu && modMenu.open) && /^(ArrowLeft|ArrowRight|[aAdDqQrRfFvVlL])$/.test(e.key)) return;
             e.stopImmediatePropagation();
             if (type !== "keydown") return;
             // The shield also stops events reaching target/document listeners, so handle
@@ -948,12 +955,13 @@
                 if (e.key === "Escape") { e.preventDefault(); closePanel(); }
                 else if (e.key === "Enter" && t === passBox) { e.preventDefault(); unlock(); }
                 else if (e.key === "Enter" && t === editBox && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (!editSend.disabled) submitEdit(); }
-            } else if (e.key === "Escape" || (e.key === "Enter" && t.tagName !== "BUTTON")) { e.preventDefault(); t.blur(); }
+            } else if (e.key === "Escape" && modMenu && modMenu.open) { e.preventDefault(); modMenu.close(); }
+            else if (e.key === "Escape" || (e.key === "Enter" && t.tagName !== "BUTTON" && t.type !== "checkbox")) { e.preventDefault(); t.blur(); }
         }, true);
     });
 
     var game = null;
-    var hud, timerEl, fsBtn, stackInput, musicSel, gravSel;
+    var hud, timerEl, fsBtn, stackInput, musicSel, gravSel, modMenu;
     var startedAt = Date.now();
     var hideTimer = null;
 
@@ -972,6 +980,7 @@
         clearTimeout(hideTimer);
         hideTimer = setTimeout(function () {
             var ae = document.activeElement;
+            if (modMenu && modMenu.open) return;
             if (ae && hud.contains(ae) && ae.tagName !== "BUTTON") return;   // keep it visible while choosing
             hud.classList.add("hidden");
         }, 2500);
@@ -1114,6 +1123,10 @@
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
         music: function () { return musicId; },
+        mort: function () { return mortEnabled; },
+        julien: function () { return julienEnabled; },
+        setMort: setMort,
+        setJulien: setJulien,
         setGravity: setGravityMode,
         setTwistQueue: function (q) { twistQueue = q.slice(); },   // degrees per upcoming lap, 0 = straight
         setLaneHalf: function (v) { LANE_HALF = +v; },               // debug/test
@@ -1139,6 +1152,18 @@
         init: function (gameInstance) {
             game = gameInstance;
             hud = document.getElementById("hud");
+            modMenu = document.getElementById("mod-menu");
+            var menuButton = document.getElementById("mod-menu-button");
+            if (modMenu && menuButton) {
+                menuButton.addEventListener("click", function () { keyEvent("keyup", "ArrowLeft", 37); keyEvent("keyup", "ArrowRight", 39); modMenu.showModal(); menuButton.setAttribute("aria-expanded", "true"); showHud(); });
+                document.getElementById("mod-menu-close").addEventListener("click", function () { modMenu.close(); });
+                modMenu.addEventListener("close", function () { if (modMenu.open) return; menuButton.setAttribute("aria-expanded", "false"); menuButton.focus(); showHud(); });
+                modMenu.addEventListener("click", function (e) { if (e.target === modMenu) { var r = modMenu.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) modMenu.close(); } });
+            }
+            [["hud-mort", mortEnabled, setMort], ["hud-julien", julienEnabled, setJulien]].forEach(function (item) {
+                var el = document.getElementById(item[0]); if (!el) return;
+                el.checked = item[1]; el.addEventListener("change", function () { item[2](el.checked); });
+            });
             timerEl = document.getElementById("hud-timer");
             fsBtn = document.getElementById("hud-fs");
             stackInput = document.getElementById("hud-stack");

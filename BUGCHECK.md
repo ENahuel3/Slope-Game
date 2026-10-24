@@ -227,3 +227,33 @@ Screenshot review confirms inward-facing textured Morts and Julien obstacles.
 The previous accurate-model release is preserved as `v22-mort-v2`, from
 `5f7e617`, dated 2026-10-24. Latest: **Locked twist camera and inward-facing
 Morts**, dated 2026-10-24.
+
+## Mod Menu and independent themes — 2026-10-24
+
+All existing options (Courses, Style, intensity, Light, Music, Track, Version,
+Fullscreen) now live inside a native modal dialog named Mod Menu. A compact,
+always-visible button opens it. Native focus trapping, Escape, a Close button,
+backdrop clicks, and focus restoration support keyboard/mouse/touch use. All
+labels and controls remain visible at 375px width; the dialog scrolls on short
+screens. Opening the menu releases steering keys to prevent stuck movement.
+The HUD remains visible while the dialog is open. A queued close event is ignored
+if the dialog was already reopened, preventing stale aria-expanded/focus state.
+
+Mort and King Julien have separate saved checkboxes, independent of soundtrack.
+Mort chooses the native scenery prefab for newly spawned chunks. When off,
+Aria retains zombies and other songs use original pillars. Julien immediately
+switches obstacle textures on/off with any song. Existing users without saved
+switches inherit the old Mort-Jackson theme if that is their saved soundtrack;
+otherwise both switches initially start off. Subsequent music changes do not
+change the switches.
+
+`tools/menu_check.py` exercises real-player controls, native scenery pointers,
+all three music selections, independent toggles, reload persistence, keyboard
+shielding, Escape/focus, reopening, steering after closing, and mobile layout. Screenshot:
+`/tmp/slope-mod-menu-mobile.png`. Existing keyboard/audio regressions pass (10);
+Julien checks pass on WebGL 1 and 2 (9 each), now verifying the explicit toggle
+and re-enabling faces with Original music. Scene bundle and camera code are
+unchanged in this release.
+
+The prior release is preserved as `v23-camera` from `a93cfdb`, dated 2026-10-24.
+Latest: **Mod Menu and independent character toggles**, dated 2026-10-24.

@@ -1,5 +1,4 @@
-/* Slope mod: page chrome. The Unity canvas fills the viewport; the HUD
-   floats over the top edge and fades out while you play. */
+/* Slope mod: a compact header and Mod Menu over the fullscreen Unity canvas. */
 
 html, body {
     margin: 0;
@@ -40,7 +39,8 @@ html, body {
 }
 
 .hud.hidden {
-    opacity: 0;
+    opacity: 1;
+    background: transparent;
 }
 
 .hud > * {
@@ -205,3 +205,22 @@ html, body {
 .edit-pass { gap: 8px; }
 .edit-passbox { flex: 1; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(0,0,0,0.5); color: #fff; font: inherit; padding: 6px 8px; }
 .edit-passbox:focus { outline: none; border-color: #00e676; }
+
+/* Compact controls stay reachable while the game runs. */
+.mod-menu {
+    box-sizing: border-box; width: min(480px, calc(100vw - 24px));
+    max-height: calc(100dvh - 24px); overflow-y: auto;
+    border: 1px solid #00e676; border-radius: 12px; padding: 20px;
+    background: #141819; color: #eee; box-shadow: 0 12px 48px #000a;
+    pointer-events: auto; user-select: auto;
+}
+.mod-menu::backdrop { background: #0008; }
+.mod-menu-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.mod-menu h2 { margin: 0; color: #00e676; font-size: 20px; }
+.mod-options { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: center; gap: 16px 12px; }
+.mod-options .hud-label { display: block; letter-spacing: .06em; }
+.mod-options .hud-input { box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; padding: 8px; }
+.mod-options .hud-range { display: block; width: 100%; }
+.mod-options input[type=checkbox] { width: 22px; height: 22px; margin: 0; accent-color: #00e676; cursor: pointer; }
+.mod-menu-note { font-size: 12px; line-height: 1.5; color: #bac2be; margin: 18px 0; }
+@media (max-width: 600px) { .hud { gap: 8px; padding: 8px; } .hud-hint { display: none; } }

@@ -41,19 +41,23 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
         <span class="hud-sep"></span>
         <span class="hud-hint">&larr; &rarr; or A / D to steer &middot; R restarts</span>
         <span class="hud-sep"></span>
+        <span id="hud-gravity-badge" class="hud-gbadge"></span>
+        <span class="hud-spacer"></span>
+        <span id="hud-timer" class="hud-timer" title="Time on this page">00:00</span>
+        <button id="mod-menu-button" class="hud-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="mod-menu">Mod Menu</button>
+        <dialog id="mod-menu" class="mod-menu" aria-labelledby="mod-menu-title">
+            <div class="mod-menu-head"><h2 id="mod-menu-title">Mod Menu</h2><button id="mod-menu-close" class="hud-btn" type="button" aria-label="Close Mod Menu">Close</button></div>
+            <div id="mod-options" class="mod-options">
         <label class="hud-label" for="hud-stack" title="How many courses get stacked on top of each other before a death clears them (the rapid-Enter glitch, automated)">Courses</label>
         <input id="hud-stack" class="hud-input" type="number" min="1" max="99" step="1" value="1" inputmode="numeric" title="Type a number: 1 = normal game">
-        <span class="hud-sep"></span>
         <label class="hud-label" for="hud-style" title="Visual style: post-processing shaders over the game's frame (V cycles)">Style</label>
         <select id="hud-style" class="hud-input hud-select" title="Visual style (V cycles, Shift+V backwards)"></select>
+        <label class="hud-label" for="hud-fx">Intensity</label>
         <input id="hud-fx" class="hud-range" type="range" min="0" max="100" step="1" value="100" title="Style intensity">
-        <span class="hud-sep"></span>
         <label class="hud-label" for="hud-light" title="Lighting: Sunny and Night ray-march the scene's depth for a sky, sun/moon shadows, light shafts and (at night) neon reflections (L cycles)">Light</label>
         <select id="hud-light" class="hud-input hud-select" title="Lighting (L cycles, Shift+L backwards)"></select>
-        <span class="hud-sep"></span>
         <label class="hud-label" for="hud-music" title="Soundtrack">Music</label>
         <select id="hud-music" class="hud-input hud-select" title="Soundtrack"></select>
-        <span class="hud-sep"></span>
         <label class="hud-label" for="hud-gravity" title="Curves: the course slowly rolls about its own centre line, up to a full turn over a lap. Twists: it rolls a sharp 90 degrees over about twenty blocks. Gravity, steering and the camera follow the ball's frame.">Track</label>
         <select id="hud-gravity" class="hud-input hud-select" title="Track shaping">
             <option value="off">Straight</option>
@@ -61,10 +65,12 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
             <option value="twists">90&deg; twists</option>
             <option value="both">Both</option>
         </select>
-        <span id="hud-gravity-badge" class="hud-gbadge"></span>
-        <span class="hud-spacer"></span>
-        <span id="hud-timer" class="hud-timer" title="Time on this page">00:00</span>
-        <button id="hud-fs" class="hud-btn" type="button" title="Fullscreen (F)">&#x26F6; Fullscreen</button>
+                <label class="hud-label" for="hud-mort">Mort</label><input id="hud-mort" type="checkbox">
+                <label class="hud-label" for="hud-julien">King Julien</label><input id="hud-julien" type="checkbox">
+            </div>
+            <p class="mod-menu-note">Mort applies to newly spawned scenery. Restart with R to refresh the whole crowd. King Julien changes obstacles immediately. Both work with any music.</p>
+            <button id="hud-fs" class="hud-btn" type="button" title="Fullscreen (F)">&#x26F6; Fullscreen</button>
+        </dialog>
     </div>
 
     <script>

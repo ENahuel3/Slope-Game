@@ -51,4 +51,5 @@ python tools/pack_webdata.py Build/slope_data.unityweb data.unity3d /tmp/slope-d
 `patch_buildings.py` also uses this model/material when building the music
 prefabs from scratch. Geometry, atlas and shader are embedded in the scene;
 there is no external model/texture fetch at runtime. Original pillars, zombies,
-King Julien obstacles, music selection and game collisions retain their behavior.
+King Julien obstacles and game collisions retain their behavior. The Mod Menu
+Mort toggle chooses this crowd independently of music, applying to newly spawned chunks.

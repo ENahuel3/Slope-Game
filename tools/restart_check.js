@@ -9,7 +9,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const source = fs.readFileSync(process.argv[2] || path.join(__dirname, '../TemplateData/mod.js'), 'utf8');
 const watch = source.slice(source.indexOf('    var stuck = '), source.indexOf('    function examineFrame('));
-const examine = source.slice(source.indexOf('    function examineFrame('), source.indexOf('    // Background pillars follow the music:'));
+const examine = source.slice(source.indexOf('    function examineFrame('), source.indexOf('    // Background pillars '));
 let failures = 0;
 function check(name, fn) {
     try { fn(); console.log('PASS ' + name); }

@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Locked twist camera and inward-facing Morts",
-  "notes": "Camera follows the ball\u2019s course frame through twists and rolls. Accurate Mort V2 crowd sits equally far from both sides of the track, with every figure turned 20 degrees inward.",
+  "title": "Mod Menu and independent character toggles",
+  "notes": "All controls are grouped under Mod Menu. Mort scenery and King Julien obstacle faces have independent saved toggles that work with any soundtrack.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -144,6 +144,13 @@
    "notes": "87 original textured Mort V2 models, transparent fur cards and slope-aligned placement; King Julien blocks retained. Before the twist/roll camera-frame fix.",
    "date": "2026-10-24",
    "commit": "5f7e617"
+  },
+  {
+   "tag": "v23-camera",
+   "title": "Locked twist camera and inward-facing Morts",
+   "notes": "Camera follows twists and rolls; Mort crowds stand equally far from both sides and turn 20 degrees inward.",
+   "date": "2026-10-24",
+   "commit": "a93cfdb"
   }
  ]
 }

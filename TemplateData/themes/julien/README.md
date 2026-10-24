@@ -10,7 +10,8 @@ Character/artwork: King Julien, DreamWorks Animation / Madagascar.
 it inside the existing red border at runtime. It recognizes exactly the four
 shipped red obstacle textures by compressed or decoded byte fingerprints.
 The small red PNGs here are decoded copies of the game's original textures,
-used to preserve their borders. Other music uses the original GPU textures.
+used to preserve their borders. The Mod Menu's independent King Julien toggle
+controls the effect with any soundtrack; switching it off uses the original GPU textures.
 No obstacle mesh, collision, or external runtime download is changed.
 
 Load order is shaders.js, julien.js, mod.js. The post-processing system captures

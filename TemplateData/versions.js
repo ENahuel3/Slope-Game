@@ -15,7 +15,9 @@
         sel.addEventListener("change", function () { if (sel.value !== tag) go(sel.value); });
         var label = document.createElement("label"); label.className = "hud-label"; label.htmlFor = "hud-version"; label.textContent = "Version";
         var hud = document.getElementById("hud"), spacer = hud && hud.querySelector(".hud-spacer");
-        if (spacer) { var sep = document.createElement("span"); sep.className = "hud-sep"; hud.insertBefore(sep, spacer); hud.insertBefore(label, spacer); hud.insertBefore(sel, spacer); }
+        var options = document.getElementById("mod-options");
+        if (options) { options.appendChild(label); options.appendChild(sel); }
+        else if (spacer) { var sep = document.createElement("span"); sep.className = "hud-sep"; hud.insertBefore(sep, spacer); hud.insertBefore(label, spacer); hud.insertBefore(sel, spacer); }
         else { var box = document.createElement("div"); box.className = "version-box"; box.appendChild(label); box.appendChild(sel); document.body.appendChild(box); }
         if (tag !== "latest") {
             var note = document.createElement("div"); note.className = "version-note";
