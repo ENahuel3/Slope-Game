@@ -9,7 +9,8 @@ Type=simple
 User=slopeedit
 Group=slopeedit
 WorkingDirectory=/srv/slope-edit
-EnvironmentFile=/srv/slope-edit/env            # SLOPE_EDIT_PASSWORD_HASH, token/USD caps, optional ANTHROPIC_API_KEY (root-owned, 0640 root:slopeedit)
+# /srv/slope-edit/env: SLOPE_EDIT_PASSWORD_HASH, token/USD caps, optional ANTHROPIC_API_KEY (root-owned, 0640 root:slopeedit)
+EnvironmentFile=/srv/slope-edit/env
 Environment=HOME=/srv/slope-edit/home
 Environment=SLOPE_EDIT_REPO=/srv/slope-edit/repo
 Environment=SLOPE_EDIT_DATA=/srv/slope-edit/data
