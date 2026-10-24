@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Stuck-ball watchdog",
-  "notes": "A ball that cannot move forward (wedged between stacked courses at a section drop, or in a rolled lane) is restarted after 1.5 s in a stack or a track mode; on top of the shader styles and the continuous roll.",
+  "title": "Light modes",
+  "notes": "Light = Normal / Sunny / Night: the lit modes ray-march the depth buffer (sky, sun or moon shadows, light shafts, night-time neon reflections) and combine with the styles. L cycles.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -74,6 +74,13 @@
    "notes": "Post-processing shader styles (Rainbow, Neon glow, Synthwave, CRT, Hyperspeed, Pixel, Noir, Matrix) on the helicoid continuous-roll geometry. Known bad: a ball wedged between stacked courses at a section drop sat still forever (fixed in the next version by the stuck-ball watchdog).",
    "date": "2026-10-24",
    "commit": "fb293e2"
+  },
+  {
+   "tag": "v14-watchdog",
+   "title": "Stuck-ball watchdog",
+   "notes": "Shader styles plus the wedged-run watchdog; the last version before the Sunny / Night light modes.",
+   "date": "2026-10-24",
+   "commit": "3d18b62"
   }
  ]
 }
