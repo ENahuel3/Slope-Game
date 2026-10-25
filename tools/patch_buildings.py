@@ -1,8 +1,7 @@
 """Background pillars as figures: the skyline prefab ('buildings', sharedassets0 GameObject 104, one mesh of 145
-pillars 60x60x3000 beside the track) gets two siblings whose mesh puts a figure on every pillar: a Minecraft-style
-zombie and a downloaded Mort model (tools/assets/mort/README.md). Zombies use the neon-outline material;
-Mort uses its source colors and baked shading, scaled/spaced for clear faces
-and an unobstructed lane. Zombies sit at the pillar tops. The SpawnBuildingsPos FSM (level0) spawns its chunks from a new FSM
+pillars 60x60x3000 beside the track) gets two siblings whose mesh puts a figure in the pillar slots: Minecraft's own
+zombie (tools/assets/zombie/README.md) and a downloaded Mort model (tools/assets/mort/README.md). Both use their
+source textures through their own unlit material, scaled/spaced for clear faces and an unobstructed lane. The SpawnBuildingsPos FSM (level0) spawns its chunks from a new FSM
 GameObject variable ModBuilding instead of the fixed prefab; ModBuildingFlat / ModBuildingZombie / ModBuildingMort
 hold the three prefabs so the mod can read their object pointers from the heap and write the one matching the
 music into ModBuilding (TemplateData/mod.js syncBuilding).
@@ -11,6 +10,7 @@ import sys, os, struct, math, copy, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import UnityPy, fsmparse, fsmwrite, figures
 from patch_mort import mort_geometry, configure_renderer, configure_crowd
+import patch_zombie
 src, dst = sys.argv[1], sys.argv[2]
 BUILDINGS = 104; MESH = 45
 env = UnityPy.load(src)
@@ -104,7 +104,7 @@ def make_prefab(base, name, mesh_id):
     return GO
 BASE = (max(sa.objects) // 100 + 1) * 100
 GO_Z = BASE; GO_M = BASE + 20
-nz = make_mesh(GO_Z + 9, 'buildingsZombie', figures.zombie('ccw'), every=2)   # every other slot: the figures are wider than a pillar
+nz = make_mesh(GO_Z + 9, 'buildingsZombie', None, geometry=patch_zombie.zombie_geometry(pillars))   # Minecraft's zombie, beside the lane (tools/assets/zombie/README.md)
 nm = make_mesh(GO_M + 9, 'buildingsMort', figures.mort('ccw'), geometry=mort_geometry(pillars))
 make_prefab(GO_Z, 'buildingsZombie', GO_Z + 9); make_prefab(GO_M, 'buildingsMort', GO_M + 9)
 print('prefabs: buildingsZombie go#%d (%d verts, %d tris), buildingsMort go#%d (%d verts, %d tris)' % (GO_Z, nz[0], nz[1], GO_M, nm[0], nm[1]))
@@ -146,4 +146,5 @@ env = UnityPy.load(env.file.save(packer="original"))
 sa = next(o.assets_file for o in env.objects if o.assets_file.name.endswith('sharedassets0.assets'))
 material = configure_renderer(sa)
 configure_crowd(sa, material)
+patch_zombie.configure_renderer(sa)
 out = env.file.save(packer="original"); open(dst, 'wb').write(out); print('wrote', dst, len(out))

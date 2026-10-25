@@ -1,7 +1,7 @@
-"""Background figure meshes: a procedural Minecraft-style zombie and a downloaded
+"""Background figure meshes: Minecraft's zombie (tools/import_zombie.py) and a downloaded
 Mort (Madagascar) model; attribution/rebuild details are in assets/mort/README.md.
 Meshes return vertices, UVs and triangles in a right-handed frame, +y up and
-facing -z. Zombies tile the neon-outline texture; Mort samples its original textures in an atlas.
+facing -z. Both sample their original textures through an atlas.
 Winding: front='ccw' or 'cw' viewed from outside.
 """
 import math
@@ -41,14 +41,15 @@ class Mesh:
     def translate(s, dx, dy, dz): s.v = [(x + dx, y + dy, z + dz) for x, y, z in s.v]
 
 def zombie(front, u=20.0):
-    """Minecraft zombie in the classic pose: arms straight out in front, facing -z. Feet at y=0, 32u tall, 8u wide."""
+    """Minecraft's own zombie (geometry and skin from Mojang's Bedrock samples, see tools/import_zombie.py),
+    arms raised in the walking pose, facing -z. Feet at y=0, 32u tall; UVs index tools/assets/zombie/atlas.png."""
+    import json
+    from pathlib import Path
+    data = json.loads((Path(__file__).resolve().parent / 'assets/zombie/mesh.json').read_text())
     m = Mesh(front)
-    m.box(-4*u, 24*u, -4*u, 4*u, 32*u, 4*u)            # head 8x8x8
-    m.box(-4*u, 12*u, -2*u, 4*u, 24*u, 2*u)            # body 8x12x4
-    m.box(-4*u, 0, -2*u, 0, 12*u, 2*u)                 # left leg 4x12x4
-    m.box(0, 0, -2*u, 4*u, 12*u, 2*u)                  # right leg
-    m.box(-8*u, 20*u, -14*u, -4*u, 24*u, 2*u)          # left arm, out to the front (4 wide, 4 tall, 16 long)
-    m.box(4*u, 20*u, -14*u, 8*u, 24*u, 2*u)            # right arm
+    m.v = [tuple(c * u for c in p) for p in data['vertices']]
+    m.uv = [tuple(p) for p in data['uvs']]
+    m.t = [tuple(t if front == 'ccw' else (t[0], t[2], t[1])) for t in data['triangles']]
     return m
 
 def mort(front, u=100.0):
