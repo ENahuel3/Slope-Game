@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "T pauses",
-  "notes": "Press T to pause and resume: the game, its clock and the music stand still, and the run continues exactly where it stopped.",
+  "title": "Minecraft zombie horde",
+  "notes": "Aria Math's skyline is Minecraft's own zombie (geometry and skin from Mojang's Bedrock samples), a horde of 72 per chunk beside the lane.",
   "date": "2026-10-25"
  },
  "versions": [
@@ -179,6 +179,13 @@
    "notes": "Stuck-ball watchdog also restarts a ball creeping under 5 units/s; last version before the T pause key.",
    "date": "2026-10-25",
    "commit": "837ab98"
+  },
+  {
+   "tag": "v29-creeping",
+   "title": "Creeping-ball watchdog",
+   "notes": "The wedged-run watchdog also restarts a ball creeping under 5 units/s; the last version with the procedural box zombies.",
+   "date": "2026-10-25",
+   "commit": "07f418a"
   }
  ]
 }
