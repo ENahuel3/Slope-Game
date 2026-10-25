@@ -1,170 +1,170 @@
 {
- "latest": {
-  "title": "Creeping-ball watchdog",
-  "notes": "A ball creeping under 5 units/s for 2 s in a stack or a track mode is restarted, on top of the stuck-ball rule.",
-  "date": "2026-10-24"
- },
- "versions": [
-  {
-   "tag": "v4-stack",
-   "title": "Stacked courses, instant restart, music, rainbow",
-   "notes": "Before track shaping: Courses, R restart, music, rainbow, ad-free scene.",
-   "date": "2026-10-15",
-   "commit": "14b9eec"
+  "latest": {
+    "title": "Creeping-ball watchdog",
+    "notes": "A ball creeping under 5 units/s for 2 s in a stack or a track mode is restarted, on top of the stuck-ball rule.",
+    "date": "2026-10-24"
   },
-  {
-   "tag": "v5-gravity",
-   "title": "Gravity modes (curves and ramps)",
-   "notes": "Sideways-gravity curves and airborne ramp effects, before the course itself was reshaped.",
-   "date": "2026-10-16",
-   "commit": "e952f4c"
-  },
-  {
-   "tag": "v6-track",
-   "title": "Track shaping with rigid blocks",
-   "notes": "Curves and 90-degree twists built one 14-unit block at a time; the last version before the three-slab geometry. Score/speed-up trigger boxes repaired on 2026-10-22 (they missed the ball in every build since the spawner patch).",
-   "date": "2026-10-17",
-   "commit": "5571cfb"
-  },
-  {
-   "tag": "v7-slabs",
-   "title": "Three-slab geometry (first build)",
-   "notes": "Lane blocks as three slabs with per-slab roll. Known bad: slabs sat one slab late (lane ends 9.4 short of each jump/drop) and the score triggers missed the ball (no score, void after the start tunnel).",
-   "date": "2026-10-17",
-   "commit": "1f4c746"
-  },
-  {
-   "tag": "v8-gapwrap",
-   "title": "Section-start wrap, version picker, stack on straight only",
-   "notes": "Added the two extra slabs at each section start and the Version selector. Known bad: lane still ended 9.4 short at section ends; score triggers still missed the ball.",
-   "date": "2026-10-22",
-   "commit": "43347c1"
-  },
-  {
-   "tag": "v9-forward",
-   "title": "Forward slab placement, score triggers repaired",
-   "notes": "Slabs cover the block ahead of the spawn point (vanilla spans), score/speed-up triggers hit the ball again. Last incremental-roll geometry before the continuous roll rework.",
-   "date": "2026-10-22",
-   "commit": "2b44fbf"
-  },
-  {
-   "tag": "v10-fastload",
-   "title": "Compressed data bundle, loader cache",
-   "notes": "Same play as v9-forward; the scene bundle is gzip-compressed and the loader keeps the build in IndexedDB. Known bad: stacked courses (and the game-over screen) could abort the runtime (abort(218)) a few seconds after a lap spawn burst or a death, from the mod's stray heap writes; fixed in the next version.",
-   "date": "2026-10-23",
-   "commit": "5a9b4ae"
-  },
-  {
-   "tag": "v11-nofreeze",
-   "title": "Freeze fix, gzip bundle",
-   "notes": "Heap writes limited to the real FSM variable objects (the random freezes), data bundle gzip-wrapped for a faster load. Last version with incremental (per-block) roll geometry.",
-   "date": "2026-10-24",
-   "commit": "7ea677a"
-  },
-  {
-   "tag": "v12-roll",
-   "title": "Continuous roll",
-   "notes": "Twists and curves as real helicoid geometry (one block per spawner step); the last version with the compile-time rainbow shader rewrite.",
-   "date": "2026-10-24",
-   "commit": "50e4d21"
-  },
-  {
-   "tag": "v13-styles",
-   "title": "Shader styles, continuous roll",
-   "notes": "Post-processing shader styles (Rainbow, Neon glow, Synthwave, CRT, Hyperspeed, Pixel, Noir, Matrix) on the helicoid continuous-roll geometry. Known bad: a ball wedged between stacked courses at a section drop sat still forever (fixed in the next version by the stuck-ball watchdog).",
-   "date": "2026-10-24",
-   "commit": "fb293e2"
-  },
-  {
-   "tag": "v14-watchdog",
-   "title": "Stuck-ball watchdog",
-   "notes": "Shader styles plus the wedged-run watchdog; the last version before the Sunny / Night light modes.",
-   "date": "2026-10-24",
-   "commit": "3d18b62"
-  },
-  {
-   "tag": "v15-light",
-   "title": "Light modes",
-   "notes": "Normal, Sunny and Night lighting on top of the shader styles, the continuous roll and the stuck-ball watchdog.",
-   "date": "2026-10-24",
-   "commit": "6fb421a"
-  },
-  {
-   "tag": "v16-figures",
-   "title": "Music figures: zombie horde and Mort crowd",
-   "notes": "Skyline pillars become a zombie horde with Aria Math and a crowd of Morts with Mort Jackson. Last version before the password-locked dev mode.",
-   "date": "2026-10-24",
-   "commit": "3adada2"
-  },
-  {
-   "tag": "v16-devmode",
-   "title": "Dev mode",
-   "notes": "Password-locked Claude Code editing of the page from the Pi, on top of the light modes and the music figures. Known bad: the title menu is hidden under the sky with Light = Sunny or Night (fixed in the next version).",
-   "date": "2026-10-24",
-   "commit": "7d63ab3"
-  },
-  {
-   "tag": "v17-menufix",
-   "title": "Light modes, menu fixed",
-   "notes": "The game's menu stays visible over the sky. Known bad: the lit modes' light shafts never rendered (fixed in the next version).",
-   "date": "2026-10-24",
-   "commit": "c7958d2"
-  },
-  {
-   "tag": "v18-reviewfix",
-   "title": "Light modes, review fixes",
-   "notes": "Light shafts and GL-state review fixes. Last version before the downloaded Mort model and the HUD/editor keyboard and music-lifetime fixes.",
-   "date": "2026-10-24",
-   "commit": "b1fdef6"
-  },
-  {
-   "tag": "v19-mort",
-   "title": "Mort model and runtime fixes",
-   "notes": "Downloaded Mort model with original colors, corrected HUD/editor shortcuts and music-source lifetime. Before startup reset-loop protection.",
-   "date": "2026-10-24",
-   "commit": "4fdc5eb"
-  },
-  {
-   "tag": "v20-tunnel",
-   "title": "Starting-tunnel reset protection",
-   "notes": "Startup grace in seconds, no false stuck resets after delayed frames, and no stack rebuild loop from late music confirmations. Before the denser Mort crowd and King Julien obstacles.",
-   "date": "2026-10-24",
-   "commit": "dd3c6d4"
-  },
-  {
-   "tag": "v21-julien",
-   "title": "More Morts and King Julien blocks",
-   "notes": "87 low-poly Morts per skyline chunk, King Julien PNGs on red obstacles during Mort Jackson, and immediate restoration with other music. Before the accurate textured Mort V2 replacement.",
-   "date": "2026-10-24",
-   "commit": "1ce9ddf"
-  },
-  {
-   "tag": "v22-mort-v2",
-   "title": "Accurate textured Mort V2",
-   "notes": "87 original textured Mort V2 models, transparent fur cards and slope-aligned placement; King Julien blocks retained. Before the twist/roll camera-frame fix.",
-   "date": "2026-10-24",
-   "commit": "5f7e617"
-  },
-  {
-   "tag": "v23-camera",
-   "title": "Locked twist camera and inward-facing Morts",
-   "notes": "Camera follows twists and rolls; Mort crowds stand equally far from both sides and turn 20 degrees inward.",
-   "date": "2026-10-24",
-   "commit": "a93cfdb"
-  },
-  {
-   "tag": "v18-devmode",
-   "title": "Dev mode (password-locked Claude Code editing)",
-   "notes": "Type devmode on the page; with the password, Claude Code edits the page from a sandbox on the owner's Pi within a token share, freezing the version it replaces. Courses still limited to a straight track here.",
-   "date": "2026-10-24",
-   "commit": "bfe8c0c"
-  },
-  {
-   "tag": "v19-stacktrack",
-   "title": "Courses stack on curves and twists",
-   "notes": "Stacking allowed on Curves/Twists as an experiment, dev mode, shader review fixes, textured Mort crowd and King Julien obstacles.",
-   "date": "2026-10-24",
-   "commit": "b3d2b3d"
-  }
- ]
+  "versions": [
+    {
+      "tag": "v4-stack",
+      "title": "Stacked courses, instant restart, music, rainbow",
+      "notes": "Before track shaping: Courses, R restart, music, rainbow, ad-free scene.",
+      "date": "2026-10-15",
+      "commit": "14b9eec"
+    },
+    {
+      "tag": "v5-gravity",
+      "title": "Gravity modes (curves and ramps)",
+      "notes": "Sideways-gravity curves and airborne ramp effects, before the course itself was reshaped.",
+      "date": "2026-10-16",
+      "commit": "e952f4c"
+    },
+    {
+      "tag": "v6-track",
+      "title": "Track shaping with rigid blocks",
+      "notes": "Curves and 90-degree twists built one 14-unit block at a time; the last version before the three-slab geometry. Score/speed-up trigger boxes repaired on 2026-10-22 (they missed the ball in every build since the spawner patch).",
+      "date": "2026-10-17",
+      "commit": "5571cfb"
+    },
+    {
+      "tag": "v7-slabs",
+      "title": "Three-slab geometry (first build)",
+      "notes": "Lane blocks as three slabs with per-slab roll. Known bad: slabs sat one slab late (lane ends 9.4 short of each jump/drop) and the score triggers missed the ball (no score, void after the start tunnel).",
+      "date": "2026-10-17",
+      "commit": "1f4c746"
+    },
+    {
+      "tag": "v8-gapwrap",
+      "title": "Section-start wrap, version picker, stack on straight only",
+      "notes": "Added the two extra slabs at each section start and the Version selector. Known bad: lane still ended 9.4 short at section ends; score triggers still missed the ball.",
+      "date": "2026-10-22",
+      "commit": "43347c1"
+    },
+    {
+      "tag": "v9-forward",
+      "title": "Forward slab placement, score triggers repaired",
+      "notes": "Slabs cover the block ahead of the spawn point (vanilla spans), score/speed-up triggers hit the ball again. Last incremental-roll geometry before the continuous roll rework.",
+      "date": "2026-10-22",
+      "commit": "2b44fbf"
+    },
+    {
+      "tag": "v10-fastload",
+      "title": "Compressed data bundle, loader cache",
+      "notes": "Same play as v9-forward; the scene bundle is gzip-compressed and the loader keeps the build in IndexedDB. Known bad: stacked courses (and the game-over screen) could abort the runtime (abort(218)) a few seconds after a lap spawn burst or a death, from the mod's stray heap writes; fixed in the next version.",
+      "date": "2026-10-23",
+      "commit": "5a9b4ae"
+    },
+    {
+      "tag": "v11-nofreeze",
+      "title": "Freeze fix, gzip bundle",
+      "notes": "Heap writes limited to the real FSM variable objects (the random freezes), data bundle gzip-wrapped for a faster load. Last version with incremental (per-block) roll geometry.",
+      "date": "2026-10-24",
+      "commit": "7ea677a"
+    },
+    {
+      "tag": "v12-roll",
+      "title": "Continuous roll",
+      "notes": "Twists and curves as real helicoid geometry (one block per spawner step); the last version with the compile-time rainbow shader rewrite.",
+      "date": "2026-10-24",
+      "commit": "50e4d21"
+    },
+    {
+      "tag": "v13-styles",
+      "title": "Shader styles, continuous roll",
+      "notes": "Post-processing shader styles (Rainbow, Neon glow, Synthwave, CRT, Hyperspeed, Pixel, Noir, Matrix) on the helicoid continuous-roll geometry. Known bad: a ball wedged between stacked courses at a section drop sat still forever (fixed in the next version by the stuck-ball watchdog).",
+      "date": "2026-10-24",
+      "commit": "fb293e2"
+    },
+    {
+      "tag": "v14-watchdog",
+      "title": "Stuck-ball watchdog",
+      "notes": "Shader styles plus the wedged-run watchdog; the last version before the Sunny / Night light modes.",
+      "date": "2026-10-24",
+      "commit": "3d18b62"
+    },
+    {
+      "tag": "v15-light",
+      "title": "Light modes",
+      "notes": "Normal, Sunny and Night lighting on top of the shader styles, the continuous roll and the stuck-ball watchdog.",
+      "date": "2026-10-24",
+      "commit": "6fb421a"
+    },
+    {
+      "tag": "v16-figures",
+      "title": "Music figures: zombie horde and Mort crowd",
+      "notes": "Skyline pillars become a zombie horde with Aria Math and a crowd of Morts with Mort Jackson. Last version before the password-locked dev mode.",
+      "date": "2026-10-24",
+      "commit": "3adada2"
+    },
+    {
+      "tag": "v17-devmode",
+      "title": "Dev mode",
+      "notes": "Password-locked Claude Code editing of the page from the Pi, on top of the light modes and the music figures. Known bad: the title menu is hidden under the sky with Light = Sunny or Night (fixed in the next version).",
+      "date": "2026-10-24",
+      "commit": "7d63ab3"
+    },
+    {
+      "tag": "v18-menufix",
+      "title": "Light modes, menu fixed",
+      "notes": "The game's menu stays visible over the sky. Known bad: the lit modes' light shafts never rendered (fixed in the next version).",
+      "date": "2026-10-24",
+      "commit": "c7958d2"
+    },
+    {
+      "tag": "v19-reviewfix",
+      "title": "Light modes, review fixes",
+      "notes": "Light shafts and GL-state review fixes. Last version before the downloaded Mort model and the HUD/editor keyboard and music-lifetime fixes.",
+      "date": "2026-10-24",
+      "commit": "b1fdef6"
+    },
+    {
+      "tag": "v20-mort",
+      "title": "Mort model and runtime fixes",
+      "notes": "Downloaded Mort model with original colors, corrected HUD/editor shortcuts and music-source lifetime. Before startup reset-loop protection.",
+      "date": "2026-10-24",
+      "commit": "4fdc5eb"
+    },
+    {
+      "tag": "v21-tunnel",
+      "title": "Starting-tunnel reset protection",
+      "notes": "Startup grace in seconds, no false stuck resets after delayed frames, and no stack rebuild loop from late music confirmations. Before the denser Mort crowd and King Julien obstacles.",
+      "date": "2026-10-24",
+      "commit": "dd3c6d4"
+    },
+    {
+      "tag": "v22-julien",
+      "title": "More Morts and King Julien blocks",
+      "notes": "87 low-poly Morts per skyline chunk, King Julien PNGs on red obstacles during Mort Jackson, and immediate restoration with other music. Before the accurate textured Mort V2 replacement.",
+      "date": "2026-10-24",
+      "commit": "1ce9ddf"
+    },
+    {
+      "tag": "v23-mort-v2",
+      "title": "Accurate textured Mort V2",
+      "notes": "87 original textured Mort V2 models, transparent fur cards and slope-aligned placement; King Julien blocks retained. Before the twist/roll camera-frame fix.",
+      "date": "2026-10-24",
+      "commit": "5f7e617"
+    },
+    {
+      "tag": "v24-camera",
+      "title": "Locked twist camera and inward-facing Morts",
+      "notes": "Camera follows twists and rolls; Mort crowds stand equally far from both sides and turn 20 degrees inward.",
+      "date": "2026-10-24",
+      "commit": "a93cfdb"
+    },
+    {
+      "tag": "v25-devmode",
+      "title": "Dev mode (password-locked Claude Code editing)",
+      "notes": "Type devmode on the page; with the password, Claude Code edits the page from a sandbox on the owner's Pi within a token share, freezing the version it replaces. Courses still limited to a straight track here.",
+      "date": "2026-10-24",
+      "commit": "bfe8c0c"
+    },
+    {
+      "tag": "v26-stacktrack",
+      "title": "Courses stack on curves and twists",
+      "notes": "Stacking allowed on Curves/Twists as an experiment, dev mode, shader review fixes, textured Mort crowd and King Julien obstacles.",
+      "date": "2026-10-24",
+      "commit": "b3d2b3d"
+    }
+  ]
 }

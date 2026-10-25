@@ -18,6 +18,12 @@ if A.latest:
     json.dump(man, open(man_path, 'w'), indent=1); print('manifest: latest =', man['latest']); sys.exit()
 if not A.tag or not A.src: sys.exit('tag and --from are required')
 if not re.match(r'^[A-Za-z0-9._-]+$', A.tag): sys.exit('tag: letters, digits, . _ - only')
+# tags are numbered in the order the versions were live: vN-name must use the next free number
+_man = json.load(open(os.path.join(REPO, 'versions', 'index.json'))) if os.path.exists(os.path.join(REPO, 'versions', 'index.json')) else {'versions': []}
+_nums = [int(m.group(1)) for m in (re.match(r'^v(\d+)-', v['tag']) for v in _man['versions']) if m]
+_m = re.match(r'^v(\d+)-', A.tag)
+if _m and _nums and int(_m.group(1)) != max(_nums) + 1 and A.tag not in [v['tag'] for v in _man['versions']] and not A.force:
+    sys.exit('tag %s: the next free number is v%d (the list is in the order the versions were live); use v%d-<name>, or --force' % (A.tag, max(_nums) + 1, max(_nums) + 1))
 dst = os.path.join(REPO, 'versions', A.tag)
 if os.path.exists(dst) and not A.force: sys.exit(dst + ' exists (--force to replace)')
 commit = git('rev-parse', '--short', A.src); date = git('show', '-s', '--format=%cs', A.src)

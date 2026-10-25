@@ -10,12 +10,14 @@
         var sel = document.createElement("select"); sel.id = "hud-version"; sel.className = "hud-input hud-select"; sel.title = "Play another version of the mod. Older versions keep working if the latest one breaks.";
         function opt(value, text) { var o = document.createElement("option"); o.value = value; o.textContent = text; sel.appendChild(o); }
         var L = man.latest || {}; opt("latest", "Latest" + (L.title ? " – " + L.title : "") + (L.date ? " (" + L.date + ")" : ""));
-        (man.versions || []).slice().sort(function (a, b) { return (b.date || "") < (a.date || "") ? -1 : 1; }).forEach(function (v) { opt(v.tag, v.tag + (v.title ? " – " + v.title : "") + (v.date ? " (" + v.date + ")" : "")); });
+        (man.versions || []).map(function (v, i) { v.seq = i; return v; }).sort(function (a, b) { return (a.date || "") !== (b.date || "") ? ((b.date || "") < (a.date || "") ? -1 : 1) : b.seq - a.seq; }).forEach(function (v) { opt(v.tag, v.tag + (v.title ? " – " + v.title : "") + (v.date ? " (" + v.date + ")" : "")); });
         sel.value = tag; if (sel.value !== tag) { opt(tag, tag + " (unlisted)"); sel.value = tag; }
         sel.addEventListener("change", function () { if (sel.value !== tag) go(sel.value); });
         var label = document.createElement("label"); label.className = "hud-label"; label.htmlFor = "hud-version"; label.textContent = "Version";
         var hud = document.getElementById("hud"), spacer = hud && hud.querySelector(".hud-spacer");
-        if (spacer) { var sep = document.createElement("span"); sep.className = "hud-sep"; hud.insertBefore(sep, spacer); hud.insertBefore(label, spacer); hud.insertBefore(sel, spacer); }
+        var options = document.getElementById("mod-options");
+        if (options) { options.appendChild(label); options.appendChild(sel); }
+        else if (spacer) { var sep = document.createElement("span"); sep.className = "hud-sep"; hud.insertBefore(sep, spacer); hud.insertBefore(label, spacer); hud.insertBefore(sel, spacer); }
         else { var box = document.createElement("div"); box.className = "version-box"; box.appendChild(label); box.appendChild(sel); document.body.appendChild(box); }
         if (tag !== "latest") {
             var note = document.createElement("div"); note.className = "version-note";

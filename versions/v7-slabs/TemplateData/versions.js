@@ -10,7 +10,7 @@
         var sel = document.createElement("select"); sel.id = "hud-version"; sel.className = "hud-input hud-select"; sel.title = "Play another version of the mod. Older versions keep working if the latest one breaks.";
         function opt(value, text) { var o = document.createElement("option"); o.value = value; o.textContent = text; sel.appendChild(o); }
         var L = man.latest || {}; opt("latest", "Latest" + (L.title ? " – " + L.title : "") + (L.date ? " (" + L.date + ")" : ""));
-        (man.versions || []).slice().sort(function (a, b) { return (b.date || "") < (a.date || "") ? -1 : 1; }).forEach(function (v) { opt(v.tag, v.tag + (v.title ? " – " + v.title : "") + (v.date ? " (" + v.date + ")" : "")); });
+        (man.versions || []).map(function (v, i) { v.seq = i; return v; }).sort(function (a, b) { return (a.date || "") !== (b.date || "") ? ((b.date || "") < (a.date || "") ? -1 : 1) : b.seq - a.seq; }).forEach(function (v) { opt(v.tag, v.tag + (v.title ? " – " + v.title : "") + (v.date ? " (" + v.date + ")" : "")); });
         sel.value = tag; if (sel.value !== tag) { opt(tag, tag + " (unlisted)"); sel.value = tag; }
         sel.addEventListener("change", function () { if (sel.value !== tag) go(sel.value); });
         var label = document.createElement("label"); label.className = "hud-label"; label.htmlFor = "hud-version"; label.textContent = "Version";
