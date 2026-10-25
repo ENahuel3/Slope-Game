@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Stacked courses on shaped tracks (experiment)",
-  "notes": "Courses may stack on Curves/Twists: hidden courses stay straight and cut through the rolled lane, so expect wedges and falls; a stuck run restarts by itself.",
+  "title": "Creeping-ball watchdog",
+  "notes": "A ball creeping under 5 units/s for 2 s in a stack or a track mode is restarted, on top of the stuck-ball rule.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -158,6 +158,13 @@
    "notes": "Type devmode on the page; with the password, Claude Code edits the page from a sandbox on the owner's Pi within a token share, freezing the version it replaces. Courses still limited to a straight track here.",
    "date": "2026-10-24",
    "commit": "bfe8c0c"
+  },
+  {
+   "tag": "v19-stacktrack",
+   "title": "Courses stack on curves and twists",
+   "notes": "Stacking allowed on Curves/Twists as an experiment, dev mode, shader review fixes, textured Mort crowd and King Julien obstacles.",
+   "date": "2026-10-24",
+   "commit": "b3d2b3d"
   }
  ]
 }
