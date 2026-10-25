@@ -20,7 +20,7 @@
  *    (loaded before this file). This file only exposes the ball's speed to
  *    it (SlopeMod.speed) and keeps its own draw-call counting hook.
  *
- * 4. HUD: fullscreen (F, whole page so the HUD stays), R restarts, V cycles
+ * 4. HUD: fullscreen (F, whole page so the HUD stays), R restarts, T pauses, V cycles
  *    the style, session timer, Courses / Style / Music / Track controls,
  *    auto-hide while playing.
  *
@@ -32,6 +32,17 @@
  */
 (function () {
     "use strict";
+    // ---- game clock (installed before Unity loads): Unity reads time through performance.now() / Date.now(); while
+    // the game is paused (T) both stand still, and afterwards they run on minus the paused time, so on resume the
+    // game does not catch up on the seconds it was paused
+    var clockPaused = false, clockPauseAt = 0, clockOffset = 0;
+    var realPerfNow = performance.now.bind(performance), realDateNow = Date.now.bind(Date);
+    performance.now = function () { return (clockPaused ? clockPauseAt : realPerfNow()) - clockOffset; };
+    Date.now = function () { return realDateNow() - clockOffset - (clockPaused ? realPerfNow() - clockPauseAt : 0); };
+    function freezeClock(on) {
+        if (on && !clockPaused) { clockPauseAt = realPerfNow(); clockPaused = true; }
+        else if (!on && clockPaused) { clockOffset += realPerfNow() - clockPauseAt; clockPaused = false; }
+    }
 
     // ======================================================================
     // Settings (localStorage, with safe fallbacks)
@@ -199,6 +210,7 @@
     if (window.AudioBufferSourceNode) {
         absStart = AudioBufferSourceNode.prototype.start; absStop = AudioBufferSourceNode.prototype.stop;
         AudioBufferSourceNode.prototype.start = function (when, offset) {
+            if (this.context) gameAudioCtx = this.context;
             this.__slopeDur = this.buffer ? this.buffer.duration : 0;
             if (this.__slopeDur < MUSIC_MIN_SECONDS) return absStart.apply(this, arguments);
             musicStarted = true;
@@ -450,7 +462,36 @@
         var want = mortEnabled ? buildingPtr.billie : musicId === "aria" ? buildingPtr.aria : buildingPtr.original;
         if (want !== buildingWritten) { writeGoVar("ModBuilding", want); buildingWritten = want; }
     }
+    // ---- pause (T): freezes Unity's main loop (Emscripten Module.pauseMainLoop), suspends the game's WebAudio
+    // context and the custom track, and holds every mod sequencer and watchdog so nothing counts frames meanwhile
+    var paused = false, pauseOverlay = null, pauseResumeAudio = false, gameAudioCtx = null;
+    function setPaused(on) {
+        var M = game && game.Module; on = !!on;
+        if (on === paused || !M || typeof M.pauseMainLoop !== "function") return;
+        paused = on;
+        if (on) {
+            freezeClock(true);
+            M.pauseMainLoop();
+            if (gameAudioCtx && gameAudioCtx.state === "running") gameAudioCtx.suspend();
+            pauseResumeAudio = !!(audioEl && !audioEl.paused); if (pauseResumeAudio) audioEl.pause();
+            if (autoKey) { keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39); autoKey = null; }
+        } else {
+            if (gameAudioCtx && gameAudioCtx.state === "suspended") gameAudioCtx.resume();
+            if (pauseResumeAudio && audioEl) { var pr = audioEl.play(); if (pr && pr.catch) pr.catch(function () {}); }
+            lastLoopT = 0; lastFrameT = 0;                               // no giant frame gap after the pause
+            freezeClock(false);
+            M.resumeMainLoop();
+        }
+        if (!pauseOverlay) {
+            pauseOverlay = document.createElement("div"); pauseOverlay.className = "pause-overlay";
+            pauseOverlay.innerHTML = '<div class="pause-title">PAUSED</div><div class="pause-hint">press T to resume</div>';
+            document.body.appendChild(pauseOverlay);
+        }
+        pauseOverlay.classList.toggle("on", on);
+        note(on ? "paused" : "resumed");
+    }
     function frameLoop() {
+        if (paused) { requestAnimationFrame(frameLoop); return; }
         frameNo++;
         var nowL = performance.now(); if (lastLoopT) { var gapL = nowL - lastLoopT; if (gapL > worstGap) { worstGap = gapL; worstGapFrame = frameNo; } if (gapL > 300) { bigGaps.push([frameNo, Math.round(gapL)]); if (bigGaps.length > 60) bigGaps.shift(); } } lastLoopT = nowL;
         var draws = frameDraws; frameDraws = [];
@@ -1142,6 +1183,8 @@
         key: function (type, k) { keyEvent(type, k, k === "ArrowLeft" ? 37 : 39); },   // debug/test
         setAutopilot: function (on) { autopilot = !!on; if (!on && autoKey) { keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39); autoKey = null; } },
         frameDt: function () { return frameDt; },
+        pause: function (on) { setPaused(on === undefined ? !paused : on); return paused; },
+        paused: function () { return paused; },
         speed: function () { return Math.sqrt(ballVel[0] * ballVel[0] + ballVel[1] * ballVel[1] + ballVel[2] * ballVel[2]); },   // units/s, for speed-driven styles (shaders.js)
         spawnTrace: function () { return spawnTrace.slice(); },
         profileScans: function () { var r = {}, t; t = performance.now(); findTriple(0, G0, 0); r.triple = Math.round(performance.now() - t); t = performance.now(); nearSeqMulti([[[PITCH_SX, 0, 0, PITCH_CX], 3e-4], [[0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3], [[0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4]]); r.near3 = Math.round(performance.now() - t); t = performance.now(); nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4); r.near1 = Math.round(performance.now() - t); t = performance.now(); ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"].forEach(findStringObjects); r.strings5 = Math.round(performance.now() - t); t = performance.now(); findFsmFloatsMulti(["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"]); r.multi = Math.round(performance.now() - t); return r; },
@@ -1209,8 +1252,10 @@
                 if (ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA" || (ae.closest && ae.closest("#edit-panel")))) return;
                 if (e.ctrlKey || e.metaKey || e.altKey) return;
                 if (e.key === "f" || e.key === "F") toggleFullscreen();
-                else if (e.key === "r" || e.key === "R") requestRestart(false);
+                else if (e.key === "r" || e.key === "R") { if (paused) setPaused(false); requestRestart(false); }
+                else if (e.key === "t" || e.key === "T") setPaused(!paused);
             });
+            window.addEventListener("blur", function () { /* keep the player's choice: no auto-resume, no auto-pause */ });
             ["mousemove", "touchstart"].forEach(function (ev) {
                 document.addEventListener(ev, showHud, { passive: true });
             });

@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Creeping-ball watchdog",
-  "notes": "A ball creeping under 5 units/s for 2 s in a stack or a track mode is restarted, on top of the stuck-ball rule.",
+  "title": "T pauses",
+  "notes": "Press T to pause and resume: the game, its clock and the music stand still, and the run continues exactly where it stopped.",
   "date": "2026-10-25"
  },
  "versions": [
@@ -172,6 +172,13 @@
    "notes": "Snapshots numbered in the order they were live. Known gap: the creeping-ball rule described in c757516 was not in the code (fixed in the next version).",
    "date": "2026-10-25",
    "commit": "055b24c"
+  },
+  {
+   "tag": "v28-watchdog",
+   "title": "Creeping-ball watchdog",
+   "notes": "Stuck-ball watchdog also restarts a ball creeping under 5 units/s; last version before the T pause key.",
+   "date": "2026-10-25",
+   "commit": "837ab98"
   }
  ]
 }
