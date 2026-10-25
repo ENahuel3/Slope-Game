@@ -395,8 +395,9 @@
     // A ball that cannot move forward never dies: wedged between two stacked courses at a section drop (the ball sits
     // alive in the gap, steering still slides it sideways), or in a kink of a rolled lane. In the modded modes (a
     // stack, or a track mode) such a run is restarted like a death; in a plain game the ball is left alone.
-    var stuck = { pos: null, since: 0, lastTick: 0 };
+    var stuck = { pos: null, since: 0, lastTick: 0, sRef: 0, sSince: 0 };
     var STUCK_SECONDS = 1.5, STUCK_GRACE_MS = 4000, STUCK_MAX_GAP_MS = 500;
+    var CREEP_SECONDS = 2, CREEP_UNITS = 10;   // a ball that advances less than this along the course in this time is creeping in a wedge (a rolled lane against a hidden straight one)
     function stepStuckWatch() {
         var now = performance.now(), gap = now - stuck.lastTick; stuck.lastTick = now;
         // Startup waits are measured in seconds, independent of display refresh rate.
@@ -404,8 +405,12 @@
         // Unity has not had a chance to advance the ball when this callback runs.
         if (!gameRunning || build || restartSeq || now - lastRestartAt < STUCK_GRACE_MS || document.hidden || gap > STUCK_MAX_GAP_MS || (stackWanted() <= 1 && gravityMode === "off")) { stuck.pos = null; return; }
         trackBall(); var p = ballPos; if (!p) return;
-        if (!stuck.pos || Math.abs(p[1] - stuck.pos[1]) > 0.05 || Math.abs(p[2] - stuck.pos[2]) > 0.05) { stuck.pos = p.slice(); stuck.since = now; return; }   // any forward or vertical movement resets; sideways alone does not
-        if (now - stuck.since > STUCK_SECONDS * 1000) { stuckRestarts++; note("ball stuck at s=" + vdot(p, FWD0).toFixed(0) + " for " + STUCK_SECONDS + " s, restarting"); stuck.pos = null; requestRestart(false); }
+        var sNow = vdot(p, FWD0);
+        if (!stuck.pos) { stuck.pos = p.slice(); stuck.since = now; stuck.sRef = sNow; stuck.sSince = now; return; }
+        if (Math.abs(p[1] - stuck.pos[1]) > 0.05 || Math.abs(p[2] - stuck.pos[2]) > 0.05) { stuck.pos = p.slice(); stuck.since = now; }   // any forward or vertical movement resets; sideways alone does not
+        if (sNow - stuck.sRef > CREEP_UNITS) { stuck.sRef = sNow; stuck.sSince = now; }
+        var why = now - stuck.since > STUCK_SECONDS * 1000 ? "stuck for " + STUCK_SECONDS + " s" : now - stuck.sSince > CREEP_SECONDS * 1000 ? "creeping (under " + (CREEP_UNITS / CREEP_SECONDS) + " u/s)" : null;
+        if (why) { stuckRestarts++; note("ball " + why + " at s=" + sNow.toFixed(0) + ", restarting"); stuck.pos = null; requestRestart(false); }
     }
     function examineFrame(draws) {
         var c = 0;
