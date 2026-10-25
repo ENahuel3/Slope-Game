@@ -324,12 +324,15 @@
     function liftBall() { setState(SPHERE, "Restart Game"); build.lastLift = frameNo; }
     // Hidden courses are built in one frame, so they cannot follow the roll of a shaped track: the straight
     // hidden lanes cut through the rolled live lane and wedge the ball. The stack applies on a straight track only.
-    function stackWanted() { return gravityMode === "off" ? stackTarget : 1; }
+    // Hidden courses are built in one frame (flat, at the roll the spawn transform had), so on a shaped track they
+    // cut through the rolled live lane. Allowed anyway as an experiment (the stuck-ball watchdog restarts a wedged run).
+    var STACK_ON_TRACK = true;
+    function stackWanted() { return gravityMode === "off" || STACK_ON_TRACK ? stackTarget : 1; }
     function refreshStackNote() {
         if (!stackInput) return;
-        var off = gravityMode !== "off" && stackTarget > 1;
-        stackInput.classList.toggle("muted", off);
-        stackInput.title = off ? "Courses stack only on a straight track (hidden courses cannot follow a rolled lane); this number applies again when Track is Straight" : "Type a number: 1 = normal game";
+        var off = gravityMode !== "off" && stackTarget > 1 && !STACK_ON_TRACK, warn = gravityMode !== "off" && stackTarget > 1 && STACK_ON_TRACK;
+        stackInput.classList.toggle("muted", off); stackInput.classList.toggle("warn", warn);
+        stackInput.title = off ? "Courses stack only on a straight track (hidden courses cannot follow a rolled lane); this number applies again when Track is Straight" : warn ? "Experimental: stacked courses on a rolled track. The hidden courses stay straight and cut through the twists; expect wedges and falls (a stuck run restarts by itself)" : "Type a number: 1 = normal game";
     }
     function startBuild(existing) {
         // `existing` courses are already in the world with their start section

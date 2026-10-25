@@ -118,6 +118,7 @@ html, body {
 }
 
 .hud-input.muted { opacity: 0.45; text-decoration: line-through; }
+.hud-input.warn { border-color: #ffd54f; }
 
 .hud-input:focus {
     outline: none;

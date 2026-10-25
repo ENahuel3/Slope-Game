@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Mod Menu and independent character toggles",
-  "notes": "All controls are grouped under Mod Menu. Mort scenery and King Julien obstacle faces have independent saved toggles that work with any soundtrack.",
+  "title": "Stacked courses on shaped tracks (experiment)",
+  "notes": "Courses may stack on Curves/Twists: hidden courses stay straight and cut through the rolled lane, so expect wedges and falls; a stuck run restarts by itself.",
   "date": "2026-10-24"
  },
  "versions": [
@@ -151,6 +151,13 @@
    "notes": "Camera follows twists and rolls; Mort crowds stand equally far from both sides and turn 20 degrees inward.",
    "date": "2026-10-24",
    "commit": "a93cfdb"
+  },
+  {
+   "tag": "v18-devmode",
+   "title": "Dev mode (password-locked Claude Code editing)",
+   "notes": "Type devmode on the page; with the password, Claude Code edits the page from a sandbox on the owner's Pi within a token share, freezing the version it replaces. Courses still limited to a straight track here.",
+   "date": "2026-10-24",
+   "commit": "bfe8c0c"
   }
  ]
 }
