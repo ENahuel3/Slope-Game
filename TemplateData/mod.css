@@ -60,9 +60,15 @@ html, body {
     background: rgba(255, 255, 255, 0.25);
 }
 
-.hud-hint {
+.hud-hint,
+.hud-fps {
     font-size: 13px;
     opacity: 0.8;
+}
+
+.hud-fps {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 .hud-spacer {

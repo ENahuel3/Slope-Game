@@ -1071,7 +1071,7 @@
     function initFpsCounter() {
         var box = document.getElementById("hud-fps"), hint = document.querySelector(".hud-hint");
         if (!box || !hint) return;
-        var out = document.createElement("span"); out.id = "hud-fps-val"; out.style.display = "none"; hint.parentNode.insertBefore(out, hint.nextSibling);
+        var out = document.createElement("span"); out.id = "hud-fps-val"; out.className = "hud-fps";out.style.display = "none"; hint.parentNode.insertBefore(out, hint.nextSibling);
         var on = false, frames = 0, last = 0;
         function loop(t) {
             if (!on) return;
