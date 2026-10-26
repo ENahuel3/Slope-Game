@@ -246,6 +246,8 @@
             "  vec3 c = texture2D(uTex, vUv).rgb;",
             "  float y = clamp((lum(c) - 0.5) * 1.2 + 0.5, 0.0, 1.0);",
             "  vec3 o = uP.xyz * (0.04 + 1.1 * y);",
+            "  float red = smoothstep(0.15, 0.4, c.r - max(c.g, c.b));",   // the red blocks and the red/orange speed-up text keep their own colour (as in Noir and Matrix)
+            "  o = mix(o, c, red);",
             "  gl_FragColor = vec4(mix(c, clamp(o, 0.0, 1.0), uAmount), 1.0);",
             "}"
         ].join("\n"),

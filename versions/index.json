@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: In the style settings dropdown, add all 7 of the colors of t",
-  "notes": "Made with the in-game dev mode (job f0cf71ddf7a1).",
+  "title": "Dev edit: Make the colors you just added not affect the red blocks or ",
+  "notes": "Made with the in-game dev mode (job 811820d88958).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -631,6 +631,13 @@
    "notes": "The root as it was before the dev-mode edit 'In the style settings dropdown, add all 7 of the colors of the rainbow before the other styles that '. Last commit: Dev edit: On the night shader preset, make the background models black",
    "date": "2026-10-26",
    "commit": "d079b16"
+  },
+  {
+   "tag": "v79-dev-811820",
+   "title": "Before dev edit 811820",
+   "notes": "The root as it was before the dev-mode edit 'Make the colors you just added not affect the red blocks or the speed up text at the bottom of the s'. Last commit: Dev edit: In the style settings dropdown, add all 7 of the colors of t",
+   "date": "2026-10-26",
+   "commit": "bafd76e"
   }
  ]
 }
