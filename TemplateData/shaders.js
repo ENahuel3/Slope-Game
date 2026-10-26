@@ -176,12 +176,13 @@
         "vec3 reflectRay(vec3 P, vec3 N, out float hitFade) {",
         "  hitFade = 0.0; vec3 R = reflect(normalize(P), N);",
         "  float stp = max(0.08, 0.03 * -P.z); vec3 p = P + N * stp * 0.5 + R * stp;",
-        "  for (int i = 0; i < 24; i++) {",
+        "  for (int i = 0; i < 48; i++) {",   // finer, longer march (was 24 steps growing 10%) so thin gaps do not show up as slits
         "    if (p.z > -uCam.z) break;",
         "    vec3 q = proj(p); if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) break;",
         "    float bz = linZ(depthAt(q.xy)); float diff = q.z - bz;",
-        "    if (diff > 0.0 && diff < stp * 3.0) { hitFade = (1.0 - float(i) / 24.0) * (1.0 - smoothstep(0.7, 1.0, max(abs(q.x - 0.5), abs(q.y - 0.5)) * 2.0)); return texture2D(uTex, q.xy).rgb; }",
-        "    p += R * stp; stp *= 1.1;",
+        "    if (diff > 0.0 && diff < stp * 4.0) { hitFade = (1.0 - float(i) / 48.0) * (1.0 - smoothstep(0.7, 1.0, max(abs(q.x - 0.5), abs(q.y - 0.5)) * 2.0));",
+        "      vec3 s = texture2D(uTex, q.xy).rgb * 0.4 + texture2D(uTex, q.xy + vec2(0.003, 0.0)).rgb * 0.15 + texture2D(uTex, q.xy - vec2(0.003, 0.0)).rgb * 0.15 + texture2D(uTex, q.xy + vec2(0.0, 0.003)).rgb * 0.15 + texture2D(uTex, q.xy - vec2(0.0, 0.003)).rgb * 0.15; return s; }",
+        "    p += R * stp; stp *= 1.05;",
         "  }",
         "  return vec3(0.0);",
         "}"

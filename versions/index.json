@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: On the sunny lighting preset, make the 3d models in the back",
-  "notes": "Made with the in-game dev mode (job 6a4a4f9774b1).",
+  "title": "Dev edit: On the night lighting preset, make the reflections on the tr",
+  "notes": "Made with the in-game dev mode (job baece0362082).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -256,6 +256,13 @@
    "notes": "The root as it was before the dev-mode edit 'On the sunny lighting preset, make the 3d models in the background when the music is set to original'. Last commit: Dev edit: On the sunny lighting preset, make the buildings in the back",
    "date": "2026-10-26",
    "commit": "56df919"
+  },
+  {
+   "tag": "v40-dev-baece0",
+   "title": "Before dev edit baece0",
+   "notes": "The root as it was before the dev-mode edit 'On the night lighting preset, make the reflections on the track cleaner, because right now they are '. Last commit: Dev edit: On the sunny lighting preset, make the 3d models in the back",
+   "date": "2026-10-26",
+   "commit": "2a7e011"
   }
  ]
 }
