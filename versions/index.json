@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Remove the time counter in the top right next to the setting",
-  "notes": "Made with the in-game dev mode (job 8dcd342abb50).",
+  "title": "Dev edit: In the shaders drop-down In settings, make \"Normal\" say \"Off",
+  "notes": "Made with the in-game dev mode (job be7a5f83a3d0).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -610,6 +610,13 @@
    "notes": "The root as it was before the dev-mode edit 'Remove the time counter in the top right next to the settings button.'. Last commit: Dev edit: In settings, remove the text at the bottom that says things",
    "date": "2026-10-26",
    "commit": "81788c6"
+  },
+  {
+   "tag": "v76-dev-be7a5f",
+   "title": "Before dev edit be7a5f",
+   "notes": "The root as it was before the dev-mode edit 'In the shaders drop-down In settings, make \"Normal\" say \"Off\"'. Last commit: Dev edit: Remove the time counter in the top right next to the setting",
+   "date": "2026-10-26",
+   "commit": "aea0be1"
   }
  ]
 }

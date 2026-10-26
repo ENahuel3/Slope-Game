@@ -560,7 +560,7 @@
     // Light modes: a pass chain that turns "scene" (+ depth) into the lit frame. The final pass writes to
     // "lit" (or to the screen when the style has no passes); the style's "scene" inputs then read "lit".
     var LIGHTS = {
-        normal: { id: "normal", name: "Normal", dir: null, passes: [] },
+        normal: { id: "normal", name: "Off", dir: null, passes: [] },
         sunny: { id: "sunny", name: "Sunny", dir: SUN_DIR, failed: false, passes: [
             { fs: "sunny", in: "scene", out: "a" },
             { fs: "rays", in: "a", out: "h1", p: [1.0, 0.955, 0.035] },
