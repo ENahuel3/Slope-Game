@@ -17,7 +17,9 @@ Environment=SLOPE_EDIT_DATA=/srv/slope-edit/data
 Environment=SLOPE_EDIT_CLAUDE=/srv/slope-edit/home/.npm-global/bin/claude
 Environment=SLOPE_EDIT_CLAUDE_CONFIG=/srv/slope-edit/home/.claude
 Environment=SLOPE_EDIT_SETTINGS=/srv/slope-edit/app/claude-settings.json
-Environment=PATH=/srv/slope-edit/home/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=SLOPE_EDIT_SMOKE_PYTHON=/srv/slope-edit/home/venv/bin/python
+Environment=PLAYWRIGHT_BROWSERS_PATH=/srv/slope-edit/home/.cache/ms-playwright
+Environment=PATH=/srv/slope-edit/home/venv/bin:/srv/slope-edit/home/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/usr/bin/node /srv/slope-edit/app/server.js
 Restart=on-failure
 RestartSec=5
@@ -49,9 +51,9 @@ SystemCallFilter=~@privileged @resources @mount @reboot @swap @obsolete @cpu-emu
 CapabilityBoundingSet=
 AmbientCapabilities=
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-MemoryMax=1500M
-TasksMax=256
-CPUQuota=150%
+MemoryMax=4G
+TasksMax=1024
+CPUQuota=300%
 UMask=0077
 
 [Install]

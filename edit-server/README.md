@@ -57,7 +57,20 @@ design. Every other endpoint requires the token.
    is answered without reading or editing and shows up as `answered`. Each job
    logs its usage split (input / cache write / cache read / output / turns) in
    `data/jobs.log`, so the caps can be tuned from real numbers.
-7. **Continuity**: within one login, a follow-up sent less than
+7. **It can run the game**: the sandbox has a restricted shell (`claude-settings.json`:
+   the repository's `tools/*.py` and `node tools/*.js`, `node --check`, read-only git,
+   no network, no sudo, nothing outside the repository) and a Python venv with
+   Playwright, Chromium, UnityPy and Pillow (`/srv/slope-edit/home/venv`), so Claude
+   can load and play the page headless (`tools/smoke_check.py`), run the deeper
+   harnesses, and rebuild the scene bundle with the patch tools. It may change
+   `index.html`, `README.md`, anything under `TemplateData/` and `tools/`, and
+   `Build/slope_data.unityweb`; never `versions/`, `TemplateData/versions.js`,
+   `edit-server/` or git itself (`SLOPE_EDIT_FILES`). Before every publish the
+   server itself runs `tools/smoke_check.py` (`SLOPE_EDIT_SMOKE_PYTHON`): the page
+   must load, scan the heap, render, start a run and play a few seconds without a
+   page error, or the edit is discarded with the reason in the job log. A headless
+   run takes a couple of minutes on the Pi, so jobs allow 25 minutes and 60 turns.
+8. **Continuity**: within one login, a follow-up sent less than
    `SLOPE_EDIT_RESUME_MINUTES` (50) after the previous job resumes the same
    Claude session (`--resume`), so Claude remembers what it read and did and
    does not read the files again; measured at about half the tokens of a fresh

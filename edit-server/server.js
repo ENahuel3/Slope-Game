@@ -52,19 +52,21 @@ const CFG = {
     dailyTokens: +env("SLOPE_EDIT_DAILY_TOKENS", 1000000),                  // 0 = no daily cap
     share: +env("SLOPE_EDIT_SHARE", 0.10),
     perJobTokens: +env("SLOPE_EDIT_JOB_TOKENS", 80000),
-    maxTurns: +env("SLOPE_EDIT_MAX_TURNS", 30),
+    maxTurns: +env("SLOPE_EDIT_MAX_TURNS", 60),
     resumeMinutes: +env("SLOPE_EDIT_RESUME_MINUTES", 50),                   // continue the same Claude session for follow-ups within this time (the API cache lasts an hour)
     resumeMaxCtx: +env("SLOPE_EDIT_RESUME_MAX_CTX", 120000),                // ...while its context is smaller than this (tokens re-read per turn)
     // USD caps only matter when billed by API key (OAuth logins report 0)
     perJobUsd: +env("SLOPE_EDIT_JOB_USD", 1.5),
     dailyUsd: +env("SLOPE_EDIT_DAILY_USD", 5),                             // 0 = no cap (subscription logins report notional cost only)
     monthlyUsd: +env("SLOPE_EDIT_MONTHLY_USD", 40),                         // 0 = no cap
-    jobTimeoutMs: +env("SLOPE_EDIT_TIMEOUT_MS", 8 * 60 * 1000),
+    jobTimeoutMs: +env("SLOPE_EDIT_TIMEOUT_MS", 25 * 60 * 1000),            // a headless run of the game on the Pi takes minutes
     perIpPerHour: +env("SLOPE_EDIT_IP_PER_HOUR", 30),
     maxQueue: +env("SLOPE_EDIT_MAX_QUEUE", 12),
     maxPrompt: +env("SLOPE_EDIT_MAX_PROMPT", 1200),
     allowOrigins: env("SLOPE_EDIT_ORIGINS", "https://enahuel3.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",").map(s => s.trim()).filter(Boolean),
-    editable: env("SLOPE_EDIT_FILES", "index.html,TemplateData/mod.js,TemplateData/mod.css,TemplateData/shaders.js").split(",").map(s => s.trim()).filter(Boolean),
+    editable: env("SLOPE_EDIT_FILES", "index.html,README.md,TemplateData/,tools/,Build/slope_data.unityweb").split(",").map(s => s.trim()).filter(Boolean),   // files, or folders with a trailing slash
+    smokePython: env("SLOPE_EDIT_SMOKE_PYTHON", ""),                         // a Python with Playwright + Chromium: the page is loaded and played before every publish
+    smokeSeconds: +env("SLOPE_EDIT_SMOKE_SECONDS", 8),
     urlAllow: env("SLOPE_EDIT_URL_ALLOW", "github.io,githubusercontent.com,cdnjs.cloudflare.com,fonts.googleapis.com,fonts.gstatic.com,unpkg.com,cdn.jsdelivr.net,id.net,y8.com,unity3d.com,doubleclick.net,googlesyndication.com,google-analytics.com,googletagmanager.com,tailscale.com,ts.net,w3.org").split(",").map(s => s.trim().toLowerCase()).filter(Boolean),
     push: env("SLOPE_EDIT_PUSH", "1") !== "0",
     freeze: env("SLOPE_EDIT_FREEZE", "1") !== "0",                          // freeze the outgoing root as a version before each push
@@ -243,19 +245,23 @@ const URL_RE = /https?:\/\/([a-z0-9.-]+)/gi;
 function validate(job) {
     const files = changedFiles();
     if (!files.length) return "Claude made no changes to the game files.";
-    const bad = files.filter(f => !CFG.editable.includes(f));
-    if (bad.length) return "The edit touched files outside the allowed set (" + bad.join(", ") + "), so it was discarded. Existing versions, the scene data and the tools are off limits.";
+    const PROTECTED = ["versions/", "edit-server/", ".githooks/", ".git/", "TemplateData/versions.js", "tools/snapshot_version.py"];
+    const editableOk = f => !PROTECTED.some(p => f === p || f.startsWith(p)) && CFG.editable.some(e => e.endsWith("/") ? f.startsWith(e) : f === e);
+    const bad = files.filter(f => !editableOk(f));
+    if (bad.length) return "The edit touched files outside the allowed set (" + bad.join(", ") + "), so it was discarded. Existing versions, the version list and the dev-mode server are off limits.";
     for (const f of files) {
         const p = path.join(CFG.repoDir, f);
         if (!fs.existsSync(p)) return f + " was deleted; discarded.";
         const size = fs.statSync(p).size;
-        if (size > 768 * 1024) return f + " grew past 768 KB; discarded.";
+        if (size > (f.startsWith("Build/") ? 24 : 2) * 1024 * 1024) return f + " is too large; discarded.";
+        if (f.startsWith("Build/") && !f.endsWith(".unityweb")) return f + ": only the scene bundle may change under Build/; discarded.";
+        if (f.startsWith("TemplateData/fonts/") || /\.(png|jpg|mp3|ogg|ttf|otf|json)$/i.test(f)) continue;   // assets: size-checked only
         if (f.endsWith(".js")) {
             const r = spawnSync(process.execPath, ["--check", p], { encoding: "utf8" });
             if (r.status !== 0) return "The new " + f + " does not parse:\n" + (r.stderr || "").split("\n").slice(0, 6).join("\n");
         }
     }
-    const diff = git(["diff", "--unified=0"]);
+    const diff = git(["diff", "--unified=0", "--", ...files.filter(f => /\.(js|html|css)$/i.test(f))]);
     const lines = diff.split("\n");
     const added = lines.filter(l => l.startsWith("+") && !l.startsWith("+++"));
     const removed = lines.filter(l => l.startsWith("-") && !l.startsWith("---"));
@@ -306,7 +312,9 @@ const SYSTEM_RULES = `You are editing a small browser game mod (a Unity WebGL pa
 - In index.html never touch the line that sets window.SLOPE_EDIT_API, and never add script tags that load from other sites.
 - Keep the game working: the page must still load and play. Do not remove the network shim, the HUD basics, the version picker, or the SlopeMod init/onGameReady entry points. Prefer small, well-contained changes; add new features as new functions and keep existing behaviour unless asked to change it.
 - Do not add external scripts, iframes, fetches to other sites, tracking, cookies, or anything that reads or sends visitor data. Do not add offensive, hateful, sexual or deceptive content. If the request asks for any of that, make no changes and say why.
-- You cannot run the game or any commands: reason carefully, keep JavaScript syntactically valid, and finish within a few edits.
+- You may change the page code (index.html, TemplateData/*.js and *.css), add assets under TemplateData/, change or add tools under tools/, and rebuild the scene bundle Build/slope_data.unityweb with the tools (tools/unpack_webdata.py, the patch_*.py scripts, tools/pack_webdata.py; UnityPy and Pillow are installed). Never touch versions/, TemplateData/versions.js, edit-server/ or git itself: the server commits and publishes for you, and the version it replaces is frozen automatically.
+- You can run the game. A restricted shell runs the repository's tools: 'python3 tools/smoke_check.py .' loads the page headless, starts a run and reports whether it still works; 'python3 tools/shader_check.py .', 'tools/coin_check.py', 'tools/menu_check.py', 'tools/runtime_check.py' and 'node tools/restart_check.js' are the deeper harnesses (read their usage lines first). This server is a Raspberry Pi: a headless run of the game takes two to five minutes, so run a check once after your edits, not after every change. 'node --check' validates syntax instantly. The server runs smoke_check itself before publishing and discards an edit that breaks the page, so test what you change.
+- No network from the shell (no curl, wget, pip, npm), no git commands beyond status/diff/log/show, no sudo, nothing outside the repository.
 - When done, reply with one to three plain sentences describing what you changed (shown to the developer and used as the version note).
 - Tokens are metered. The files are large (mod.js and shaders.js are over 1000 lines each): never Read a whole file longer than 200 lines. Find the spot with Grep (use -n and a little context) or with the line numbers in the file map below, then Read with offset and limit covering at most ~120 lines around it. Read a region once, then edit it. Do not re-read files to "check"; you cannot run anything anyway.
 - If the developer's message is a question rather than a request to change something, answer it and make no edits. A question about the code or the game deserves a real answer: locate the region (Grep, then Read the range) and quote the actual lines and numbers. A status check, greeting or remark needs no lookup: answer in a sentence from the recent-jobs list in the message and read nothing.
@@ -315,7 +323,7 @@ const SYSTEM_RULES = `You are editing a small browser game mod (a Unity WebGL pa
 // Line-number map of the editable files (plus the read-only scene scripts they talk to), appended to the system
 // prompt so it is cached across jobs while the files are unchanged. It lets Claude jump to a region with
 // Read(offset, limit) instead of reading 25k-token files whole.
-const MAP_FILES = ["index.html", "TemplateData/mod.js", "TemplateData/mod.css", "TemplateData/shaders.js", "TemplateData/coins.js", "TemplateData/versions.js"];
+const MAP_FILES = ["index.html", "TemplateData/mod.js", "TemplateData/mod.css", "TemplateData/shaders.js", "TemplateData/coins.js", "TemplateData/ramps.js", "TemplateData/leaderboard.js", "TemplateData/julien.js", "TemplateData/versions.js"];
 let mapCache = { head: null, text: "" };
 function fileMap() {
     let head = ""; try { head = git(["rev-parse", "HEAD"]); } catch (e) { head = String(Date.now()); }
@@ -373,8 +381,8 @@ function runClaude(job, onEvent, resume) {
     return new Promise((resolve) => {
         const args = ["-p", jobMessage(job, resume), "--output-format", "stream-json", "--verbose",
                       "--permission-mode", "default",
-                      "--allowedTools", "Read", "Glob", "Grep", "Edit", "MultiEdit", "Write",
-                      "--disallowedTools", "Bash", "WebFetch", "WebSearch", "Agent", "Task", "NotebookEdit", "KillShell", "BashOutput",
+                      "--allowedTools", "Read", "Glob", "Grep", "Edit", "MultiEdit", "Write", "Bash",
+                      "--disallowedTools", "WebFetch", "WebSearch", "Agent", "Task", "NotebookEdit",
                       "--max-budget-usd", String(CFG.perJobUsd),
                       "--max-turns", String(CFG.maxTurns),
                       "--append-system-prompt", SYSTEM_RULES + "\n\n" + fileMap()];
@@ -477,6 +485,14 @@ async function pump() {
         if (problem) throw new Error(problem);
         const files = changedFiles();
         say("Validated: " + files.join(", "));
+        if (CFG.smokePython && fs.existsSync(path.join(CFG.repoDir, "tools", "smoke_check.py"))) {
+            say("Loading and playing the page to make sure it still works (a few minutes on this server)…");
+            const r = spawnSync(CFG.smokePython, ["tools/smoke_check.py", CFG.repoDir, "--port", "8777", "--seconds", String(CFG.smokeSeconds), "--timeout", "360"],
+                { cwd: CFG.repoDir, encoding: "utf8", timeout: 9 * 60 * 1000, env: { ...process.env, HOME: CFG.claudeConfigDir ? path.dirname(CFG.claudeConfigDir) : process.env.HOME } });
+            const line = ((r.stdout || "") + (r.stderr || "")).trim().split("\n").filter(Boolean).pop() || ("exit " + r.status);
+            if (r.status !== 0) throw new Error("The page no longer works after this edit, so it was not published. " + line);
+            say(line);
+        }
         if (CFG.freeze) { say("Freezing the version this replaces…"); job.frozen = freezeOutgoing(job, say); }
         git(["add", "-A", "--", ...files, "versions"]);
         const title = job.prompt.replace(/\s+/g, " ").slice(0, 60);

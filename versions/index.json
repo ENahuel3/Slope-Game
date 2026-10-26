@@ -696,6 +696,14 @@
    "date": "2026-10-26",
    "commit": "eb76faf",
    "status": "ok"
+  },
+  {
+   "tag": "v88-perf",
+   "title": "Lit-mode early-outs and dev optimisations",
+   "notes": "The ops session's shader early-outs and performance audit plus the in-game dev edits (vsync box, King Julien theme). Last version before the sandbox could run the game.",
+   "date": "2026-10-26",
+   "commit": "2bb45ca",
+   "status": "ok"
   }
  ]
 }
