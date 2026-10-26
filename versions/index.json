@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Make the colors you just added not affect the red blocks or ",
-  "notes": "Made with the in-game dev mode (job 811820d88958).",
+  "title": "Dev edit: Make the individual colors behave the same way as the other ",
+  "notes": "Made with the in-game dev mode (job 918b08fe45fa).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -638,6 +638,13 @@
    "notes": "The root as it was before the dev-mode edit 'Make the colors you just added not affect the red blocks or the speed up text at the bottom of the s'. Last commit: Dev edit: In the style settings dropdown, add all 7 of the colors of t",
    "date": "2026-10-26",
    "commit": "bafd76e"
+  },
+  {
+   "tag": "v80-dev-918b08",
+   "title": "Before dev edit 918b08",
+   "notes": "The root as it was before the dev-mode edit 'Make the individual colors behave the same way as the other options, like how the rainbow one only a'. Last commit: Dev edit: Make the colors you just added not affect the red blocks or",
+   "date": "2026-10-26",
+   "commit": "57d8817"
   }
  ]
 }

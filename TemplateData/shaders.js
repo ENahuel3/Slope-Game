@@ -240,15 +240,15 @@
             "}"
         ].join("\n"),
 
-        // Single colour: the whole frame in the brightness of one colour, uP.xyz (the rainbow's seven colours).
+        // Single colour (the rainbow's seven colours, uP.xyz): like Rainbow, only the green-hued parts of the
+        // frame (the track) take the colour, keeping their own saturation and brightness; everything else,
+        // the red blocks and the speed-up text included, keeps its colour.
         mono: [
             "void main() {",
             "  vec3 c = texture2D(uTex, vUv).rgb;",
-            "  float y = clamp((lum(c) - 0.5) * 1.2 + 0.5, 0.0, 1.0);",
-            "  vec3 o = uP.xyz * (0.04 + 1.1 * y);",
-            "  float red = smoothstep(0.15, 0.4, c.r - max(c.g, c.b));",   // the red blocks and the red/orange speed-up text keep their own colour (as in Noir and Matrix)
-            "  o = mix(o, c, red);",
-            "  gl_FragColor = vec4(mix(c, clamp(o, 0.0, 1.0), uAmount), 1.0);",
+            "  vec3 h = rgb2hsv(c); float th = rgb2hsv(uP.xyz).x;",
+            "  vec3 o = mix(c, hsv2rgb(vec3(th, h.y, h.z)), greenness(c));",
+            "  gl_FragColor = vec4(mix(c, o, uAmount), 1.0);",
             "}"
         ].join("\n"),
 
