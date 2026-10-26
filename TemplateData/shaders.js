@@ -247,7 +247,7 @@
             "void main() {",
             "  vec3 c = texture2D(uTex, vUv).rgb;",
             "  vec3 h = rgb2hsv(c); float th = rgb2hsv(uP.xyz).x;",
-            "  vec3 o = mix(c, hsv2rgb(vec3(th, h.y, h.z)), greenness(c));",
+            "  vec3 o = mix(c, hsv2rgb(vec3(th, clamp(h.y * 1.35 + 0.25, 0.0, 1.0), min(1.0, h.z * 1.08))), smoothstep(0.0, 0.5, greenness(c)));",
             "  gl_FragColor = vec4(mix(c, o, uAmount), 1.0);",
             "}"
         ].join("\n"),

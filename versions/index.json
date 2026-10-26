@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Make the individual colors behave the same way as the other ",
-  "notes": "Made with the in-game dev mode (job 918b08fe45fa).",
+  "title": "Dev edit: Make the colors more saturated like they are in the rainbow ",
+  "notes": "Made with the in-game dev mode (job d81ef47d55a5).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -645,6 +645,13 @@
    "notes": "The root as it was before the dev-mode edit 'Make the individual colors behave the same way as the other options, like how the rainbow one only a'. Last commit: Dev edit: Make the colors you just added not affect the red blocks or",
    "date": "2026-10-26",
    "commit": "57d8817"
+  },
+  {
+   "tag": "v81-dev-d81ef4",
+   "title": "Before dev edit d81ef4",
+   "notes": "The root as it was before the dev-mode edit 'Make the colors more saturated like they are in the rainbow preset.'. Last commit: Dev edit: Make the individual colors behave the same way as the other",
+   "date": "2026-10-26",
+   "commit": "6a51104"
   }
  ]
 }
