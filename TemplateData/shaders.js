@@ -347,6 +347,9 @@
             "void main() {",
             "  vec3 c = texture2D(uTex, vUv).rgb; float d = depthAt(vUv); bool hasDepth = uLight.w > 0.5;",
             "  bool sky = hasDepth ? isSky(d) : (lum(c) < 0.02);",
+            // At this distance bgBlack is exactly 1 for non-emissive geometry.
+            // Its final RGB/alpha are zero regardless of sky, shadows or reflections.
+            "  if (hasDepth && !sky && linZ(d) >= 22.0 && max(c.r, max(c.g, c.b)) <= 0.12) { gl_FragColor = vec4(0.0); return; }",
             "  vec3 L = uLight.xyz;",
             "  vec3 rdW = uRot * viewRay(vUv); float up = dot(rdW, SKY_UP);",
             "  vec3 sunW = uRot * L;",
@@ -356,7 +359,7 @@
             "  float cosSun = dot(rdW, sunW);",
             "  vec3 hazeCol = mix(horizon, zenith, 0.25);",   // fog colour: the sky without the sun's glow or clouds, so distant geometry does not wash out to white
             "  float disc = 0.0;",   // the sun itself is not drawn: no disc or glow in the sky
-            "  if (up > 0.02) { vec3 e1 = vec3(1.0, 0.0, 0.0), e2 = cross(SKY_UP, e1); vec2 cp = vec2(dot(rdW, e1), dot(rdW, e2)) / (up + 0.15);",
+            "  if (sky && up > 0.02) { vec3 e1 = vec3(1.0, 0.0, 0.0), e2 = cross(SKY_UP, e1); vec2 cp = vec2(dot(rdW, e1), dot(rdW, e2)) / (up + 0.15);",
             "    float cl = fbm(cp * 2.2 + vec2(uTime * 0.02, 0.0)); cl = smoothstep(0.52, 0.78, cl) * smoothstep(0.02, 0.2, up);",
             "    skyCol = mix(skyCol, vec3(1.0, 0.99, 0.97), cl * 0.85); }",
             "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
@@ -365,7 +368,7 @@
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
-            "    float sh = (ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
+            "    float sh = (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
             "    float upN = dot(uRot * N, SKY_UP);",
             "    vec3 amb = mix(horizon, zenith, 0.5 + 0.5 * upN) * 0.36;",
             "    vec3 direct = sunCol * 1.35 * ndl * sh;",
@@ -415,7 +418,7 @@
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
-            "    float sh = (ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 2.0) : 1.0;",
+            "    float sh = (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 2.0) : 1.0;",
             "    bgBlack = smoothstep(10.0, 22.0, lz) * (1.0 - emis);",   // background buildings/towers: plain black, as in Sunny
             "    vec3 amb = vec3(0.05, 0.065, 0.13);",
             "    vec3 direct = moonCol * 0.55 * ndl * sh;",
@@ -441,6 +444,9 @@
             "void main() {",
             "  vec3 c = texture2D(uTex, vUv).rgb; float d = depthAt(vUv); bool hasDepth = uLight.w > 0.5;",
             "  bool sky = hasDepth ? isSky(d) : (lum(c) < 0.02);",
+            // At this distance bgBlack is exactly 1 for non-emissive geometry.
+            // Its final RGB/alpha are zero regardless of sky, shadows or reflections.
+            "  if (hasDepth && !sky && linZ(d) >= 22.0 && max(c.r, max(c.g, c.b)) <= 0.12) { gl_FragColor = vec4(0.0); return; }",
             "  vec3 L = uLight.xyz;",
             "  vec3 rdW = uRot * viewRay(vUv); float up = dot(rdW, SKY_UP);",
             "  vec3 zenith = vec3(0.01, 0.014, 0.065), horizon = vec3(0.95, 0.24, 0.07), sunCol = vec3(1.0, 0.36, 0.12);",
@@ -461,7 +467,7 @@
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
-            "    float sh = (ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
+            "    float sh = (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
             "    vec3 amb = vec3(0.07, 0.06, 0.12);",
             "    vec3 direct = sunCol * 2.6 * ndl * sh;",
             "    vec3 surf = vec3(0.26, 0.26, 0.29) * (amb + direct);",
@@ -487,10 +493,10 @@
         // (sky brightness around the sun / moon). uP.x density, uP.y decay, uP.z weight. Half size.
         rays: [
             "void main() {",
-            "  if (uLightUV.z < 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }",
+            "  float edge = 1.0 - smoothstep(0.5, 1.6, length(uLightUV.xy - 0.5) * 2.0 - 0.3);",
+            "  if (uLightUV.z < 0.5 || edge == 0.0 || uP.z == 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }",
             "  vec2 dir = (uLightUV.xy - vUv) / 32.0 * uP.x; vec2 uv = vUv; float ill = 1.0, acc = 0.0;",
             "  for (int i = 0; i < 32; i++) { uv += dir; acc += texture2D(uTex, uv).a * ill; ill *= uP.y; }",
-            "  float edge = 1.0 - smoothstep(0.5, 1.6, length(uLightUV.xy - 0.5) * 2.0 - 0.3);",   // fade when the light is far off screen
             "  gl_FragColor = vec4(vec3(acc * uP.z * edge), 1.0);",
             "}"
         ].join("\n"),
@@ -574,6 +580,9 @@
         { fs: "finish", in: "a", out: "screen", p: [0, 0, 0.5, 0], q: [0.12, 0] }] });
     define("matrix", { name: "Matrix", passes: [{ fs: "grade", in: "scene", out: "a", p: [3, 1] },
         { fs: "finish", in: "a", out: "screen", p: [0, 0, 0.35, 0.35], q: [0.1, 0] }] });
+
+    // Keep object identities so define() replacements are never assumed to be identities.
+    var zeroAmountStyles = ORDER.map(function (id) { return STYLES[id]; });
 
     // Light modes: a pass chain that turns "scene" (+ depth) into the lit frame. The final pass writes to
     // "lit" (or to the screen when the style has no passes); the style's "scene" inputs then read "lit".
@@ -993,6 +1002,7 @@
     // style's passes with their "scene" inputs reading "lit".
     function buildChain(light, style) {
         var lp = light && !light.failed ? light.passes : [], sp = style && !style.failed ? style.passes : [];
+        if (intensity === 0 && zeroAmountStyles.indexOf(style) >= 0) sp = [];
         if (!lp.length) return sp;
         var chain = lp.map(function (p, i) { return Object.assign({}, p, { _light: true, out: (i === lp.length - 1 && !sp.length) ? "screen" : p.out }); });
         sp.forEach(function (p) { chain.push(Object.assign({}, p, { in: p.in === "scene" ? "lit" : p.in, in2: p.in2 === "scene" ? "lit" : p.in2, in3: p.in3 === "scene" ? "lit" : p.in3 })); });
@@ -1057,12 +1067,12 @@
                 g.activeTexture(gl.TEXTURE1); g.bindTexture(gl.TEXTURE_2D, src2.tex);
                 g.activeTexture(gl.TEXTURE2); g.bindTexture(gl.TEXTURE_2D, src3.tex);
                 g.activeTexture(gl.TEXTURE3); g.bindTexture(gl.TEXTURE_2D, sceneBuf.depth || src.tex);
-                g.uniform1i(p.u.uTex, 0); g.uniform1i(p.u.uTex2, 1); g.uniform1i(p.u.uTex3, 2); g.uniform1i(p.u.uDepth, 3);
-                g.uniform2f(p.u.uRes, ow, oh); g.uniform2f(p.u.uTexel, 1 / src.w, 1 / src.h);
-                g.uniform1f(p.u.uTime, t); g.uniform1f(p.u.uHue, hue); g.uniform1f(p.u.uSpeed, speed); g.uniform1f(p.u.uAmount, intensity); g.uniform1f(p.u.uReflSteps, reflSteps);
+                if (p.u.uTex) g.uniform1i(p.u.uTex, 0); if (p.u.uTex2) g.uniform1i(p.u.uTex2, 1); if (p.u.uTex3) g.uniform1i(p.u.uTex3, 2); if (p.u.uDepth) g.uniform1i(p.u.uDepth, 3);
+                if (p.u.uRes) g.uniform2f(p.u.uRes, ow, oh); if (p.u.uTexel) g.uniform2f(p.u.uTexel, 1 / src.w, 1 / src.h);
+                if (p.u.uTime) g.uniform1f(p.u.uTime, t); if (p.u.uHue) g.uniform1f(p.u.uHue, hue); if (p.u.uSpeed) g.uniform1f(p.u.uSpeed, speed); if (p.u.uAmount) g.uniform1f(p.u.uAmount, intensity); if (p.u.uReflSteps) g.uniform1f(p.u.uReflSteps, reflSteps);
                 var P = pass.p || [], Q = pass.q || [];
-                g.uniform4f(p.u.uP, P[0] || 0, P[1] || 0, P[2] || 0, P[3] || 0);
-                g.uniform4f(p.u.uQ, Q[0] || 0, Q[1] || 0, Q[2] || 0, Q[3] || 0);
+                if (p.u.uP) g.uniform4f(p.u.uP, P[0] || 0, P[1] || 0, P[2] || 0, P[3] || 0);
+                if (p.u.uQ) g.uniform4f(p.u.uQ, Q[0] || 0, Q[1] || 0, Q[2] || 0, Q[3] || 0);
                 if (p.u.uCam) g.uniform4f(p.u.uCam, cam.a, cam.b, cam.near, cam.far);
                 if (p.u.uRot) g.uniformMatrix3fv(p.u.uRot, false, rot);
                 if (p.u.uLight) g.uniform4f(p.u.uLight, lv.dir[0], lv.dir[1], lv.dir[2], hasDepth);
