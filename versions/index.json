@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: In the night lighting preset, you can only see the reflectio",
-  "notes": "Made with the in-game dev mode (job e618df75d53a).",
+  "title": "Dev edit: That worked, but it also made the reflections a lot cleaner,",
+  "notes": "Made with the in-game dev mode (job bb488c3dd51c).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -298,6 +298,13 @@
    "notes": "The root as it was before the Epic Sax Gandalf track: the coins, the dev-mode usage/cap rework and the in-game dev edits (sunny and night lighting tweaks, a Mod Menu slider for the restart steps).",
    "date": "2026-10-26",
    "commit": "7629b46"
+  },
+  {
+   "tag": "v46-dev-bb488c",
+   "title": "Before dev edit bb488c",
+   "notes": "The root as it was before the dev-mode edit 'That worked, but it also made the reflections a lot cleaner, which is good. Now, the ball's reflecti'. Last commit: Music: Epic Sax Gandalf as the fourth soundtrack",
+   "date": "2026-10-26",
+   "commit": "05e59ba"
   }
  ]
 }
