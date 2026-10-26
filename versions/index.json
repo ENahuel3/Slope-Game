@@ -200,6 +200,13 @@
    "notes": "The root as it was before the dev-mode edit 'In index.html, change the HUD hint text from \"T pauses\" to \"T pauses the run\". Nothing else.'. Last commit: Sunny light: the sun is no longer blinding. A deeper blue sky, a smaller sun hal",
    "date": "2026-10-25",
    "commit": "c30fea8"
+  },
+  {
+   "tag": "v32-devedit",
+   "title": "Dev-mode edit: HUD hint says T pauses the run",
+   "notes": "The root as it was before the coins: the sunny-light rework plus the first in-game dev edit (hint text), with .nojekyll.",
+   "date": "2026-10-25",
+   "commit": "9c48063"
   }
  ]
 }
