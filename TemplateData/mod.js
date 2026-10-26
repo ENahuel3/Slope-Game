@@ -1053,7 +1053,7 @@
         if (aheadLeft <= 0 || frameNo - aheadLast < 10) return;
         if (gravityMode !== "off") return;                                                                            // a shaped track (Curves / 90 degree twists) spawns block by block and moves the spawner itself: extra laps would fight it
         if (!aheadPrimed) { if (setState(SPAWNER, "Offset Buildings to Match Spawner")) { aheadPrimed = true; aheadLast = frameNo - 7; } return; }   // line the building chunk up with the spawner first, so the scenery lands beside the new lap and not on it
-        if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; aheadPrimed = false; }
+        if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; }   // primed once per run: re-offsetting before every lap is what would nudge the scenery each time
     }
     function setViewDist(n) {
         n = parseInt(n, 10);

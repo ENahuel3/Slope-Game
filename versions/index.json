@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Change the render distance slider so that the maximum render",
-  "notes": "Made with the in-game dev mode (job aca2ba47ff05).",
+  "title": "Dev edit: On high render distances, as the track generates, the backgr",
+  "notes": "Made with the in-game dev mode (job b79bbbdd8039).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -545,6 +545,13 @@
    "notes": "The root as it was before the dev-mode edit 'Change the render distance slider so that the maximum render distance is 50'. Last commit: Dev edit: In dev mode remove at the bottom where it says how many toke",
    "date": "2026-10-26",
    "commit": "2893946"
+  },
+  {
+   "tag": "v67-dev-b79bbb",
+   "title": "Before dev edit b79bbb",
+   "notes": "The root as it was before the dev-mode edit 'On high render distances, as the track generates, the background models move position slightly each '. Last commit: Dev edit: Change the render distance slider so that the maximum render",
+   "date": "2026-10-26",
+   "commit": "c524128"
   }
  ]
 }
