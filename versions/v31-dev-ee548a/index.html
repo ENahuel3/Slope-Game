@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="theme-color" content="#231F20">
+    <title>Slope</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23231F20'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%2300e676'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="TemplateData/style.css">
+    <link rel="stylesheet" href="TemplateData/mod.css">
+    <script>window.SLOPE_EDIT_API = "https://raspberrypi.tailbff9ef.ts.net";</script> <!-- dev-mode service on the owner's server (edit-server/README.md); empty = dev mode offline -->
+    <script src="TemplateData/shaders.js"></script>
+    <script src="TemplateData/julien.js"></script>
+    <script src="TemplateData/mod.js"></script>
+    <script src="TemplateData/versions.js"></script>
+    <script src="TemplateData/UnityProgress.js"></script>
+    <script src="../../TemplateData/unityloader41.js"></script>
+</head>
+
+<!--
+Modded fork of https://github.com/cgolden15/Slope-Game
+Changes vs upstream: ads, analytics and the promo banner are gone,
+the page is a proper HTML5 document, there is a fullscreen button
+(or press F), a session timer, a "Courses" number that stacks N courses exactly on top of each other
+at the start of every run (the rapid-Enter glitch, without the Enter),
+R to restart instantly, a Music selector, a Style selector (post-processing
+shader styles: rainbow, neon glow, synthwave, CRT and more) and a Light
+selector (Normal / Sunny / Night; the last two ray-march the depth buffer,
+see TemplateData/shaders.js), and outbound calls to
+the id.net / y8 ad + leaderboard backend are blocked (see TemplateData/mod.js).
+Slope game itself is by Y8 Games / IDnet, not by this fork.
+-->
+
+<body>
+    <div class="webgl-content">
+        <div id="gameContainer"></div>
+    </div>
+
+    <div id="hud" class="hud">
+        <span class="hud-title">SLOPE</span>
+        <span class="hud-sep"></span>
+        <span class="hud-hint">&larr; &rarr; or A / D to steer &middot; R restarts &middot; T pauses</span>
+        <span class="hud-sep"></span>
+        <span id="hud-gravity-badge" class="hud-gbadge"></span>
+        <span class="hud-spacer"></span>
+        <span id="hud-timer" class="hud-timer" title="Time on this page">00:00</span>
+        <button id="mod-menu-button" class="hud-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="mod-menu">Mod Menu</button>
+        <dialog id="mod-menu" class="mod-menu" aria-labelledby="mod-menu-title">
+            <div class="mod-menu-head"><h2 id="mod-menu-title">Mod Menu</h2><button id="mod-menu-close" class="hud-btn" type="button" aria-label="Close Mod Menu">Close</button></div>
+            <div id="mod-options" class="mod-options">
+        <label class="hud-label" for="hud-stack" title="How many courses get stacked on top of each other before a death clears them (the rapid-Enter glitch, automated)">Courses</label>
+        <input id="hud-stack" class="hud-input" type="number" min="1" max="99" step="1" value="1" inputmode="numeric" title="Type a number: 1 = normal game">
+        <label class="hud-label" for="hud-style" title="Visual style: post-processing shaders over the game's frame (V cycles)">Style</label>
+        <select id="hud-style" class="hud-input hud-select" title="Visual style (V cycles, Shift+V backwards)"></select>
+        <label class="hud-label" for="hud-fx">Intensity</label>
+        <input id="hud-fx" class="hud-range" type="range" min="0" max="100" step="1" value="100" title="Style intensity">
+        <label class="hud-label" for="hud-light" title="Lighting: Sunny and Night ray-march the scene's depth for a sky, sun/moon shadows, light shafts and (at night) neon reflections (L cycles)">Light</label>
+        <select id="hud-light" class="hud-input hud-select" title="Lighting (L cycles, Shift+L backwards)"></select>
+        <label class="hud-label" for="hud-music" title="Soundtrack">Music</label>
+        <select id="hud-music" class="hud-input hud-select" title="Soundtrack"></select>
+        <label class="hud-label" for="hud-gravity" title="Curves: the course slowly rolls about its own centre line, up to a full turn over a lap. Twists: it rolls a sharp 90 degrees over about twenty blocks. Gravity, steering and the camera follow the ball's frame.">Track</label>
+        <select id="hud-gravity" class="hud-input hud-select" title="Track shaping">
+            <option value="off">Straight</option>
+            <option value="curves">Curves (slow rolls)</option>
+            <option value="twists">90&deg; twists</option>
+            <option value="both">Both</option>
+        </select>
+                <label class="hud-label" for="hud-mort">Mort</label><input id="hud-mort" type="checkbox">
+                <label class="hud-label" for="hud-julien">King Julien</label><input id="hud-julien" type="checkbox">
+            </div>
+            <p class="mod-menu-note">Mort applies to newly spawned scenery. Restart with R to refresh the whole crowd. King Julien changes obstacles immediately. Both work with any music.</p>
+            <button id="hud-fs" class="hud-btn" type="button" title="Fullscreen (F)">&#x26F6; Fullscreen</button>
+        </dialog>
+    </div>
+
+    <script>
+        var gameInstance = UnityLoader.instantiate("gameContainer", "Build/slope.json", {
+            onProgress: UnityProgress,
+            Module: {
+                onRuntimeInitialized: function () {
+                    UnityProgress(gameInstance, "complete");
+                    SlopeMod.onGameReady();
+                }
+            }
+        });
+        SlopeMod.init(gameInstance);
+    </script>
+</body>
+</html>

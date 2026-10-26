@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Minecraft zombie horde",
-  "notes": "Aria Math's skyline is Minecraft's own zombie (geometry and skin from Mojang's Bedrock samples), a horde of 72 per chunk beside the lane.",
-  "date": "2026-10-25"
+  "title": "Dev edit: In index.html, change the HUD hint text from \"T pauses\" to \"",
+  "notes": "Made with the in-game dev mode (job ee548a208e3f).",
+  "date": "2026-10-26"
  },
  "versions": [
   {
@@ -193,6 +193,13 @@
    "notes": "Aria Math skyline uses Minecraft's own zombie model and skin; the last version with the blinding Sunny light.",
    "date": "2026-10-25",
    "commit": "bd254ee"
+  },
+  {
+   "tag": "v31-dev-ee548a",
+   "title": "Before dev edit ee548a",
+   "notes": "The root as it was before the dev-mode edit 'In index.html, change the HUD hint text from \"T pauses\" to \"T pauses the run\". Nothing else.'. Last commit: Sunny light: the sun is no longer blinding. A deeper blue sky, a smaller sun hal",
+   "date": "2026-10-25",
+   "commit": "c30fea8"
   }
  ]
 }
