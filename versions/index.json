@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: It just doubled again. Here is what I see: Syncing the game ",
-  "notes": "Made with the in-game dev mode (job 52bd359fcbe3).",
+  "title": "Dev edit: Rename the mod menu button to \"Settings\"",
+  "notes": "Made with the in-game dev mode (job 22a0201d59a5).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -589,6 +589,13 @@
    "notes": "The root as it was before the dev-mode edit 'It just doubled again. Here is what I see: Syncing the game files\u2026 Continuing your earlier conversat'. Last commit: Dev edit: In dev mode it says your responses twice can you fix this",
    "date": "2026-10-26",
    "commit": "01e5dda"
+  },
+  {
+   "tag": "v73-dev-22a020",
+   "title": "Before dev edit 22a020",
+   "notes": "The root as it was before the dev-mode edit 'Rename the mod menu button to \"Settings\"'. Last commit: Dev edit: It just doubled again. Here is what I see: Syncing the game",
+   "date": "2026-10-26",
+   "commit": "c8bd1f6"
   }
  ]
 }
