@@ -8,7 +8,7 @@ import sys, subprocess, time, os, argparse, tempfile
 from playwright.sync_api import sync_playwright
 ap = argparse.ArgumentParser(); ap.add_argument('repo'); ap.add_argument('--port', type=int, default=8766); ap.add_argument('--url', default=None)
 ap.add_argument('--out', default=None); ap.add_argument('--styles', default=None); ap.add_argument('--settle', type=float, default=1.5)
-ap.add_argument('--music', choices=['original', 'aria', 'billie'], default='original', help='soundtrack/prefab to exercise during rendering checks')
+ap.add_argument('--music', choices=['original', 'aria', 'billie', 'sax'], default='original', help='soundtrack/prefab to exercise during rendering checks')
 ap.add_argument('--width', type=int, default=960); ap.add_argument('--height', type=int, default=600); ap.add_argument('--webgl1', action='store_true', help='disable WebGL 2 so the game takes its WebGL 1 path'); A = ap.parse_args()
 out = A.out or os.path.join(tempfile.gettempdir(), 'shader-check'); os.makedirs(out, exist_ok=True)
 srv = None

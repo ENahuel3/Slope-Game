@@ -59,7 +59,8 @@
     var TRACKS = [
         { id: "original", name: "Original" },
         { id: "aria", name: "Aria Math (Phonk Remix)", file: "TemplateData/music/aria-math-phonk-remix.mp3" },
-        { id: "billie", name: "Mort Jackson \u2013 Billie Jean", file: "TemplateData/music/mort-jackson-billie-jean.mp3" }
+        { id: "billie", name: "Mort Jackson \u2013 Billie Jean", file: "TemplateData/music/mort-jackson-billie-jean.mp3" },
+        { id: "sax", name: "Epic Sax Gandalf", file: "TemplateData/music/epic-sax-gandalf.mp3" }
     ];
     var GRAVITY_MODES = ["off", "curves", "twists", "both"];
     var gravityMode = (function () { var m = lsGet(KEY_GRAVITY); return GRAVITY_MODES.indexOf(m) >= 0 ? m : "off"; })();

@@ -34,7 +34,7 @@ with sync_playwright() as p:
     def native_theme(name):
         page.wait_for_function("name=>gameInstance.Module.HEAPU32[(buildingAddress+24)>>2]===buildingThemes[name]",arg=name)
     native_theme('Mort')
-    for music in ['aria','billie','original']:
+    for music in ['aria','billie','sax','original']:
         page.locator('#hud-music').select_option(music)
         assert page.evaluate('SlopeMod.mort() && SlopeMod.julien()')
         native_theme('Mort')
