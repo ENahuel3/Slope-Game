@@ -41,7 +41,9 @@ design. Every other endpoint requires the token.
    `tools/snapshot_version.py` as `vN-dev-<job>`, so every dev edit appears in the
    Version picker and nothing older is ever modified; the hook in `.githooks/`
    enforces the same rule on the clone.
-5. **Budget**: tokens are counted from Claude Code's own usage reports. The ledger
+5. **Budget**: tokens are counted from Claude Code's own usage reports, weighted
+   like the price list (cache reads 0.1x, cache writes 1.25x, output 5x input), so
+   a turn that re-reads the ~50k-token cached context costs ~5k, not 50k. The ledger
    allows `SLOPE_EDIT_SHARE` (10%) of `SLOPE_EDIT_DAILY_TOKENS` per day, stops a
    job past `SLOPE_EDIT_JOB_TOKENS`, limits turns, and keeps USD caps for the case
    of API-key billing. 6 jobs per visitor per hour, a queue of 6, one job at a

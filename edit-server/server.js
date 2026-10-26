@@ -106,6 +106,12 @@ function loadLedger() {
     try { return JSON.parse(fs.readFileSync(LEDGER, "utf8")); } catch (e) { return { days: {}, months: {}, recent: [] }; }
 }
 function saveLedger(l) { fs.writeFileSync(LEDGER, JSON.stringify(l, null, 1)); }
+// Tokens are counted as billed-equivalent input tokens, not raw context size. Every turn re-reads the whole
+// cached context (the page files alone are ~50k tokens), so a raw sum grows by the full context per turn and
+// a five-turn edit "costs" 250k while the account is charged for a fraction of that. Weights follow the API
+// price list for Sonnet 5.5: cache read 0.1x input, cache write 1.25x, output 5x.
+const TOKEN_WEIGHTS = { input_tokens: 1, cache_creation_input_tokens: 1.25, cache_read_input_tokens: 0.1, output_tokens: 5 };
+function weighTokens(u) { let t = 0; for (const k in TOKEN_WEIGHTS) t += (u[k] || 0) * TOKEN_WEIGHTS[k]; return Math.round(t); }
 const dayKey = () => new Date().toISOString().slice(0, 10);
 const monthKey = () => new Date().toISOString().slice(0, 7);
 function dayRec(l, k) { const d = l.days[k]; return typeof d === "object" && d ? d : { tokens: 0, usd: typeof d === "number" ? d : 0 }; }
@@ -281,7 +287,7 @@ function runClaude(job, onEvent) {
         const timer = setTimeout(() => stop("Time limit reached, stopping."), CFG.jobTimeoutMs);
         const addUsage = u => {
             if (!u) return;
-            tokens += (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+            tokens += weighTokens(u);
             if (tokens > CFG.perJobTokens) stop("This edit passed its token limit (" + CFG.perJobTokens.toLocaleString() + "), stopping.");
         };
         child.stdout.on("data", d => {
@@ -302,7 +308,7 @@ function runClaude(job, onEvent) {
                     }
                 } else if (ev.type === "result") {
                     result = ev;
-                    if (ev.usage) { const u = ev.usage, total = (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0); if (total > tokens) tokens = total; }
+                    if (ev.usage) { const total = weighTokens(ev.usage); if (total > tokens) tokens = total; }
                 }
             }
         });
