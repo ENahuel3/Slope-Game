@@ -50,7 +50,7 @@ const CFG = {
     // tokens: the account's daily allowance and the share this service may use of it
     dailyTokens: +env("SLOPE_EDIT_DAILY_TOKENS", 1000000),
     share: +env("SLOPE_EDIT_SHARE", 0.10),
-    perJobTokens: +env("SLOPE_EDIT_JOB_TOKENS", 150000),
+    perJobTokens: +env("SLOPE_EDIT_JOB_TOKENS", 80000),
     maxTurns: +env("SLOPE_EDIT_MAX_TURNS", 30),
     // USD caps only matter when billed by API key (OAuth logins report 0)
     perJobUsd: +env("SLOPE_EDIT_JOB_USD", 1.5),
@@ -131,7 +131,7 @@ function charge(job) {
     const l = loadLedger(), k = dayKey(), d = dayRec(l, k);
     d.tokens += job.tokens || 0; d.usd += job.cost || 0; l.days[k] = d;
     l.months[monthKey()] = (l.months[monthKey()] || 0) + (job.cost || 0);
-    l.recent.unshift({ id: job.id, at: job.finishedAt, prompt: job.prompt.slice(0, 120), state: job.state, tokens: job.tokens || 0, cost: +(job.cost || 0).toFixed(4), commit: job.commit || null, version: job.frozen || null });
+    l.recent.unshift({ id: job.id, at: job.finishedAt, prompt: job.prompt.slice(0, 120), state: job.state, tokens: job.tokens || 0, cost: +(job.cost || 0).toFixed(4), commit: job.commit || null, version: job.frozen || null, summary: (job.summary || job.error || "").replace(/\s+/g, " ").slice(0, 200) });
     l.recent = l.recent.slice(0, 40);
     saveLedger(l);
 }
@@ -263,18 +263,72 @@ const SYSTEM_RULES = `You are editing a small browser game mod (a Unity WebGL pa
 - Keep the game working: the page must still load and play. Do not remove the network shim, the HUD basics, the version picker, or the SlopeMod init/onGameReady entry points. Prefer small, well-contained changes; add new features as new functions and keep existing behaviour unless asked to change it.
 - Do not add external scripts, iframes, fetches to other sites, tracking, cookies, or anything that reads or sends visitor data. Do not add offensive, hateful, sexual or deceptive content. If the request asks for any of that, make no changes and say why.
 - You cannot run the game or any commands: reason carefully, keep JavaScript syntactically valid, and finish within a few edits.
-- When done, reply with one to three plain sentences describing what you changed (shown to the developer and used as the version note).`;
+- When done, reply with one to three plain sentences describing what you changed (shown to the developer and used as the version note).
+- Tokens are metered. The files are large (mod.js and shaders.js are over 1000 lines each): never Read a whole file longer than 200 lines. Find the spot with Grep (use -n and a little context) or with the line numbers in the file map below, then Read with offset and limit covering at most ~120 lines around it. Read a region once, then edit it. Do not re-read files to "check"; you cannot run anything anyway.
+- If the developer's message is a question, a status check, a greeting or a remark rather than a request to change something, answer it in one or two sentences from what you already know and the recent-jobs list in the message, read nothing, and make no edits. Each message is a fresh session: you remember nothing except what the message tells you.`;
+
+// Line-number map of the editable files (plus the read-only scene scripts they talk to), appended to the system
+// prompt so it is cached across jobs while the files are unchanged. It lets Claude jump to a region with
+// Read(offset, limit) instead of reading 25k-token files whole.
+const MAP_FILES = ["index.html", "TemplateData/mod.js", "TemplateData/mod.css", "TemplateData/shaders.js", "TemplateData/coins.js", "TemplateData/versions.js"];
+let mapCache = { head: null, text: "" };
+function fileMap() {
+    let head = ""; try { head = git(["rev-parse", "HEAD"]); } catch (e) { head = String(Date.now()); }
+    if (mapCache.head === head) return mapCache.text;
+    const out = ["File map (line numbers; '~' = read-only context file):"];
+    for (const f of MAP_FILES) {
+        const p = path.join(CFG.repoDir, f);
+        if (!fs.existsSync(p)) continue;
+        const lines = fs.readFileSync(p, "utf8").split("\n");
+        const ro = CFG.editable.includes(f) ? "" : " ~";
+        out.push(f + ro + " (" + lines.length + " lines)");
+        const picks = [];
+        lines.forEach((l, i) => {
+            let m;
+            if (f.endsWith(".js")) {
+                const prevRule = i > 0 && /^\s*\/\/\s*[=-]{6,}\s*$/.test(lines[i - 1]);   // banner: a rule line above the title
+                if ((m = l.match(/^\s{0,8}\/\/ (?:([=-]{3,})\s*)?(.*)$/)) && (m[1] || prevRule || /^[0-9]+\.\s/.test(m[2])) && /[A-Za-z]/.test(m[2])) picks.push([i + 1, "// " + m[2].replace(/[=-]{3,}\s*$/, "").trim().slice(0, 70)]);
+                else if ((m = l.match(/^\s{0,4}(?:async )?function ([A-Za-z_$][\w$]*)\s*\(/))) picks.push([i + 1, m[1] + "()"]);
+                else if ((m = l.match(/^\s{0,4}(?:var|const|let) ([A-Z][A-Z0-9_]{2,})\s*=/))) picks.push([i + 1, m[1]]);
+                else if ((m = l.match(/^\s{4,8}([a-zA-Z_$][\w$]*)\s*:\s*function\s*\(/))) picks.push([i + 1, "." + m[1] + "()"]);
+            } else if (f.endsWith(".css")) {
+                if ((m = l.match(/^([.#@][^{]{1,60})\{?/))) picks.push([i + 1, m[1].trim()]);
+            } else if (f.endsWith(".html")) {
+                if ((m = l.match(/<(script|style|div|span|select|input|button|section|canvas)\b[^>]*\b(id|class)=["']([^"']+)/))) picks.push([i + 1, "<" + m[1] + " " + m[2] + "=" + m[3] + ">"]);
+                else if ((m = l.match(/<script src=["']([^"']+)/))) picks.push([i + 1, "<script " + m[1] + ">"]);
+            }
+        });
+        // keep the map around 100 entries per file: drop constants first, then methods, then thin functions evenly
+        const max = 110;
+        let kept = picks;
+        if (kept.length > max) kept = kept.filter(x => !/^[A-Z][A-Z0-9_]+$/.test(x[1]));
+        if (kept.length > max) kept = kept.filter(x => !x[1].startsWith("."));
+        if (kept.length > max) { const step = Math.ceil(kept.length / max); kept = kept.filter((x, i) => x[1].startsWith("//") || i % step === 0); }
+        for (const [n, t] of kept) out.push("  " + n + " " + t);
+    }
+    mapCache = { head, text: out.join("\n") };
+    return mapCache.text;
+}
+function recentContext() {
+    const l = loadLedger();
+    const r = (l.recent || []).slice(0, 4);
+    if (!r.length) return "Recent dev-mode jobs: none yet.";
+    return "Recent dev-mode jobs (newest first):\n" + r.map(j => "- [" + j.state + (j.version ? ", previous version kept as " + j.version : "") + "] \"" + j.prompt + "\"" + (j.summary ? " → " + j.summary : "")).join("\n");
+}
+function jobMessage(job) {
+    return "Developer's message: " + job.prompt + "\n\n" + recentContext();
+}
 
 function runClaude(job, onEvent) {
     return new Promise((resolve) => {
-        const args = ["-p", job.prompt, "--output-format", "stream-json", "--verbose",
+        const args = ["-p", jobMessage(job), "--output-format", "stream-json", "--verbose",
                       "--permission-mode", "default",
                       "--allowedTools", "Read", "Glob", "Grep", "Edit", "MultiEdit", "Write",
                       "--disallowedTools", "Bash", "WebFetch", "WebSearch", "Agent", "Task", "NotebookEdit", "KillShell", "BashOutput",
                       "--max-budget-usd", String(CFG.perJobUsd),
                       "--max-turns", String(CFG.maxTurns),
                       "--no-session-persistence",
-                      "--append-system-prompt", SYSTEM_RULES];
+                      "--append-system-prompt", SYSTEM_RULES + "\n\n" + fileMap()];
         if (CFG.model) args.push("--model", CFG.model);
         if (fs.existsSync(CFG.settingsFile)) args.push("--settings", CFG.settingsFile);
         const childEnv = { ...process.env };
@@ -283,10 +337,12 @@ function runClaude(job, onEvent) {
         delete childEnv.SLOPE_EDIT_PASSWORD_HASH;
         const child = spawn(CFG.claudeBin, args, { cwd: CFG.repoDir, env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
         let buf = "", result = null, stderr = "", tokens = 0, killed = null;
+        const usage = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0, turns: 0 };
         const stop = why => { if (killed) return; killed = why; onEvent(why); try { child.kill("SIGKILL"); } catch (e) {} };
         const timer = setTimeout(() => stop("Time limit reached, stopping."), CFG.jobTimeoutMs);
         const addUsage = u => {
             if (!u) return;
+            usage.input += u.input_tokens || 0; usage.cacheWrite += u.cache_creation_input_tokens || 0; usage.cacheRead += u.cache_read_input_tokens || 0; usage.output += u.output_tokens || 0; usage.turns++;
             tokens += weighTokens(u);
             if (tokens > CFG.perJobTokens) stop("This edit passed its token limit (" + CFG.perJobTokens.toLocaleString() + "), stopping.");
         };
@@ -313,8 +369,8 @@ function runClaude(job, onEvent) {
             }
         });
         child.stderr.on("data", d => { stderr += d.toString(); if (stderr.length > 4000) stderr = stderr.slice(-4000); });
-        child.on("close", code => { clearTimeout(timer); resolve({ code, result, stderr, tokens, killed }); });
-        child.on("error", e => { clearTimeout(timer); resolve({ code: -1, result: null, stderr: String(e), tokens, killed }); });
+        child.on("close", code => { clearTimeout(timer); resolve({ code, result, stderr, tokens, killed, usage }); });
+        child.on("error", e => { clearTimeout(timer); resolve({ code: -1, result: null, stderr: String(e), tokens, killed, usage }); });
     });
 }
 
@@ -342,13 +398,19 @@ async function pump() {
         const bp = budgetProblem(); if (bp) throw new Error(bp);
         say("Syncing the game files…"); syncRepo();
         say("Asking Claude…");
-        const { code, result, stderr, tokens, killed } = await runClaude(job, say);
-        job.tokens = tokens;
+        const { code, result, stderr, tokens, killed, usage } = await runClaude(job, say);
+        job.tokens = tokens; job.usage = usage;
         job.cost = result && typeof result.total_cost_usd === "number" ? result.total_cost_usd : 0;
         if (killed) throw new Error(killed);
         if (!result) throw new Error("Claude did not finish (exit " + code + ")" + (stderr ? ": " + stderr.split("\n").filter(Boolean).slice(-2).join(" ") : ""));
         job.summary = (result.result || "").toString().slice(0, 800);
         if (result.is_error) throw new Error("Claude reported an error: " + job.summary);
+        if (!changedFiles().length) {
+            // a question, a status check or a refusal: nothing to validate or publish
+            if (!job.summary) throw new Error("Claude made no changes and said nothing.");
+            job.state = "answered"; say(job.summary);
+            return;
+        }
         const problem = validate(job);
         if (problem) throw new Error(problem);
         const files = changedFiles();
@@ -372,14 +434,15 @@ async function pump() {
     } finally {
         job.finishedAt = Date.now();
         charge(job);
-        logLine(job.id + " " + job.state + " tokens=" + (job.tokens || 0) + " $" + (job.cost || 0).toFixed(4) + " " + (job.commit || "-") + " frozen=" + (job.frozen || "-") + " ip=" + job.ip + " :: " + job.prompt.replace(/\s+/g, " ").slice(0, 200) + (job.error ? " :: " + job.error.replace(/\s+/g, " ").slice(0, 300) : ""));
+        const u = job.usage || {};
+        logLine(job.id + " " + job.state + " tokens=" + (job.tokens || 0) + " (in " + (u.input || 0) + " cw " + (u.cacheWrite || 0) + " cr " + (u.cacheRead || 0) + " out " + (u.output || 0) + " turns " + (u.turns || 0) + ") $" + (job.cost || 0).toFixed(4) + " " + (job.commit || "-") + " frozen=" + (job.frozen || "-") + " ip=" + job.ip + " :: " + job.prompt.replace(/\s+/g, " ").slice(0, 200) + (job.error ? " :: " + job.error.replace(/\s+/g, " ").slice(0, 300) : ""));
         running = null;
         setImmediate(pump);
     }
 }
 
 function publicJob(job) {
-    return { id: job.id, state: job.state, position: position(job), prompt: job.prompt, log: job.log, tokens: job.tokens || 0, cost: +(job.cost || 0).toFixed(4),
+    return { id: job.id, state: job.state, position: position(job), prompt: job.prompt, log: job.log, tokens: job.tokens || 0, usage: job.usage || null, cost: +(job.cost || 0).toFixed(4),
              commit: job.commit, version: job.frozen, summary: job.summary, error: job.error, startedAt: job.startedAt, finishedAt: job.finishedAt };
 }
 

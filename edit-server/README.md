@@ -48,6 +48,15 @@ design. Every other endpoint requires the token.
    job past `SLOPE_EDIT_JOB_TOKENS`, limits turns, and keeps USD caps for the case
    of API-key billing. 6 jobs per visitor per hour, a queue of 6, one job at a
    time, an 8-minute wall-clock limit.
+6. **Thrift**: every job is a fresh headless session, so the server keeps the
+   per-job overhead small. The system prompt is byte-stable and carries a
+   line-number map of the editable files (regenerated when HEAD moves, cached by
+   the API for an hour), and the rules tell Claude to Grep and Read line ranges
+   instead of whole files. The message adds the last four jobs (request, outcome,
+   note) so follow-ups and questions make sense; a message that asks for nothing
+   is answered without reading or editing and shows up as `answered`. Each job
+   logs its usage split (input / cache write / cache read / output / turns) in
+   `data/jobs.log`, so the caps can be tuned from real numbers.
 
 ## Install on the Pi
 

@@ -207,6 +207,13 @@
    "notes": "The root as it was before the coins: the sunny-light rework plus the first in-game dev edit (hint text), with .nojekyll.",
    "date": "2026-10-25",
    "commit": "9c48063"
+  },
+  {
+   "tag": "v33-coins",
+   "title": "Collectable coins",
+   "notes": "Collectable 3D coins on the hard parts of the course (peer build 4ea9ca2), on top of the Minecraft zombie skyline, sunny light fix and T-pause. Frozen before the dev-mode thrift update.",
+   "date": "2026-10-26",
+   "commit": "b44b115"
   }
  ]
 }

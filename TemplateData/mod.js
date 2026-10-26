@@ -1147,8 +1147,9 @@
             if (job.state === "queued") editStatus.textContent = "Queued" + (job.position > 1 ? " (" + (job.position - 1) + " ahead)" : "") + "…";
             else if (job.state === "running") editStatus.textContent = "Claude is working…";
             else if (job.state === "done") { editStatus.textContent = "Published " + (job.commit || "") + " (" + fmtTok(job.tokens) + " tokens" + (job.version ? ", previous version kept as " + job.version : "") + "). Live in about a minute; reload to see it."; if (job.summary) setLog(job.log.concat(["", job.summary])); }
+            else if (job.state === "answered") editStatus.textContent = "Answered, nothing changed (" + fmtTok(job.tokens) + " tokens).";
             else if (job.state === "failed") { editStatus.textContent = "Not applied."; if (job.summary) setLog(job.log.concat(["", job.summary])); }
-            if (job.state === "done" || job.state === "failed") { editSend.disabled = false; refreshBudget(); return; }
+            if (job.state === "done" || job.state === "answered" || job.state === "failed") { editSend.disabled = false; refreshBudget(); return; }
             editPoll = setTimeout(pollJob, 2000);
         }).catch(function (e) { editStatus.textContent = e.message; editSend.disabled = false; });
     }
