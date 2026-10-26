@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: It works, but now the background models spawn in the middle ",
-  "notes": "Made with the in-game dev mode (job 3185fb087af0).",
+  "title": "Dev edit: Its fixed, but now they move slightly every time more track ",
+  "notes": "Made with the in-game dev mode (job 1cd367278981).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -488,6 +488,13 @@
    "notes": "The root as it was before the dev-mode edit 'It works, but now the background models spawn in the middle of the track too instead of just on the '. Last commit: Coins: back on top of the tunnels, none in the walls, none in the start tunnel",
    "date": "2026-10-26",
    "commit": "59b5ed8"
+  },
+  {
+   "tag": "v59-dev-1cd367",
+   "title": "Before dev edit 1cd367",
+   "notes": "The root as it was before the dev-mode edit 'Its fixed, but now they move slightly every time more track is loaded.'. Last commit: Dev edit: It works, but now the background models spawn in the middle",
+   "date": "2026-10-26",
+   "commit": "cc0123f"
   }
  ]
 }

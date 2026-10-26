@@ -1049,11 +1049,11 @@
     var aheadRun = -1, aheadLeft = 0, aheadLast = 0, aheadPrimed = false;
     function stepAhead() {
         if (!gameRunning || build || restartSeq) return;
-        if (aheadRun !== lastRestart) { aheadRun = lastRestart; aheadLeft = viewDist - 1; aheadLast = frameNo + 60; }   // a new run: let its first section spawn before adding more
+        if (aheadRun !== lastRestart) { aheadRun = lastRestart; aheadLeft = viewDist - 1; aheadLast = frameNo + 60; aheadPrimed = false; }   // a new run: let its first section spawn before adding more
         if (aheadLeft <= 0 || frameNo - aheadLast < 10) return;
         if (gravityMode !== "off" && !(track && !track.moving)) return;                                               // a shaped track spawns block by block: wait until the spawner is idle
         if (!aheadPrimed) { if (setState(SPAWNER, "Offset Buildings to Match Spawner")) { aheadPrimed = true; aheadLast = frameNo - 7; } return; }   // line the building chunk up with the spawner first, so the scenery lands beside the new lap and not on it
-        if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; aheadPrimed = false; }
+        if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; }
     }
     function setViewDist(n) {
         n = parseInt(n, 10);
