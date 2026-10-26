@@ -364,7 +364,11 @@ function runClaude(job, onEvent) {
                     }
                 } else if (ev.type === "result") {
                     result = ev;
-                    if (ev.usage) { const total = weighTokens(ev.usage); if (total > tokens) tokens = total; }
+                    if (ev.usage) {   // the result's usage is the authoritative total (per-message usage reports output tokens at message start)
+                        const u = ev.usage, total = weighTokens(u); if (total > tokens) tokens = total;
+                        usage.input = u.input_tokens || usage.input; usage.cacheWrite = u.cache_creation_input_tokens || usage.cacheWrite; usage.cacheRead = u.cache_read_input_tokens || usage.cacheRead; usage.output = u.output_tokens || usage.output;
+                        if (typeof ev.num_turns === "number") usage.turns = ev.num_turns;
+                    }
                 }
             }
         });
