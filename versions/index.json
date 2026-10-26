@@ -666,6 +666,14 @@
    "notes": "The root as it was before the obstacle fix: super ramps, Gandalf along the lane, the frame-time readout in Mod Menu, and the in-game dev edits up to the render-distance slider.",
    "date": "2026-10-26",
    "commit": "e7f0012"
+  },
+  {
+   "tag": "v84-obstacles",
+   "title": "Obstacle fix and frame-time readout",
+   "notes": "The peers' obstacle spawn fix (tools/patch_obstacles.py) and the frame-time readout in SlopeMod.stats(), on top of the super ramps. Last version with the dead id.net leaderboard.",
+   "date": "2026-10-26",
+   "commit": "604a252",
+   "status": "ok"
   }
  ]
 }

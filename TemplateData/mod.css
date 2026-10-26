@@ -245,3 +245,28 @@ html, body {
 .ramp-flash { position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%) scale(0.6); z-index: 12; pointer-events: none; color: #ffab40; font: 900 52px "Segoe UI", Roboto, Helvetica, Arial, sans-serif; letter-spacing: 0.22em; text-shadow: 0 0 18px #ff6d00, 0 0 2px #000; opacity: 0; }
 .ramp-flash.on { animation: ramp-flash 1.1s ease-out forwards; }
 @keyframes ramp-flash { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -60%) scale(1); } }
+
+/* leaderboard (TemplateData/leaderboard.js): the game's own menu style, the 6809CHAR dot-matrix font the game's UI
+   uses (extracted from the scene bundle), #00ff00 on black, 2 px outlined boxes; sized from the game canvas height */
+@font-face { font-family: "SlopeMenu"; src: url("fonts/6809CHAR.ttf") format("truetype"); font-display: swap; }
+.lb-root { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 9; pointer-events: none; font-family: "SlopeMenu", monospace; color: #00ff00; --u: 1px; }
+.lb-root > * { pointer-events: auto; }
+.lb-box { position: absolute; box-sizing: border-box; border: 2px solid #00ff00; background: #000; color: #00ff00; text-align: center; font-family: inherit; }
+.lb-btn { display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; font-size: calc(var(--u) * 48); line-height: 1; letter-spacing: 0.02em; }
+.lb-title-btn { font-size: calc(var(--u) * 33); }   /* the game's own "Leaderboard" box fits its longer label at this size */
+.lb-btn:hover, .lb-btn:focus { color: #000; background: #00ff00; outline: none; }
+.lb-panel { width: calc(var(--u) * 400); height: calc(var(--u) * 400); left: calc(50% - var(--u) * 196); top: calc(var(--u) * 102); padding: calc(var(--u) * 14) calc(var(--u) * 18); display: flex; flex-direction: column; text-align: left; }
+.lb-panel .lb-head { display: flex; justify-content: space-between; align-items: center; font-size: calc(var(--u) * 26); margin-bottom: calc(var(--u) * 8); }
+.lb-panel .lb-close { cursor: pointer; font-size: calc(var(--u) * 30); padding: 0 calc(var(--u) * 6); }
+.lb-panel .lb-close:hover { color: #000; background: #00ff00; }
+.lb-rows { flex: 1; overflow: hidden; font-size: calc(var(--u) * 19); line-height: 1.55; }
+.lb-row { display: flex; gap: calc(var(--u) * 8); white-space: nowrap; }
+.lb-row .lb-rank { width: calc(var(--u) * 34); text-align: right; }
+.lb-row .lb-name { flex: 1; overflow: hidden; text-overflow: clip; }
+.lb-row .lb-score { text-align: right; }
+.lb-row.me { color: #000; background: #00ff00; }
+.lb-foot { font-size: calc(var(--u) * 18); line-height: 1.5; margin-top: calc(var(--u) * 6); border-top: 2px solid #00ff00; padding-top: calc(var(--u) * 6); }
+.lb-foot .lb-dim { color: #00c000; }
+.lb-name-input { display: inline-block; min-width: calc(var(--u) * 120); font: inherit; font-size: calc(var(--u) * 22); color: #00ff00; background: #000; border: none; border-bottom: 2px solid #00ff00; outline: none; padding: 0 calc(var(--u) * 4); text-transform: uppercase; }
+.lb-name-input::placeholder { color: #00a000; }
+.lb-status { font-size: calc(var(--u) * 16); color: #00c000; min-height: 1.4em; }

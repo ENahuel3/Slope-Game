@@ -103,6 +103,47 @@ fs.mkdirSync(CFG.dataDir, { recursive: true });
 const LEDGER = path.join(CFG.dataDir, "ledger.json");
 const SESSIONS = path.join(CFG.dataDir, "sessions.json");
 const JOBLOG = path.join(CFG.dataDir, "jobs.log");
+const SCORES = path.join(CFG.dataDir, "scores.json");
+
+// ---------------------------------------------------------------- leaderboard (public, no session): the game's own
+// leaderboard used id.net, which is gone; the page posts a run's score here and reads the top list back.
+const scoreHits = new Map();   // ip -> last post time
+function loadScores() { try { const o = JSON.parse(fs.readFileSync(SCORES, "utf8")); return Array.isArray(o.scores) ? o : { scores: [] }; } catch (e) { return { scores: [] }; } }
+function saveScores(o) { fs.writeFileSync(SCORES, JSON.stringify(o)); }
+function cleanName(n) { return String(n || "").replace(/[^A-Za-z0-9 _.\-]/g, "").trim().slice(0, 14); }
+function topScores(list, n) {
+    const best = {};   // one entry per name: the best run
+    for (const e of list) { const k = e.name.toLowerCase(); if (!best[k] || e.score > best[k].score) best[k] = e; }
+    return Object.values(best).sort((a, b) => b.score - a.score || a.at - b.at).slice(0, n);
+}
+function handleScores(req, res, url, origin, ip) {
+    if (url.pathname !== "/api/scores") return false;
+    if (req.method === "GET") {
+        const o = loadScores(), name = cleanName(url.searchParams.get("name")).toLowerCase();
+        const top = topScores(o.scores, 100), mine = name ? top.findIndex(e => e.name.toLowerCase() === name) : -1;
+        const best = name ? o.scores.filter(e => e.name.toLowerCase() === name).reduce((m, e) => Math.max(m, e.score), 0) : 0;
+        send(res, 200, { ok: true, top: top.slice(0, 50).map(e => ({ name: e.name, score: e.score, mode: e.mode, at: e.at })), rank: mine < 0 ? null : mine + 1, best, players: top.length, runs: o.scores.length }, origin);
+        return true;
+    }
+    if (req.method === "POST") {
+        readJson(req, b => {
+            const name = cleanName(b && b.name), score = b && Number.isFinite(+b.score) ? Math.floor(+b.score) : -1;
+            if (!name) { send(res, 400, { error: "Type a name first." }, origin); return; }
+            if (score < 0 || score > 100000) { send(res, 400, { error: "That score does not look like a run." }, origin); return; }
+            const now = Date.now();
+            if (now - (scoreHits.get(ip) || 0) < 2500) { send(res, 429, { error: "One score every few seconds." }, origin); return; }
+            scoreHits.set(ip, now);
+            const o = loadScores();
+            o.scores.push({ name, score, mode: String((b && b.mode) || "off").slice(0, 12), version: String((b && b.version) || "").slice(0, 24), at: now });
+            if (o.scores.length > 5000) o.scores = o.scores.sort((a, b2) => b2.score - a.score).slice(0, 4000);   // keep the file small: the best runs stay
+            saveScores(o);
+            const top = topScores(o.scores, 100), rank = top.findIndex(e => e.name.toLowerCase() === name.toLowerCase());
+            send(res, 200, { ok: true, rank: rank < 0 ? null : rank + 1, best: Math.max(score, ...o.scores.filter(e => e.name.toLowerCase() === name.toLowerCase()).map(e => e.score)), players: top.length }, origin);
+        });
+        return true;
+    }
+    send(res, 405, { error: "method" }, origin); return true;
+}
 
 // ---------------------------------------------------------------- ledger (tokens and USD per day, USD per month)
 function loadLedger() {
@@ -491,6 +532,7 @@ const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://x");
     if (req.method === "OPTIONS") { send(res, 204, {}, origin); return; }
     const ip = clientIp(req), session = sessionOf(req);
+    if (handleScores(req, res, url, origin, ip)) return;
     if (url.pathname === "/api/status" && req.method === "GET") {
         if (!session) { send(res, 200, { ok: true, devmode: true, locked: true, configured: !!CFG.passwordHash }, origin); return; }
         const l = loadLedger();
