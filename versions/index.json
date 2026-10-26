@@ -228,6 +228,13 @@
    "notes": "The root as it was before the dev-mode edit 'In the sunny lighting preset, make the track more matte so that the player can clearly tell that the'. Last commit: Dev mode: take the job's usage split from the result event (per-message usage re",
    "date": "2026-10-26",
    "commit": "9a4e094"
+  },
+  {
+   "tag": "v36-sunny-matte",
+   "title": "Sunny track, matte",
+   "notes": "The user's own dev-mode edit: on the Sunny light the track is matte black with shadows and a restrained sun highlight (job 3a59b2, ed45b87).",
+   "date": "2026-10-26",
+   "commit": "ed45b87"
   }
  ]
 }

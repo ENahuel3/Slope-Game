@@ -57,6 +57,14 @@ design. Every other endpoint requires the token.
    is answered without reading or editing and shows up as `answered`. Each job
    logs its usage split (input / cache write / cache read / output / turns) in
    `data/jobs.log`, so the caps can be tuned from real numbers.
+7. **Continuity**: within one login, a follow-up sent less than
+   `SLOPE_EDIT_RESUME_MINUTES` (50) after the previous job resumes the same
+   Claude session (`--resume`), so Claude remembers what it read and did and
+   does not read the files again; measured at about half the tokens of a fresh
+   session for the same follow-up. A session is dropped when its context grows
+   past `SLOPE_EDIT_RESUME_MAX_CTX` (120k), when a job is killed, or when the
+   login ends. `SLOPE_EDIT_DAILY_TOKENS=0`, `SLOPE_EDIT_DAILY_USD=0` and
+   `SLOPE_EDIT_MONTHLY_USD=0` turn those caps off (the per-job cap stays).
 
 ## Install on the Pi
 

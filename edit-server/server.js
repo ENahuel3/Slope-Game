@@ -21,6 +21,7 @@
  *      existing versions are never modified
  *
  *   node server.js --hash      prints the scrypt hash of a password read from stdin
+ *   node server.js --print-system   prints the system prompt Claude gets (rules + file map) and exits
  */
 "use strict";
 const http = require("http");
@@ -48,17 +49,19 @@ const CFG = {
     loginPerIp: +env("SLOPE_EDIT_LOGIN_PER_IP", 5),                         // attempts per 15 minutes
     loginGlobal: +env("SLOPE_EDIT_LOGIN_GLOBAL", 40),                       // attempts per hour, all visitors
     // tokens: the account's daily allowance and the share this service may use of it
-    dailyTokens: +env("SLOPE_EDIT_DAILY_TOKENS", 1000000),
+    dailyTokens: +env("SLOPE_EDIT_DAILY_TOKENS", 1000000),                  // 0 = no daily cap
     share: +env("SLOPE_EDIT_SHARE", 0.10),
     perJobTokens: +env("SLOPE_EDIT_JOB_TOKENS", 80000),
     maxTurns: +env("SLOPE_EDIT_MAX_TURNS", 30),
+    resumeMinutes: +env("SLOPE_EDIT_RESUME_MINUTES", 50),                   // continue the same Claude session for follow-ups within this time (the API cache lasts an hour)
+    resumeMaxCtx: +env("SLOPE_EDIT_RESUME_MAX_CTX", 120000),                // ...while its context is smaller than this (tokens re-read per turn)
     // USD caps only matter when billed by API key (OAuth logins report 0)
     perJobUsd: +env("SLOPE_EDIT_JOB_USD", 1.5),
-    dailyUsd: +env("SLOPE_EDIT_DAILY_USD", 5),
-    monthlyUsd: +env("SLOPE_EDIT_MONTHLY_USD", 40),
+    dailyUsd: +env("SLOPE_EDIT_DAILY_USD", 5),                             // 0 = no cap (subscription logins report notional cost only)
+    monthlyUsd: +env("SLOPE_EDIT_MONTHLY_USD", 40),                         // 0 = no cap
     jobTimeoutMs: +env("SLOPE_EDIT_TIMEOUT_MS", 8 * 60 * 1000),
-    perIpPerHour: +env("SLOPE_EDIT_IP_PER_HOUR", 6),
-    maxQueue: +env("SLOPE_EDIT_MAX_QUEUE", 6),
+    perIpPerHour: +env("SLOPE_EDIT_IP_PER_HOUR", 30),
+    maxQueue: +env("SLOPE_EDIT_MAX_QUEUE", 12),
     maxPrompt: +env("SLOPE_EDIT_MAX_PROMPT", 1200),
     allowOrigins: env("SLOPE_EDIT_ORIGINS", "https://enahuel3.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",").map(s => s.trim()).filter(Boolean),
     editable: env("SLOPE_EDIT_FILES", "index.html,TemplateData/mod.js,TemplateData/mod.css,TemplateData/shaders.js").split(",").map(s => s.trim()).filter(Boolean),
@@ -68,7 +71,7 @@ const CFG = {
     authorName: env("SLOPE_EDIT_AUTHOR", "Slope dev mode"),
     authorEmail: env("SLOPE_EDIT_EMAIL", "slope-dev@users.noreply.github.com"),
 };
-CFG.dayTokenCap = Math.floor(CFG.dailyTokens * CFG.share);
+CFG.dayTokenCap = CFG.dailyTokens > 0 ? Math.floor(CFG.dailyTokens * CFG.share) : 0;   // 0 = unlimited
 
 // ---------------------------------------------------------------- password hash tool
 const SCRYPT = { N: 32768, r: 8, p: 1, keylen: 32 };
@@ -117,14 +120,14 @@ const monthKey = () => new Date().toISOString().slice(0, 7);
 function dayRec(l, k) { const d = l.days[k]; return typeof d === "object" && d ? d : { tokens: 0, usd: typeof d === "number" ? d : 0 }; }
 function budget() {
     const l = loadLedger(), d = dayRec(l, dayKey()), monthUsd = l.months[monthKey()] || 0;
-    return { dayTokens: d.tokens, dayTokenCap: CFG.dayTokenCap, dayTokensLeft: Math.max(0, CFG.dayTokenCap - d.tokens), perJobTokens: CFG.perJobTokens,
+    return { dayTokens: d.tokens, dayTokenCap: CFG.dayTokenCap || null, dayTokensLeft: CFG.dayTokenCap ? Math.max(0, CFG.dayTokenCap - d.tokens) : null, perJobTokens: CFG.perJobTokens,
              dayUsd: +d.usd.toFixed(4), dayUsdCap: CFG.dailyUsd, monthUsd: +monthUsd.toFixed(4), monthUsdCap: CFG.monthlyUsd,
-             usdLeft: Math.max(0, Math.min(CFG.dailyUsd - d.usd, CFG.monthlyUsd - monthUsd)) };
+             usdLeft: Math.max(0, Math.min(CFG.dailyUsd > 0 ? CFG.dailyUsd - d.usd : Infinity, CFG.monthlyUsd > 0 ? CFG.monthlyUsd - monthUsd : Infinity)) };
 }
 function budgetProblem() {
     const b = budget();
-    if (b.dayTokensLeft < Math.min(CFG.perJobTokens, 20000)) return "The dev-mode token budget for today is used up (" + b.dayTokens.toLocaleString() + " of " + b.dayTokenCap.toLocaleString() + "). It resets at midnight UTC.";
-    if (b.usdLeft < CFG.perJobUsd) return "The dev-mode spending cap is reached for now. It resets at midnight UTC.";
+    if (b.dayTokenCap && b.dayTokensLeft < Math.min(CFG.perJobTokens, 20000)) return "The dev-mode token budget for today is used up (" + b.dayTokens.toLocaleString() + " of " + b.dayTokenCap.toLocaleString() + "). It resets at midnight UTC.";
+    if (isFinite(b.usdLeft) && b.usdLeft < CFG.perJobUsd) return "The dev-mode spending cap is reached for now. It resets at midnight UTC.";
     return null;
 }
 function charge(job) {
@@ -265,7 +268,8 @@ const SYSTEM_RULES = `You are editing a small browser game mod (a Unity WebGL pa
 - You cannot run the game or any commands: reason carefully, keep JavaScript syntactically valid, and finish within a few edits.
 - When done, reply with one to three plain sentences describing what you changed (shown to the developer and used as the version note).
 - Tokens are metered. The files are large (mod.js and shaders.js are over 1000 lines each): never Read a whole file longer than 200 lines. Find the spot with Grep (use -n and a little context) or with the line numbers in the file map below, then Read with offset and limit covering at most ~120 lines around it. Read a region once, then edit it. Do not re-read files to "check"; you cannot run anything anyway.
-- If the developer's message is a question, a status check, a greeting or a remark rather than a request to change something, answer it in one or two sentences from what you already know and the recent-jobs list in the message, read nothing, and make no edits. Each message is a fresh session: you remember nothing except what the message tells you.`;
+- If the developer's message is a question rather than a request to change something, answer it and make no edits. A question about the code or the game deserves a real answer: locate the region (Grep, then Read the range) and quote the actual lines and numbers. A status check, greeting or remark needs no lookup: answer in a sentence from the recent-jobs list in the message and read nothing.
+- Unless this message continues an earlier conversation, you start with no memory: the recent-jobs list is all you know about what happened before.`;
 
 // Line-number map of the editable files (plus the read-only scene scripts they talk to), appended to the system
 // prompt so it is cached across jobs while the files are unchanged. It lets Claude jump to a region with
@@ -315,20 +319,25 @@ function recentContext() {
     if (!r.length) return "Recent dev-mode jobs: none yet.";
     return "Recent dev-mode jobs (newest first):\n" + r.map(j => "- [" + j.state + (j.version ? ", previous version kept as " + j.version : "") + "] \"" + j.prompt + "\"" + (j.summary ? " → " + j.summary : "")).join("\n");
 }
-function jobMessage(job) {
-    return "Developer's message: " + job.prompt + "\n\n" + recentContext();
+function jobMessage(job, resume) {
+    let note = "";
+    if (resume) {
+        let head = ""; try { head = git(["rev-parse", "HEAD"]); } catch (e) { /* ignore */ }
+        note = head && resume.head && head !== resume.head ? "\n\nNote: the game files have changed since your last message (new commits were published); re-read any region before editing it." : "";
+    }
+    return "Developer's message: " + job.prompt + note + "\n\n" + recentContext();
 }
 
-function runClaude(job, onEvent) {
+function runClaude(job, onEvent, resume) {
     return new Promise((resolve) => {
-        const args = ["-p", jobMessage(job), "--output-format", "stream-json", "--verbose",
+        const args = ["-p", jobMessage(job, resume), "--output-format", "stream-json", "--verbose",
                       "--permission-mode", "default",
                       "--allowedTools", "Read", "Glob", "Grep", "Edit", "MultiEdit", "Write",
                       "--disallowedTools", "Bash", "WebFetch", "WebSearch", "Agent", "Task", "NotebookEdit", "KillShell", "BashOutput",
                       "--max-budget-usd", String(CFG.perJobUsd),
                       "--max-turns", String(CFG.maxTurns),
-                      "--no-session-persistence",
                       "--append-system-prompt", SYSTEM_RULES + "\n\n" + fileMap()];
+        if (resume) args.push("--resume", resume.sid);
         if (CFG.model) args.push("--model", CFG.model);
         if (fs.existsSync(CFG.settingsFile)) args.push("--settings", CFG.settingsFile);
         const childEnv = { ...process.env };
@@ -337,12 +346,13 @@ function runClaude(job, onEvent) {
         delete childEnv.SLOPE_EDIT_PASSWORD_HASH;
         const child = spawn(CFG.claudeBin, args, { cwd: CFG.repoDir, env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
         let buf = "", result = null, stderr = "", tokens = 0, killed = null;
-        const usage = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0, turns: 0 };
+        const usage = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0, turns: 0, lastCtx: 0 };
         const stop = why => { if (killed) return; killed = why; onEvent(why); try { child.kill("SIGKILL"); } catch (e) {} };
         const timer = setTimeout(() => stop("Time limit reached, stopping."), CFG.jobTimeoutMs);
         const addUsage = u => {
             if (!u) return;
             usage.input += u.input_tokens || 0; usage.cacheWrite += u.cache_creation_input_tokens || 0; usage.cacheRead += u.cache_read_input_tokens || 0; usage.output += u.output_tokens || 0; usage.turns++;
+            usage.lastCtx = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);   // what one more turn would re-read
             tokens += weighTokens(u);
             if (tokens > CFG.perJobTokens) stop("This edit passed its token limit (" + CFG.perJobTokens.toLocaleString() + "), stopping.");
         };
@@ -384,9 +394,9 @@ const queue = [];                // ids
 let running = null;
 const ipHits = new Map();        // ip -> [timestamps]
 
-function newJob(prompt, ip) {
+function newJob(prompt, ip, sessionToken) {
     const id = crypto.randomBytes(6).toString("hex");
-    const job = { id, prompt, ip, state: "queued", createdAt: Date.now(), startedAt: null, finishedAt: null, log: [], cost: 0, tokens: 0, commit: null, frozen: null, summary: null, error: null };
+    const job = { id, prompt, ip, sessionToken: sessionToken || null, resumed: false, state: "queued", createdAt: Date.now(), startedAt: null, finishedAt: null, log: [], cost: 0, tokens: 0, commit: null, frozen: null, summary: null, error: null };
     jobs.set(id, job); queue.push(id);
     setImmediate(pump);
     return job;
@@ -401,9 +411,16 @@ async function pump() {
     try {
         const bp = budgetProblem(); if (bp) throw new Error(bp);
         say("Syncing the game files…"); syncRepo();
-        say("Asking Claude…");
-        const { code, result, stderr, tokens, killed, usage } = await runClaude(job, say);
+        const sess = job.sessionToken ? sessions[job.sessionToken] : null;
+        const prev = sess && sess.claude;
+        let resume = prev && prev.sid && Date.now() - prev.at < CFG.resumeMinutes * 60e3 && prev.ctx < CFG.resumeMaxCtx ? prev : null;
+        say(resume ? "Continuing your earlier conversation…" : "Asking Claude…");
+        let run = await runClaude(job, say, resume);
+        if (resume && !run.result && !run.killed) { say("Could not continue the earlier conversation; starting fresh."); resume = null; run = await runClaude(job, say, null); }
+        job.resumed = !!resume;
+        const { code, result, stderr, tokens, killed, usage } = run;
         job.tokens = tokens; job.usage = usage;
+        if (sess) { sess.claude = result && result.session_id && !killed ? { sid: result.session_id, at: Date.now(), head: git(["rev-parse", "HEAD"]), ctx: usage.lastCtx || 0 } : null; saveSessions(); }
         job.cost = result && typeof result.total_cost_usd === "number" ? result.total_cost_usd : 0;
         if (killed) throw new Error(killed);
         if (!result) throw new Error("Claude did not finish (exit " + code + ")" + (stderr ? ": " + stderr.split("\n").filter(Boolean).slice(-2).join(" ") : ""));
@@ -439,14 +456,14 @@ async function pump() {
         job.finishedAt = Date.now();
         charge(job);
         const u = job.usage || {};
-        logLine(job.id + " " + job.state + " tokens=" + (job.tokens || 0) + " (in " + (u.input || 0) + " cw " + (u.cacheWrite || 0) + " cr " + (u.cacheRead || 0) + " out " + (u.output || 0) + " turns " + (u.turns || 0) + ") $" + (job.cost || 0).toFixed(4) + " " + (job.commit || "-") + " frozen=" + (job.frozen || "-") + " ip=" + job.ip + " :: " + job.prompt.replace(/\s+/g, " ").slice(0, 200) + (job.error ? " :: " + job.error.replace(/\s+/g, " ").slice(0, 300) : ""));
+        logLine(job.id + " " + job.state + (job.resumed ? " resumed" : "") + " tokens=" + (job.tokens || 0) + " (in " + (u.input || 0) + " cw " + (u.cacheWrite || 0) + " cr " + (u.cacheRead || 0) + " out " + (u.output || 0) + " turns " + (u.turns || 0) + ") $" + (job.cost || 0).toFixed(4) + " " + (job.commit || "-") + " frozen=" + (job.frozen || "-") + " ip=" + job.ip + " :: " + job.prompt.replace(/\s+/g, " ").slice(0, 200) + (job.error ? " :: " + job.error.replace(/\s+/g, " ").slice(0, 300) : ""));
         running = null;
         setImmediate(pump);
     }
 }
 
 function publicJob(job) {
-    return { id: job.id, state: job.state, position: position(job), prompt: job.prompt, log: job.log, tokens: job.tokens || 0, usage: job.usage || null, cost: +(job.cost || 0).toFixed(4),
+    return { id: job.id, state: job.state, position: position(job), prompt: job.prompt, log: job.log, tokens: job.tokens || 0, usage: job.usage || null, resumed: !!job.resumed, cost: +(job.cost || 0).toFixed(4),
              commit: job.commit, version: job.frozen, summary: job.summary, error: job.error, startedAt: job.startedAt, finishedAt: job.finishedAt };
 }
 
@@ -517,7 +534,7 @@ const server = http.createServer((req, res) => {
             if (queue.length >= CFG.maxQueue) { send(res, 429, { error: "The queue is full; try again in a few minutes." }, origin); return; }
             const bp = budgetProblem(); if (bp) { send(res, 429, { error: bp }, origin); return; }
             hits.push(now); ipHits.set(ip, hits);
-            const job = newJob(prompt, ip);
+            const job = newJob(prompt, ip, ((req.headers.authorization || "").match(/^Bearer (\S+)$/) || [])[1]);
             send(res, 202, publicJob(job), origin);
         });
         return;
@@ -527,8 +544,9 @@ const server = http.createServer((req, res) => {
 
 // sanity at startup
 try { git(["rev-parse", "--is-inside-work-tree"]); } catch (e) { console.error("SLOPE_EDIT_REPO is not a git clone: " + CFG.repoDir); process.exit(1); }
+if (process.argv.includes("--print-system")) { process.stdout.write(SYSTEM_RULES + "\n\n" + fileMap() + "\n"); process.exit(0); }
 if (!CFG.passwordHash) console.error("WARNING: SLOPE_EDIT_PASSWORD_HASH is not set; dev mode cannot be unlocked (run `node server.js --hash`).");
 server.listen(CFG.port, CFG.host, () => {
     console.log("slope-edit (dev mode) listening on http://" + CFG.host + ":" + CFG.port + " repo=" + CFG.repoDir + " model=" + CFG.model +
-                " tokens: " + CFG.perJobTokens + "/job " + CFG.dayTokenCap + "/day (" + Math.round(CFG.share * 100) + "% of " + CFG.dailyTokens + ") push=" + CFG.push + " freeze=" + CFG.freeze);
+                " tokens: " + CFG.perJobTokens + "/job " + (CFG.dayTokenCap ? CFG.dayTokenCap + "/day (" + Math.round(CFG.share * 100) + "% of " + CFG.dailyTokens + ")" : "no daily cap") + " push=" + CFG.push + " freeze=" + CFG.freeze);
 });
