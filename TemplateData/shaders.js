@@ -332,17 +332,18 @@
             "  vec3 L = uLight.xyz;",
             "  vec3 rdW = uRot * viewRay(vUv); float up = dot(rdW, SKY_UP);",
             "  vec3 sunW = uRot * L;",
-            "  vec3 zenith = vec3(0.22, 0.48, 0.95), horizon = vec3(0.78, 0.86, 0.96), sunCol = vec3(1.0, 0.93, 0.80);",
+            "  vec3 zenith = vec3(0.18, 0.40, 0.84), horizon = vec3(0.60, 0.72, 0.88), sunCol = vec3(1.0, 0.93, 0.80);",
             "  float t = clamp(up * 1.6 + 0.1, 0.0, 1.0);",
             "  vec3 skyCol = mix(horizon, zenith, pow(t, 0.7));",
             "  float cosSun = dot(rdW, sunW);",
-            "  skyCol += sunCol * (0.25 * pow(max(cosSun, 0.0), 8.0) + 0.6 * pow(max(cosSun, 0.0), 64.0));",
+            "  vec3 hazeCol = mix(horizon, zenith, 0.25);",   // fog colour: the sky without the sun's glow or clouds, so distant geometry does not wash out to white
+            "  skyCol += sunCol * (0.12 * pow(max(cosSun, 0.0), 8.0) + 0.35 * pow(max(cosSun, 0.0), 64.0));",
             "  float disc = smoothstep(0.9993, 0.9997, cosSun); skyCol = mix(skyCol, vec3(1.0, 0.98, 0.92), disc);",
             "  if (up > 0.02) { vec3 e1 = vec3(1.0, 0.0, 0.0), e2 = cross(SKY_UP, e1); vec2 cp = vec2(dot(rdW, e1), dot(rdW, e2)) / (up + 0.15);",
             "    float cl = fbm(cp * 2.2 + vec2(uTime * 0.02, 0.0)); cl = smoothstep(0.52, 0.78, cl) * smoothstep(0.02, 0.2, up);",
             "    skyCol = mix(skyCol, vec3(1.0, 0.99, 0.97), cl * 0.85); }",
             "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
-            "  if (sky) { gl_FragColor = vec4(mix(skyCol, c, emis), (0.18 + 0.9 * pow(max(cosSun, 0.0), 10.0) + disc) * (1.0 - emis)); return; }",   // the UI has no depth: keep it over the sky
+            "  if (sky) { gl_FragColor = vec4(mix(skyCol, c, emis), (0.04 + 0.6 * pow(max(cosSun, 0.0), 10.0) + 0.6 * disc) * (1.0 - emis)); return; }",   // the UI has no depth: keep it over the sky
             "  vec3 col; float dist = 20.0;",
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
@@ -356,7 +357,7 @@
             "  } else {",
             "    col = c + vec3(0.55) * mix(horizon, zenith, 0.5) * 0.5 * (1.0 - emis);",
             "  }",
-            "  float fog = 1.0 - exp(-dist * 0.011); col = mix(col, skyCol, fog * 0.85 * (1.0 - 0.6 * emis));",
+            "  float fog = 1.0 - exp(-dist * 0.008); col = mix(col, hazeCol, fog * 0.75 * (1.0 - 0.6 * emis));",
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
         ].join("\n"),
@@ -486,7 +487,7 @@
         normal: { id: "normal", name: "Normal", dir: null, passes: [] },
         sunny: { id: "sunny", name: "Sunny", dir: SUN_DIR, failed: false, passes: [
             { fs: "sunny", in: "scene", out: "a" },
-            { fs: "rays", in: "a", out: "h1", p: [1.0, 0.955, 0.055] },
+            { fs: "rays", in: "a", out: "h1", p: [1.0, 0.955, 0.035] },
             { fs: "lcomp", in: "a", in2: "h1", in3: "h1", out: "lit", p: [1.0, 0.92, 0.72], q: [0] }
         ] },
         night: { id: "night", name: "Night", dir: MOON_DIR, failed: false, passes: [
