@@ -1141,9 +1141,7 @@
         if (!editBudget) return;
         api("/api/status").then(function (st) {
             if (st.locked) { showLocked(); return; }
-            var b = st.budget;
-            editBudget.textContent = "Today " + fmtTok(b.dayTokens) + (b.dayTokenCap ? " / " + fmtTok(b.dayTokenCap) : "") + " tokens" + (b.dayTokenCap ? "" : " (no daily cap)") + (b.dayUsd ? " · $" + b.dayUsd.toFixed(2) : "") +
-                (st.queue ? " · " + st.queue + " waiting" : "") + (st.running ? " · one running" : "");
+            editBudget.textContent = [st.queue ? st.queue + " waiting" : "", st.running ? "one running" : ""].filter(Boolean).join(" · ");
             showUnlocked();
         }).catch(function (e) { editBudget.textContent = e.message; });
     }
