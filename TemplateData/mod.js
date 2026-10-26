@@ -912,6 +912,31 @@
     function writeFloatVar(name, v) { var f = heap32(), objs = H.vars[name]; if (!f || !objs) return; for (var i = 0; i < objs.length; i++) f[(objs[i] + 24) >> 2] = v; }
     function readGoVar(name) { var u = heapU32(), objs = H.vars[name]; return u && objs && objs.length ? u[(objs[0] + 24) >> 2] : 0; }   // FsmGameObject value: a reference at +24
     function writeGoVar(name, ptr) { var u = heapU32(), objs = H.vars[name]; if (!u || !objs || !ptr) return; for (var i = 0; i < objs.length; i++) u[(objs[i] + 24) >> 2] = ptr; }
+    // ---- super ramps (TemplateData/ramps.js): a timed push. The game's FSM adds zforce (+z) and yforce (-y, ten times
+    // zforce) to the ball every physics step from these variables, so writing them is an impulse the game itself applies:
+    // forward until the speed reaches the target, upward for the launch, then the game's values come back.
+    var boost = null;
+    function startBoost(speedMul, upMul, maxMs, upMs) {
+        if (!gameRunning || boost || !H.vars.zforce || !H.vars.yforce) return false;
+        var z0 = fsmFloat("zforce"), y0 = fsmFloat("yforce"), v0 = Math.max(6, SlopeModSpeed());
+        // yforce is the game's downward hold (ten times zforce, 24..110 -> 240..1100 N on 30 kg); the launch turns it
+        // upward and multiplies it: upMul 4 is about 90 u/s^2 net upward, 25 u/s after a quarter second
+        boost = { z0: z0, y0: y0, target: v0 * speedMul, up: Math.max(Math.abs(y0), 600) * upMul, t0: performance.now(), maxMs: maxMs || 350, upMs: upMs || 250, frames: 0 };
+        return true;
+    }
+    function SlopeModSpeed() { return Math.sqrt(ballVel[0] * ballVel[0] + ballVel[1] * ballVel[1] + ballVel[2] * ballVel[2]); }
+    function stepBoost() {
+        if (!boost) return;
+        var el = performance.now() - boost.t0;
+        var fwdDone = el > boost.maxMs || (boost.frames > 2 && SlopeModSpeed() >= boost.target), upDone = el > boost.upMs;
+        if (!gameRunning || (fwdDone && upDone)) { writeFloatVar("zforce", boost.z0); writeFloatVar("yforce", boost.y0); boost = null; return; }
+        boost.frames++;
+        // the shove closes the remaining speed gap in about a tenth of a second (F = m dv / dt), so a slow headless frame
+        // with many physics steps inside it overshoots no more than a fast one
+        var need = Math.max(0, boost.target - SlopeModSpeed()) * BALL_MASS / 0.1;
+        writeFloatVar("zforce", fwdDone ? boost.z0 : Math.max(boost.z0, Math.min(2400, need)));
+        writeFloatVar("yforce", upDone ? boost.y0 : boost.up);                           // and up for a fixed quarter second: the launch
+    }
     var blockPtr = null;                   // the three block prefabs' object pointers, read once from ModBlockFlat / ModBlockP / ModBlockN
     function writeBlockChoice(dir) {       // the prefab the spawner's next lane block comes from: flat, or a helicoid of +RATE / -RATE
         if (!blockPtr) {
@@ -928,6 +953,8 @@
     }
     function stepTrack(playing) {
         if (!trackReady()) return;
+        if (playing) trackBall();
+        stepBoost();
         var nowT = performance.now(); if (lastFrameT) frameDt = frameDt * 0.9 + Math.min(0.1, (nowT - lastFrameT) / 1000) * 0.1; lastFrameT = nowT;
         // one spawn step per mod frame while a track mode runs (the spawner's step states wait on ModGo, which the mod
         // sets after writing the next block's prefab and roll; the state clears it), the vanilla one-frame burst otherwise
@@ -1242,6 +1269,8 @@
         paused: function () { return paused; },
         speed: function () { return Math.sqrt(ballVel[0] * ballVel[0] + ballVel[1] * ballVel[1] + ballVel[2] * ballVel[2]); },
         score: function () { var u = heapU32(), objs = H.vars.Score || []; if (!u || !objs.length) return null; var best = 0; for (var i = 0; i < objs.length; i++) { var v = u[(objs[i] + 24) >> 2] | 0; if (v > best) best = v; } return best; },
+        boost: startBoost,                     // boost(speedMul, upMul, maxMs, upMs): the super ramps' launch (TemplateData/ramps.js)
+        boosting: function () { return !!boost; },
         addScore: function (n) {               // the game's own score counter (FsmInt "Score"): coins count like lane blocks
             var u = heapU32(), objs = H.vars.Score || []; if (!u || !objs.length || !gameRunning) return 0;
             for (var i = 0; i < objs.length; i++) { var k = (objs[i] + 24) >> 2; u[k] = Math.max(0, (u[k] | 0) + (n | 0)); }

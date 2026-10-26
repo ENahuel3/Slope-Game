@@ -552,6 +552,14 @@
    "notes": "The root as it was before the dev-mode edit 'On high render distances, as the track generates, the background models move position slightly each '. Last commit: Dev edit: Change the render distance slider so that the maximum render",
    "date": "2026-10-26",
    "commit": "c524128"
+  },
+  {
+   "tag": "v68-gandalf",
+   "title": "Gandalf skyline",
+   "notes": "Epic Sax Gandalf lines the lane with Gandalf picture cards. Last version before the super ramps.",
+   "date": "2026-10-26",
+   "commit": "e721094",
+   "status": "ok"
   }
  ]
 }

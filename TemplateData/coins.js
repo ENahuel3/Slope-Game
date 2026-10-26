@@ -185,7 +185,7 @@
     function refreshHidden() {
         if (hiddenGen === tunnelGen) return;
         hiddenGen = tunnelGen;
-        for (var k in pieces) { var p = pieces[k]; if (!p.lane) continue; for (var i = 0; i < p.coins.length; i++) p.coins[i].hidden = underTunnel(p.coins[i].wp); }
+        for (var k in pieces) { var p = pieces[k]; if (!p.lane) continue; for (var i = 0; i < p.coins.length; i++) p.coins[i].hidden = p.noCoins || underTunnel(p.coins[i].wp); }
     }
 
     // ------------------------------------------------------------------ collecting
@@ -412,6 +412,14 @@
             loose.push({ wp: [x, y, z], up: up, fwd: fwd, right: norm3(cross(up, fwd)), phase: 0, done: 0, popAt: 0 }); return loose.length;
         },
         layouts: LAYOUTS,
+        frames: function () {              // every live piece with its lane frame (for TemplateData/ramps.js): origin, fwd, up, right in world space
+            var out = []; for (var k in pieces) { var p = pieces[k]; out.push({ key: k, kind: p.kind, lane: p.lane, org: p.org, fwd: p.fwd, up: p.up, right: p.right, hidden: !!p.noCoins }); } return out;
+        },
+        camera: function () { return camVP ? Array.prototype.slice.call(camVP) : null; },
+        underTunnel: underTunnel,          // world point inside a tunnel piece's span
+        muteBlock: function (key) {        // a super ramp stands on this block: its edge coin goes away
+            var p = pieces[key]; if (!p) return; p.noCoins = true; for (var i = 0; i < p.coins.length; i++) p.coins[i].hidden = true;
+        },
         matrices: function () {            // debug/test: one object-to-world matrix per piece kind (the first piece seen of each)
             var out = {}; for (var k in pieces) { var p = pieces[k]; if (!out[p.kind]) out[p.kind] = Array.prototype.slice.call(p.m); } return out;
         },
