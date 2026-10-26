@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Revert what you just did",
-  "notes": "Made with the in-game dev mode (job ec3974122ad7).",
+  "title": "Dev edit: 90 degree turns and curves presets are no longer working.",
+  "notes": "Made with the in-game dev mode (job d70a68602178).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -502,6 +502,13 @@
    "notes": "The root as it was before the dev-mode edit 'Revert what you just did'. Last commit: Dev edit: Its fixed, but now they move slightly every time more track",
    "date": "2026-10-26",
    "commit": "54e6278"
+  },
+  {
+   "tag": "v61-dev-d70a68",
+   "title": "Before dev edit d70a68",
+   "notes": "The root as it was before the dev-mode edit '90 degree turns and curves presets are no longer working.'. Last commit: Dev edit: Revert what you just did",
+   "date": "2026-10-26",
+   "commit": "c1c8f3b"
   }
  ]
 }

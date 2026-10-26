@@ -1051,7 +1051,7 @@
         if (!gameRunning || build || restartSeq) return;
         if (aheadRun !== lastRestart) { aheadRun = lastRestart; aheadLeft = viewDist - 1; aheadLast = frameNo + 60; aheadPrimed = false; }   // a new run: let its first section spawn before adding more
         if (aheadLeft <= 0 || frameNo - aheadLast < 10) return;
-        if (gravityMode !== "off" && !(track && !track.moving)) return;                                               // a shaped track spawns block by block: wait until the spawner is idle
+        if (gravityMode !== "off") return;                                                                            // a shaped track (Curves / 90 degree twists) spawns block by block and moves the spawner itself: extra laps would fight it
         if (!aheadPrimed) { if (setState(SPAWNER, "Offset Buildings to Match Spawner")) { aheadPrimed = true; aheadLast = frameNo - 7; } return; }   // line the building chunk up with the spawner first, so the scenery lands beside the new lap and not on it
         if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; aheadPrimed = false; }
     }
