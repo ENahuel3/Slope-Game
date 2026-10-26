@@ -354,6 +354,8 @@
             "    vec3 surf = vec3(0.15, 0.15, 0.16) * (amb + direct);",   // matte dark albedo so the black track reads as black
             "    vec3 Hv = normalize(L - normalize(P)); float fr = 0.25 + 0.75 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0);",
             "    vec3 spec = sunCol * (0.3 * pow(max(dot(N, Hv), 0.0), 40.0) * fr + 0.06 * pow(max(dot(N, Hv), 0.0), 8.0)) * sh * ndl;",   // tight highlight plus a faint sheen that is lit outside shadows so they stay readable
+            "    float bg = smoothstep(25.0, 70.0, lz) * (1.0 - emis);",   // background buildings: darker and far less reflective
+            "    spec *= 1.0 - 0.9 * bg; c *= 1.0 - 0.45 * bg;",
             "    col = c * (1.0 + 0.15 * emis) + (surf + spec) * (1.0 - emis);",
             "  } else {",
             "    col = c + vec3(0.55) * mix(horizon, zenith, 0.5) * 0.5 * (1.0 - emis);",
