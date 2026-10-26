@@ -586,9 +586,28 @@
         if (typeof cb !== "function") return origRAF.call(window, cb);
         return origRAF.call(window, function (t) {
             try { return cb(t); }
-            finally { if (dirty) { dirty = false; try { present(); } catch (e) { stats.errors++; warn("present failed: " + e); } } }
+            finally { if (dirty) { dirty = false; try { runSceneHooks(); } catch (e) { stats.errors++; warn("scene hook failed: " + e); } try { present(); } catch (e) { stats.errors++; warn("present failed: " + e); } } }
         });
     };
+    // Scene hooks (SlopeShaders.onScene): other modules draw into the game's frame after the game's draws and before
+    // the post-processing, with the depth buffer of the frame still there (coins.js). The hook gets the raw entry
+    // points, the frame's size and whether the frame is the lighting stand-in; the framebuffer, viewport, program,
+    // buffers, textures, vertex array and the enable bits are saved around it like around the passes.
+    var sceneHooks = [];
+    function runSceneHooks() {
+        if (!sceneHooks.length || !gl || (gl.isContextLost && gl.isContextLost())) return;
+        var w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+        if (!(w > 0 && h > 0)) return;
+        var state = saveState();
+        try {
+            var target = redirectActive && res && res.main && res.main.ok ? res.main.fbo : null;
+            g.bindFramebuffer(gl.FRAMEBUFFER, target);
+            if (isGL2) g.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
+            g.viewport(0, 0, w, h);
+            var info = { gl: gl, g: g, isGL2: isGL2, vaoMode: vaoMode, vaoExt: vaoExt, width: w, height: h, redirected: !!target, vp: vpMat };
+            for (var i = 0; i < sceneHooks.length; i++) { try { sceneHooks[i](info); } catch (e) { stats.errors++; warn("scene hook: " + e); } }
+        } finally { restoreState(state); }
+    }
 
     // ======================================================================
     // Camera: near, far, field of view and orientation from unity_MatrixVP
@@ -1039,6 +1058,8 @@
         define: function (id, def) { define(id, def); populate(); return STYLES[id]; },
         passes: function (id) { var s = STYLES[id || styleId]; return s ? passList(s.passes) : (LIGHTS[id] ? passList(LIGHTS[id].passes) : null); },
         camera: function () { return { live: CAMERA.live, near: +CAMERA.near.toFixed(4), far: +CAMERA.far.toFixed(1), fovY: +(2 * Math.atan(1 / CAMERA.b) * 180 / Math.PI).toFixed(2), aspect: +(CAMERA.b / CAMERA.a).toFixed(4), right: CAMERA.right.map(function (v) { return +v.toFixed(3); }), up: CAMERA.up.map(function (v) { return +v.toFixed(3); }), back: CAMERA.back.map(function (v) { return +v.toFixed(3); }) }; },
+        onScene: function (fn) { if (typeof fn === "function" && sceneHooks.indexOf(fn) < 0) sceneHooks.push(fn); },
+        offScene: function (fn) { var i = sceneHooks.indexOf(fn); if (i >= 0) sceneHooks.splice(i, 1); },
         reset: function () { dropResources(); Object.keys(STYLES).forEach(function (k) { STYLES[k].failed = false; }); Object.keys(LIGHTS).forEach(function (k) { LIGHTS[k].failed = false; }); },
         stats: function () {
             return { enabled: enabled, style: styleId, light: lightId, intensity: intensity, glVersion: gl ? (isGL2 ? 2 : 1) : 0, width: res ? res.w : 0, height: res ? res.h : 0,

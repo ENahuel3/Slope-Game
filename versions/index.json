@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Dev edit: In index.html, change the HUD hint text from \"T pauses\" to \"",
-  "notes": "Made with the in-game dev mode (job ee548a208e3f).",
-  "date": "2026-10-26"
+  "title": "Collectable coins",
+  "notes": "3D coins on the hard spots: tunnel roofs, high over the jumps, thin-lane edges, tilted-lane high edge, dogleg corners, lane edges; Coins toggle and counter.",
+  "date": "2026-10-25"
  },
  "versions": [
   {

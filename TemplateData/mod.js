@@ -794,6 +794,7 @@
         track = { jobs: [], sections: [], roll: 0, lastSpawn: null, moving: false, stillFrames: 0, laps: 0, camQ: [0, 0, 0, 1], dApplied: [0, 0, 0], fallFrames: 0, wroteA0: 0, wroteA1: 0, wroteDir: 0, lastPlanS: -1000 };
         note("track reset" + (twistQueue.length ? " (forced " + twistQueue[0] + ")" : ""));
         ballPos = null; ballVel = [0, 0, 0]; cameraFollowing = false; writeFloatVar("ModCameraTick", 0);
+        if (window.SlopeCoins) SlopeCoins.reset();   // a new run: the coins of the old course are gone with it
         writeSpawnRot(spawnQ(0)); writeQuatVar("ModQ1", spawnQ(0)); writeBlockChoice(0); writeRigQ([0, 0, 0, 1]); writeChaseLocal(0, 3.056, -1.207);
     }
     function writeSpawnRot(q) {
