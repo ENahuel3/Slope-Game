@@ -1066,6 +1066,31 @@
         if (val) val.textContent = n;
     }
 
+    // Show FPS: a frame counter appended to the hint in the top bar ("... | 60 FPS"), only running while the box is checked.
+    var KEY_FPS = "slope-mod.showFps";
+    function initFpsCounter() {
+        var box = document.getElementById("hud-fps"), hint = document.querySelector(".hud-hint");
+        if (!box || !hint) return;
+        var out = document.createElement("span"); out.id = "hud-fps-val"; out.style.display = "none"; hint.parentNode.insertBefore(out, hint.nextSibling);
+        var on = false, frames = 0, last = 0;
+        function loop(t) {
+            if (!on) return;
+            frames++;
+            if (!last) last = t;
+            if (t - last >= 500) { out.textContent = "| " + Math.round(frames * 1000 / (t - last)) + " FPS"; frames = 0; last = t; }
+            requestAnimationFrame(loop);
+        }
+        function set(v) {
+            v = !!v; box.checked = v; lsSet(KEY_FPS, v ? "1" : "0");
+            if (v === on) return;
+            on = v; out.style.display = v ? "" : "none"; frames = 0; last = 0; out.textContent = "| ... FPS";
+            if (v) requestAnimationFrame(loop);
+        }
+        box.addEventListener("change", function () { set(box.checked); });
+        set(lsGet(KEY_FPS) === "1");
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initFpsCounter); else initFpsCounter();
+
     function setStackTarget(n) {
         n = parseInt(n, 10);
         if (!(n >= 1)) n = 1;

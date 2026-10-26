@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: 90 degree turns and curves presets are no longer working.",
-  "notes": "Made with the in-game dev mode (job d70a68602178).",
+  "title": "Dev edit: In the mod menu, add a checkable box above coins labelled \"S",
+  "notes": "Made with the in-game dev mode (job d90d5a5735c3).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -517,6 +517,13 @@
    "date": "2026-10-26",
    "commit": "1d3b5a9",
    "status": "ok"
+  },
+  {
+   "tag": "v63-dev-d90d5a",
+   "title": "Before dev edit d90d5a",
+   "notes": "The root as it was before the dev-mode edit 'In the mod menu, add a checkable box above coins labelled \"Show FPS\" and if it's checked, it shows t'. Last commit: Epic Sax Gandalf: Gandalf lines the lane",
+   "date": "2026-10-26",
+   "commit": "3e30ab5"
   }
  ]
 }
