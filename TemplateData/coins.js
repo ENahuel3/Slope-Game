@@ -133,9 +133,11 @@
             if (loc && typeof name === "string") { if (/ObjectToWorld/.test(name)) loc.__coinO2W = true; else if (/MatrixVP/.test(name)) loc.__coinVP = true; }
             return loc;
         };
+        var o2wScratch = new Float32Array(16);   // the object-to-world upload is consumed by the very next draw (sawDraw copies it into a piece), so one scratch array serves every draw: no 16-float allocation per draw call
         function note(loc, v, off) {
             if (!loc || !v || v.length - (off || 0) < 16) return;
-            var a = new Float32Array(16); for (var i = 0; i < 16; i++) a[i] = v[(off || 0) + i];
+            var a = loc.__coinO2W ? o2wScratch : new Float32Array(16);   // the view-projection copy is kept (camVP), so it stays its own array
+            for (var i = 0; i < 16; i++) a[i] = v[(off || 0) + i];
             if (loc.__coinO2W) o2wLast = a; else vpLast = a;
         }
         P.uniform4fv = function (loc, v, srcOffset) { if (loc && (loc.__coinO2W || loc.__coinVP)) note(loc, v, srcOffset); return oU4.apply(this, arguments); };
