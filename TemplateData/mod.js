@@ -321,7 +321,8 @@
     var builds = 0, resetsSent = 0, deaths = 0, restarts = 0, stuckRestarts = 0;
     var lastRestart = -1000, lastRestartAt = 0, gameRunning = false;
     var frameNo = 0, debugLog = [];   // debugLog: last 40 decisions, for diagnostics
-    var lastLoopT = 0, worstGap = 0, worstGapFrame = 0, bigGaps = [], lastDraws = [];   // diagnostics: main-thread stalls between frames, last frame's draw list
+    var lastLoopT = 0, worstGap = 0, worstGapFrame = 0, bigGaps = [], lastDraws = [];
+    var perf = { fps: 0, frameMs: 0, worstMs: 0 }, perfWin = { n: 0, sum: 0, max: 0, t0: 0 };   // last completed 1 s window of frame intervals (SlopeMod.stats().fps)   // diagnostics: main-thread stalls between frames, last frame's draw list
     function note(ev) { debugLog.push(frameNo + ':' + ev); if (debugLog.length > 40) debugLog.shift(); }
 
     // build: null | { phase: "course" | "laps" | "settle" | "final", hidden, hiddenTarget, laps, since, started, tries, lastLift, startSent }
@@ -495,7 +496,9 @@
     function frameLoop() {
         if (paused) { requestAnimationFrame(frameLoop); return; }
         frameNo++;
-        var nowL = performance.now(); if (lastLoopT) { var gapL = nowL - lastLoopT; if (gapL > worstGap) { worstGap = gapL; worstGapFrame = frameNo; } if (gapL > 300) { bigGaps.push([frameNo, Math.round(gapL)]); if (bigGaps.length > 60) bigGaps.shift(); } } lastLoopT = nowL;
+        var nowL = performance.now(); if (lastLoopT) { var gapL = nowL - lastLoopT; if (gapL > worstGap) { worstGap = gapL; worstGapFrame = frameNo; } if (gapL > 300) { bigGaps.push([frameNo, Math.round(gapL)]); if (bigGaps.length > 60) bigGaps.shift(); }
+            perfWin.n++; perfWin.sum += gapL; if (gapL > perfWin.max) perfWin.max = gapL; if (!perfWin.t0) perfWin.t0 = nowL;
+            else if (nowL - perfWin.t0 >= 1000) { perf = { fps: Math.round(perfWin.n * 1000 / (nowL - perfWin.t0)), frameMs: +(perfWin.sum / perfWin.n).toFixed(1), worstMs: Math.round(perfWin.max) }; perfWin = { n: 0, sum: 0, max: 0, t0: nowL }; } } lastLoopT = nowL;
         var draws = frameDraws; frameDraws = [];
         lastDraws = draws;
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
@@ -1249,7 +1252,7 @@
         courseBatches: function () { return lastCourseCount; },
         log: function () { return debugLog.slice(); },
         frame: function () { return frameNo; },
-        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, stuckRestarts: stuckRestarts, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaders: window.SlopeShaders ? SlopeShaders.stats() : null }; },
+        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, stuckRestarts: stuckRestarts, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, fps: perf.fps, frameMs: perf.frameMs, worstMs: perf.worstMs, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaders: window.SlopeShaders ? SlopeShaders.stats() : null }; },
         setStack: setStackTarget,
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
