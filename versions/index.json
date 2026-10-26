@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: In the mod menu, rename the drop-down labeled \"LIGHT\" to \"SH",
-  "notes": "Made with the in-game dev mode (job d8cd8d8ce612).",
+  "title": "Dev edit: In the mod menu, remove the check boxes for Mort and King Ju",
+  "notes": "Made with the in-game dev mode (job 28df938411f4).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -354,6 +354,13 @@
    "notes": "The root as it was before the dev-mode edit 'In the mod menu, rename the drop-down labeled \"LIGHT\" to \"SHADERS\"'. Last commit: Dev edit: On the sunny preset, can you also borrow the reflections fro",
    "date": "2026-10-26",
    "commit": "cf488c2"
+  },
+  {
+   "tag": "v54-dev-28df93",
+   "title": "Before dev edit 28df93",
+   "notes": "The root as it was before the dev-mode edit 'In the mod menu, remove the check boxes for Mort and King Julien, and make them both automatically t'. Last commit: Dev edit: In the mod menu, rename the drop-down labeled \"LIGHT\" to \"SH",
+   "date": "2026-10-26",
+   "commit": "ce131ae"
   }
  ]
 }

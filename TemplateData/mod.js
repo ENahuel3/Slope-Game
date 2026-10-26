@@ -67,7 +67,7 @@
     var musicId = (function () { var id = lsGet(KEY_MUSIC); return TRACKS.some(function (t) { return t.id === id; }) ? id : "original"; })();
 
     function themeSetting(name) { var saved = lsGet("slope-mod." + name); return saved === null ? musicId === "billie" : saved === "true"; }
-    var mortEnabled = themeSetting("mort"), julienEnabled = themeSetting("julien");
+    var mortEnabled = musicId === "billie", julienEnabled = musicId === "billie";
     function setMort(on) { mortEnabled = !!on; lsSet("slope-mod.mort", mortEnabled); var el = document.getElementById("hud-mort"); if (el) el.checked = mortEnabled; syncBuilding(); }
     function setJulien(on) { julienEnabled = !!on; lsSet("slope-mod.julien", julienEnabled); var el = document.getElementById("hud-julien"); if (el) el.checked = julienEnabled; }
 
@@ -247,6 +247,7 @@
         var t = trackById(id); id = t.id;
         if (id === musicId) return;
         var was = musicId; musicId = id; lsSet(KEY_MUSIC, id);
+        setMort(id === "billie"); setJulien(id === "billie");   // the Mort and King Julien themes follow the Mort Jackson track
         var node = musicNode;
         if (!node || node.__slopeDead) return;             // changing the selection after death must stay silent
         if (was === "original" && isCustomMusic()) {
