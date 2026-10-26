@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Rename the mod menu button to \"Settings\"",
-  "notes": "Made with the in-game dev mode (job 22a0201d59a5).",
+  "title": "Dev edit: In settings, remove the text at the bottom that says things ",
+  "notes": "Made with the in-game dev mode (job 6775b425176a).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -596,6 +596,13 @@
    "notes": "The root as it was before the dev-mode edit 'Rename the mod menu button to \"Settings\"'. Last commit: Dev edit: It just doubled again. Here is what I see: Syncing the game",
    "date": "2026-10-26",
    "commit": "c8bd1f6"
+  },
+  {
+   "tag": "v74-dev-6775b4",
+   "title": "Before dev edit 6775b4",
+   "notes": "The root as it was before the dev-mode edit 'In settings, remove the text at the bottom that says things about toggling Mort and King julien.'. Last commit: Dev edit: Rename the mod menu button to \"Settings\"",
+   "date": "2026-10-26",
+   "commit": "74ad632"
   }
  ]
 }
