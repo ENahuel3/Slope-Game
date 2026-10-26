@@ -343,7 +343,7 @@
             "    skyCol = mix(skyCol, vec3(1.0, 0.99, 0.97), cl * 0.85); }",
             "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
             "  if (sky) { gl_FragColor = vec4(mix(skyCol, c, emis), (0.04 + 0.6 * pow(max(cosSun, 0.0), 10.0) + 0.6 * disc) * (1.0 - emis)); return; }",   // the UI has no depth: keep it over the sky
-            "  vec3 col; float dist = 20.0;",
+            "  vec3 col; float dist = 20.0; float bgBlack = 0.0;",
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
@@ -354,13 +354,13 @@
             "    vec3 surf = vec3(0.15, 0.15, 0.16) * (amb + direct);",   // matte dark albedo so the black track reads as black
             "    vec3 Hv = normalize(L - normalize(P)); float fr = 0.25 + 0.75 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0);",
             "    vec3 spec = sunCol * (0.3 * pow(max(dot(N, Hv), 0.0), 40.0) * fr + 0.06 * pow(max(dot(N, Hv), 0.0), 8.0)) * sh * ndl;",   // tight highlight plus a faint sheen that is lit outside shadows so they stay readable
-            "    float bg = smoothstep(25.0, 70.0, lz) * (1.0 - emis);",   // background buildings: darker and far less reflective
-            "    spec *= 1.0 - 0.9 * bg; c *= 1.0 - 0.45 * bg;",
             "    col = c * (1.0 + 0.15 * emis) + (surf + spec) * (1.0 - emis);",
+            "    bgBlack = smoothstep(25.0, 45.0, lz) * (1.0 - emis);",   // background buildings: plain black, no lighting, spec or fog
             "  } else {",
             "    col = c + vec3(0.55) * mix(horizon, zenith, 0.5) * 0.5 * (1.0 - emis);",
             "  }",
             "  float fog = 1.0 - exp(-dist * 0.008); col = mix(col, hazeCol, fog * 0.75 * (1.0 - 0.6 * emis));",
+            "  col = mix(col, vec3(0.0), bgBlack);",
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
         ].join("\n"),
