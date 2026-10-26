@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Make the colors more saturated like they are in the rainbow ",
-  "notes": "Made with the in-game dev mode (job d81ef47d55a5).",
+  "title": "Dev edit: Rename \"Intensity\" In settings to \"Style Intensity\"",
+  "notes": "Made with the in-game dev mode (job 5d89f0b34b15).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -652,6 +652,13 @@
    "notes": "The root as it was before the dev-mode edit 'Make the colors more saturated like they are in the rainbow preset.'. Last commit: Dev edit: Make the individual colors behave the same way as the other",
    "date": "2026-10-26",
    "commit": "6a51104"
+  },
+  {
+   "tag": "v82-dev-5d89f0",
+   "title": "Before dev edit 5d89f0",
+   "notes": "The root as it was before the dev-mode edit 'Rename \"Intensity\" In settings to \"Style Intensity\"'. Last commit: Dev edit: Make the colors more saturated like they are in the rainbow",
+   "date": "2026-10-26",
+   "commit": "19058da"
   }
  ]
 }
