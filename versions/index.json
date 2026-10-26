@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: On the night lighting preset, make the reflections on the tr",
-  "notes": "Made with the in-game dev mode (job baece0362082).",
+  "title": "Dev edit: Add a slider in the mods menu for the amount of steps the re",
+  "notes": "Made with the in-game dev mode (job 895f7e81f659).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -263,6 +263,13 @@
    "notes": "The root as it was before the dev-mode edit 'On the night lighting preset, make the reflections on the track cleaner, because right now they are '. Last commit: Dev edit: On the sunny lighting preset, make the 3d models in the back",
    "date": "2026-10-26",
    "commit": "2a7e011"
+  },
+  {
+   "tag": "v41-dev-895f7e",
+   "title": "Before dev edit 895f7e",
+   "notes": "The root as it was before the dev-mode edit 'Add a slider in the mods menu for the amount of steps the reflections take. Also feel free to playte'. Last commit: Dev edit: On the night lighting preset, make the reflections on the tr",
+   "date": "2026-10-26",
+   "commit": "99d6bfe"
   }
  ]
 }

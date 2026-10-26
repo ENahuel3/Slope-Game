@@ -110,6 +110,7 @@
         "uniform float uTime;",        // seconds
         "uniform float uHue;",         // 0..1, cycles every HUE_PERIOD
         "uniform float uSpeed;",       // 0..1, ball speed
+        "uniform float uReflSteps;",   // reflection ray-march steps (Night)
         "uniform float uAmount;",      // style intensity 0..1
         "uniform vec4 uP;",            // pass parameters
         "uniform vec4 uQ;",            // more pass parameters
@@ -176,11 +177,11 @@
         "vec3 reflectRay(vec3 P, vec3 N, out float hitFade) {",
         "  hitFade = 0.0; vec3 R = reflect(normalize(P), N);",
         "  float stp = max(0.08, 0.03 * -P.z); vec3 p = P + N * stp * 0.5 + R * stp;",
-        "  for (int i = 0; i < 48; i++) {",   // finer, longer march (was 24 steps growing 10%) so thin gaps do not show up as slits
-        "    if (p.z > -uCam.z) break;",
+        "  for (int i = 0; i < 96; i++) {",   // finer, longer march (was 24 steps growing 10%) so thin gaps do not show up as slits; uReflSteps (slider) sets the actual count
+        "    if (float(i) >= uReflSteps || p.z > -uCam.z) break;",
         "    vec3 q = proj(p); if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) break;",
         "    float bz = linZ(depthAt(q.xy)); float diff = q.z - bz;",
-        "    if (diff > 0.0 && diff < stp * 4.0) { hitFade = (1.0 - float(i) / 48.0) * (1.0 - smoothstep(0.7, 1.0, max(abs(q.x - 0.5), abs(q.y - 0.5)) * 2.0));",
+        "    if (diff > 0.0 && diff < stp * 4.0) { hitFade = (1.0 - float(i) / uReflSteps) * (1.0 - smoothstep(0.7, 1.0, max(abs(q.x - 0.5), abs(q.y - 0.5)) * 2.0));",
         "      vec3 s = texture2D(uTex, q.xy).rgb * 0.4 + texture2D(uTex, q.xy + vec2(0.003, 0.0)).rgb * 0.15 + texture2D(uTex, q.xy - vec2(0.003, 0.0)).rgb * 0.15 + texture2D(uTex, q.xy + vec2(0.0, 0.003)).rgb * 0.15 + texture2D(uTex, q.xy - vec2(0.0, 0.003)).rgb * 0.15; return s; }",
         "    p += R * stp; stp *= 1.05;",
         "  }",
@@ -514,6 +515,7 @@
     })();
     var lightId = (function () { var s = lsGet(KEY_LIGHT); return s && LIGHTS[s] ? s : "normal"; })();
     var intensity = (function () { var v = parseFloat(lsGet(KEY_FX)); return v >= 0 && v <= 1 ? v : 1; })();
+    var reflSteps = (function () { var v = parseInt(lsGet("slope.reflSteps"), 10); return v >= 8 && v <= 96 ? v : 48; })();
     var enabled = true;
 
     // ======================================================================
@@ -659,7 +661,7 @@
         if (!g.getShaderParameter(sh, gl.COMPILE_STATUS)) { var log = g.getShaderInfoLog(sh); g.deleteShader(sh); throw new Error(log); }
         return sh;
     }
-    var UNIFORMS = ["uTex", "uTex2", "uTex3", "uDepth", "uRes", "uTexel", "uTime", "uHue", "uSpeed", "uAmount", "uP", "uQ", "uCam", "uRot", "uLight", "uLightUV"];
+    var UNIFORMS = ["uTex", "uTex2", "uTex3", "uDepth", "uRes", "uTexel", "uTime", "uHue", "uSpeed", "uAmount", "uReflSteps", "uP", "uQ", "uCam", "uRot", "uLight", "uLightUV"];
     function program(fsName) {
         var p = res.programs[fsName];
         if (p !== undefined) return p;
@@ -957,7 +959,7 @@
                 g.activeTexture(gl.TEXTURE3); g.bindTexture(gl.TEXTURE_2D, sceneBuf.depth || src.tex);
                 g.uniform1i(p.u.uTex, 0); g.uniform1i(p.u.uTex2, 1); g.uniform1i(p.u.uTex3, 2); g.uniform1i(p.u.uDepth, 3);
                 g.uniform2f(p.u.uRes, ow, oh); g.uniform2f(p.u.uTexel, 1 / src.w, 1 / src.h);
-                g.uniform1f(p.u.uTime, t); g.uniform1f(p.u.uHue, hue); g.uniform1f(p.u.uSpeed, speed); g.uniform1f(p.u.uAmount, intensity);
+                g.uniform1f(p.u.uTime, t); g.uniform1f(p.u.uHue, hue); g.uniform1f(p.u.uSpeed, speed); g.uniform1f(p.u.uAmount, intensity); g.uniform1f(p.u.uReflSteps, reflSteps);
                 var P = pass.p || [], Q = pass.q || [];
                 g.uniform4f(p.u.uP, P[0] || 0, P[1] || 0, P[2] || 0, P[3] || 0);
                 g.uniform4f(p.u.uQ, Q[0] || 0, Q[1] || 0, Q[2] || 0, Q[3] || 0);
@@ -1033,6 +1035,15 @@
             fxRange.value = Math.round(intensity * 100);
             fxRange.addEventListener("input", function () { setIntensity(parseFloat(fxRange.value) / 100); });
             fxRange.addEventListener("change", function () { fxRange.blur(); });
+        }
+        var stepsRange = document.getElementById("hud-refl-steps"), stepsVal = document.getElementById("hud-refl-steps-val");
+        if (stepsRange) {
+            stepsRange.value = reflSteps; if (stepsVal) stepsVal.textContent = reflSteps;
+            stepsRange.addEventListener("input", function () {
+                var v = parseInt(stepsRange.value, 10); if (!(v >= 8)) v = 8; if (v > 96) v = 96;
+                reflSteps = v; lsSet("slope.reflSteps", v); if (stepsVal) stepsVal.textContent = v;
+            });
+            stepsRange.addEventListener("change", function () { stepsRange.blur(); });
         }
         document.addEventListener("keydown", function (e) {
             var ae = document.activeElement;
