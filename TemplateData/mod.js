@@ -1215,8 +1215,8 @@
     }
     function closePanel() { if (panel) panel.classList.remove("open"); if (editBox) editBox.blur(); if (passBox) passBox.blur(); }
     function logWithSummary(job) {         // the final reply is often already in the log: add the summary only when it is not
-        var log = job.log || [], s = String(job.summary || "").trim();
-        return s && log.join("\n").indexOf(s) < 0 ? log.concat(["", job.summary]) : log;
+        var log = job.log || [], flat = function (t) { return String(t || "").replace(/\s+/g, " ").trim(); }, s = flat(job.summary);   // the summary is one line and may be cut short, the log keeps its line breaks
+        return s && flat(log.join(" ")).indexOf(s) < 0 ? log.concat(["", job.summary]) : log;
     }
     function setLog(lines) { editLog.textContent = (lines || []).join("\n"); editLog.scrollTop = editLog.scrollHeight; }
     function submitEdit() {
