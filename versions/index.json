@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Can you do the same thing with the background models on the ",
-  "notes": "Made with the in-game dev mode (job bd329fbb6fae).",
+  "title": "Dev edit: The background models are fixed, but you can still the sun i",
+  "notes": "Made with the in-game dev mode (job bb1c56816185).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -333,6 +333,13 @@
    "notes": "The root as it was before the dev-mode edit 'Can you do the same thing with the background models on the sunset preset as it is in the sunny one,'. Last commit: Dev edit: The sun seems to slowly move and then snap back on the sunse",
    "date": "2026-10-26",
    "commit": "abe3745"
+  },
+  {
+   "tag": "v51-dev-bb1c56",
+   "title": "Before dev edit bb1c56",
+   "notes": "The root as it was before the dev-mode edit 'The background models are fixed, but you can still the sun itself faintly through solid objects.'. Last commit: Dev edit: Can you do the same thing with the background models on the",
+   "date": "2026-10-26",
+   "commit": "f39b42d"
   }
  ]
 }

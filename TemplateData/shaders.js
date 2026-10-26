@@ -432,9 +432,7 @@
             "  skyCol = mix(skyCol, zenith, smoothstep(0.3, 0.85, t));",
             "  vec2 sd = (vUv - uLightUV.xy) * vec2(uRes.x / uRes.y, 1.0) * 3.0;",   // the sun is pinned to a fixed screen position (uLightUV.xy)
             "  float cosSun = 1.0 - 0.5 * dot(sd, sd);",
-            "  skyCol += sunCol * (0.45 * pow(max(cosSun, 0.0), 12.0) + 0.5 * pow(max(cosSun, 0.0), 120.0));",
-            "  float disc = smoothstep(0.989, 0.993, cosSun);",
-            "  skyCol = mix(skyCol, vec3(1.0, 0.9, 0.7), disc);",
+            "  float disc = smoothstep(0.989, 0.993, cosSun);",   // the sun's glow and disc are drawn in lcompSky, after the bloom, so they cannot bleed over solid objects
             "  vec3 cell = floor(rdW * 170.0); float h = hash3(cell);",
             "  float star = step(0.9965, h) * (0.6 + 0.4 * sin(uTime * (2.0 + 6.0 * hash3(cell + 1.0)) + h * 50.0));",
             "  vec3 cf = fract(rdW * 170.0) - 0.5; star *= (1.0 - smoothstep(0.05, 0.35, length(cf))) * smoothstep(0.25, 0.6, up);",
@@ -496,6 +494,10 @@
             "  vec4 s = texture2D(uTex, vUv); vec3 c = s.rgb;",
             "  c += texture2D(uTex2, vUv).rgb * uP.rgb * smoothstep(0.0, 0.03, s.a);",
             "  c += texture2D(uTex3, vUv).rgb * uQ.x;",
+            "  vec2 sd = (vUv - uLightUV.xy) * vec2(uRes.x / uRes.y, 1.0) * 3.0; float cosSun = 1.0 - 0.5 * dot(sd, sd);",
+            "  float sky = smoothstep(0.0, 0.03, s.a); vec3 sunCol = vec3(1.0, 0.36, 0.12);",
+            "  vec3 glow = sunCol * (0.45 * pow(max(cosSun, 0.0), 12.0) + 0.5 * pow(max(cosSun, 0.0), 120.0));",
+            "  c = mix(c + glow * sky, vec3(1.0, 0.9, 0.7), smoothstep(0.989, 0.993, cosSun) * sky);",
             "  gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);",
             "}"
         ].join("\n")
