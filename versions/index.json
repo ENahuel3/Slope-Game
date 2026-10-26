@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Collectable coins",
-  "notes": "3D coins on the hard spots: tunnel roofs, high over the jumps, thin-lane edges, tilted-lane high edge, dogleg corners, lane edges; Coins toggle and counter.",
-  "date": "2026-10-25"
+  "title": "Dev edit: On the sunny light preset, the track is super bright and ref",
+  "notes": "Made with the in-game dev mode (job 6e9dc2ee715e).",
+  "date": "2026-10-26"
  },
  "versions": [
   {
@@ -214,6 +214,13 @@
    "notes": "Collectable 3D coins on the hard parts of the course (peer build 4ea9ca2), on top of the Minecraft zombie skyline, sunny light fix and T-pause. Frozen before the dev-mode thrift update.",
    "date": "2026-10-26",
    "commit": "b44b115"
+  },
+  {
+   "tag": "v34-dev-6e9dc2",
+   "title": "Before dev edit 6e9dc2",
+   "notes": "The root as it was before the dev-mode edit 'On the sunny light preset, the track is super bright and reflective. Make it more matte so that the '. Last commit: Dev mode: make jobs cheap and useful",
+   "date": "2026-10-26",
+   "commit": "b815aff"
   }
  ]
 }

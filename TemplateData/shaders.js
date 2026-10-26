@@ -352,8 +352,10 @@
             "    float upN = dot(uRot * N, SKY_UP);",
             "    vec3 amb = mix(horizon, zenith, 0.5 + 0.5 * upN) * 0.36;",
             "    vec3 direct = sunCol * 1.35 * ndl * sh;",
-            "    vec3 surf = vec3(0.56, 0.56, 0.58) * (amb + direct);",
-            "    col = c * (1.0 + 0.15 * emis) + surf * (1.0 - emis);",
+            "    vec3 surf = vec3(0.15, 0.15, 0.16) * (amb + direct);",   // matte dark albedo so the black track reads as black
+            "    vec3 Hv = normalize(L - normalize(P)); float fr = 0.25 + 0.75 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0);",
+            "    vec3 spec = sunCol * (0.35 * pow(max(dot(N, Hv), 0.0), 40.0) * fr) * sh * ndl;",   // tight sun highlight keeps a hint of gloss
+            "    col = c * (1.0 + 0.15 * emis) + (surf + spec) * (1.0 - emis);",
             "  } else {",
             "    col = c + vec3(0.55) * mix(horizon, zenith, 0.5) * 0.5 * (1.0 - emis);",
             "  }",
