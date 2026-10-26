@@ -509,6 +509,14 @@
    "notes": "The root as it was before the dev-mode edit '90 degree turns and curves presets are no longer working.'. Last commit: Dev edit: Revert what you just did",
    "date": "2026-10-26",
    "commit": "c1c8f3b"
+  },
+  {
+   "tag": "v62-tunnel-coins",
+   "title": "Coins on the tunnel tops",
+   "notes": "Coins back on the tunnel tops at their measured heights, none inside the tunnels or the start tunnel, lane-edge coins hidden under tunnels. Last version before the Gandalf skyline for the Epic Sax Gandalf track.",
+   "date": "2026-10-26",
+   "commit": "1d3b5a9",
+   "status": "ok"
   }
  ]
 }

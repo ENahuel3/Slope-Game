@@ -451,17 +451,17 @@
     }
 
     // Background pillars use the Mort toggle, otherwise follow the music. Skyline chunks use
-    // ModBuilding (tools/patch_buildings.py): original pillars, Aria zombies or Mort models.
+    // ModBuilding (tools/patch_buildings.py): original pillars, Aria zombies, Mort models or Gandalf cards (tools/patch_gandalf.py).
     // Changes apply to new chunks, or the whole crowd after restarting.
     var buildingPtr = null, buildingWritten = 0;
     function syncBuilding() {
         if (!H.vars.ModBuilding) return;
         if (!buildingPtr) {
-            var p0 = readGoVar("ModBuildingFlat"), pz = readGoVar("ModBuildingZombie"), pm = readGoVar("ModBuildingMort");
+            var p0 = readGoVar("ModBuildingFlat"), pz = readGoVar("ModBuildingZombie"), pm = readGoVar("ModBuildingMort"), pg = H.vars.ModBuildingGandalf ? readGoVar("ModBuildingGandalf") : 0;
             if (!(p0 && pz && pm && readGoVar("ModBuilding") === p0)) return;   // not discovered yet, or not the layout we expect
-            buildingPtr = { original: p0, aria: pz, billie: pm }; note("building prefabs: flat " + p0 + " zombie " + pz + " mort " + pm);
+            buildingPtr = { original: p0, aria: pz, billie: pm, sax: pg || p0 }; note("building prefabs: flat " + p0 + " zombie " + pz + " mort " + pm + " gandalf " + pg);
         }
-        var want = mortEnabled ? buildingPtr.billie : musicId === "aria" ? buildingPtr.aria : buildingPtr.original;
+        var want = mortEnabled ? buildingPtr.billie : musicId === "aria" ? buildingPtr.aria : musicId === "sax" ? buildingPtr.sax : buildingPtr.original;
         if (want !== buildingWritten) { writeGoVar("ModBuilding", want); buildingWritten = want; }
     }
     // ---- pause (T): freezes Unity's main loop (Emscripten Module.pauseMainLoop), suspends the game's WebAudio
@@ -644,7 +644,7 @@
         var u = heapU32(), f = heap32(), u16 = heapU16(); if (!u) return;
         var t0 = performance.now(), N = u.length, STEP = 4 << 20;
         var B = { g: fbits(G0), b5: fbits(5), b105: fbits(10.5), bm4: fbits(-4), one: fbits(1), b10: fbits(10), bm10: fbits(-10), b300: fbits(300) };
-        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "Score", "SpeedUpCount", "ModSectionDelay", "ModQ1", "ModBlock", "ModBlockFlat", "ModBlockP", "ModBlockN", "ModBuilding", "ModBuildingFlat", "ModBuildingZombie", "ModBuildingMort", "ModHold", "ModMark", "ModCameraOffset", "ModQCamera", "ModCameraTick"].filter(function (nm) { return !H.vars[nm]; });
+        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "Score", "SpeedUpCount", "ModSectionDelay", "ModQ1", "ModBlock", "ModBlockFlat", "ModBlockP", "ModBlockN", "ModBuilding", "ModBuildingFlat", "ModBuildingZombie", "ModBuildingMort", "ModBuildingGandalf", "ModHold", "ModMark", "ModCameraOffset", "ModQCamera", "ModCameraTick"].filter(function (nm) { return !H.vars[nm]; });
         var firsts = {}; names.forEach(function (nm) { firsts[nm.charCodeAt(0)] = (firsts[nm.charCodeAt(0)] || []).concat([nm]); });
         var strs = {}, owner = {}, flags = null, found = {};
         names.forEach(function (nm) { strs[nm] = []; found[nm] = []; });
