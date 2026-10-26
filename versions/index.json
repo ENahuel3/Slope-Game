@@ -688,6 +688,14 @@
    "notes": "The root as it was before the dev-mode edit 'Please optimize the whole thing; the 1% low frame rates are abysmal'. Last commit: Dev edit: Can you add a checkbox in settings to toggle vsync",
    "date": "2026-10-26",
    "commit": "7fe7388"
+  },
+  {
+   "tag": "v87-devoptimize",
+   "title": "Dev-mode optimization pass",
+   "notes": "The root before the shader early-outs: the dev-mode edits asking to optimize the whole thing (1% low frame rates), on top of the leaderboard removal, the obstacle fix and the super ramps.",
+   "date": "2026-10-26",
+   "commit": "eb76faf",
+   "status": "ok"
   }
  ]
 }
