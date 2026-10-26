@@ -10,357 +10,461 @@
    "title": "Stacked courses, instant restart, music, rainbow",
    "notes": "Before track shaping: Courses, R restart, music, rainbow, ad-free scene.",
    "date": "2026-10-15",
-   "commit": "14b9eec"
+   "commit": "14b9eec",
+   "status": "ok"
   },
   {
    "tag": "v5-gravity",
    "title": "Gravity modes (curves and ramps)",
    "notes": "Sideways-gravity curves and airborne ramp effects, before the course itself was reshaped.",
    "date": "2026-10-16",
-   "commit": "e952f4c"
+   "commit": "e952f4c",
+   "status": "issues",
+   "issues": "random freezes after a few minutes (heap writes, fixed in v11); sideways-gravity curves only, no real track shaping"
   },
   {
    "tag": "v6-track",
    "title": "Track shaping with rigid blocks",
    "notes": "Curves and 90-degree twists built one 14-unit block at a time; the last version before the three-slab geometry. Score/speed-up trigger boxes repaired on 2026-10-22 (they missed the ball in every build since the spawner patch).",
    "date": "2026-10-17",
-   "commit": "5571cfb"
+   "commit": "5571cfb",
+   "status": "issues",
+   "issues": "random freezes (fixed in v11); twists are rigid 90-degree blocks and the camera does not follow them"
   },
   {
    "tag": "v7-slabs",
    "title": "Three-slab geometry (first build)",
    "notes": "Lane blocks as three slabs with per-slab roll. Known bad: slabs sat one slab late (lane ends 9.4 short of each jump/drop) and the score triggers missed the ball (no score, void after the start tunnel).",
    "date": "2026-10-17",
-   "commit": "1f4c746"
+   "commit": "1f4c746",
+   "status": "broken",
+   "issues": "the lane ends 9.4 units short before every jump and drop (slabs placed one slab late), the score stays at 0 and the ball falls into the void after the start tunnel; random freezes"
   },
   {
    "tag": "v8-gapwrap",
    "title": "Section-start wrap, version picker, stack on straight only",
    "notes": "Added the two extra slabs at each section start and the Version selector. Known bad: lane still ended 9.4 short at section ends; score triggers still missed the ball.",
    "date": "2026-10-22",
-   "commit": "43347c1"
+   "commit": "43347c1",
+   "status": "broken",
+   "issues": "the lane still ends short at section ends and the score triggers still miss the ball; random freezes"
   },
   {
    "tag": "v9-forward",
    "title": "Forward slab placement, score triggers repaired",
    "notes": "Slabs cover the block ahead of the spawn point (vanilla spans), score/speed-up triggers hit the ball again. Last incremental-roll geometry before the continuous roll rework.",
    "date": "2026-10-22",
-   "commit": "2b44fbf"
+   "commit": "2b44fbf",
+   "status": "issues",
+   "issues": "random freezes after a few minutes (fixed in v11); stepped roll, camera does not follow the twists"
   },
   {
    "tag": "v10-fastload",
    "title": "Compressed data bundle, loader cache",
    "notes": "Same play as v9-forward; the scene bundle is gzip-compressed and the loader keeps the build in IndexedDB. Known bad: stacked courses (and the game-over screen) could abort the runtime (abort(218)) a few seconds after a lap spawn burst or a death, from the mod's stray heap writes; fixed in the next version.",
    "date": "2026-10-23",
-   "commit": "5a9b4ae"
+   "commit": "5a9b4ae",
+   "status": "issues",
+   "issues": "random freezes after a few minutes (fixed in v11); stepped roll, camera does not follow the twists"
   },
   {
    "tag": "v11-nofreeze",
    "title": "Freeze fix, gzip bundle",
    "notes": "Heap writes limited to the real FSM variable objects (the random freezes), data bundle gzip-wrapped for a faster load. Last version with incremental (per-block) roll geometry.",
    "date": "2026-10-24",
-   "commit": "7ea677a"
+   "commit": "7ea677a",
+   "status": "issues",
+   "issues": "stepped (incremental) roll and the camera does not follow the twists (fixed in v24)"
   },
   {
    "tag": "v12-roll",
    "title": "Continuous roll",
    "notes": "Twists and curves as real helicoid geometry (one block per spawner step); the last version with the compile-time rainbow shader rewrite.",
    "date": "2026-10-24",
-   "commit": "50e4d21"
+   "commit": "50e4d21",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane (fixed in v24); no stuck-ball watchdog, a wedged ball needs R"
   },
   {
    "tag": "v13-styles",
    "title": "Shader styles, continuous roll",
    "notes": "Post-processing shader styles (Rainbow, Neon glow, Synthwave, CRT, Hyperspeed, Pixel, Noir, Matrix) on the helicoid continuous-roll geometry. Known bad: a ball wedged between stacked courses at a section drop sat still forever (fixed in the next version by the stuck-ball watchdog).",
    "date": "2026-10-24",
-   "commit": "fb293e2"
+   "commit": "fb293e2",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane (fixed in v24); no stuck-ball watchdog"
   },
   {
    "tag": "v14-watchdog",
    "title": "Stuck-ball watchdog",
    "notes": "Shader styles plus the wedged-run watchdog; the last version before the Sunny / Night light modes.",
    "date": "2026-10-24",
-   "commit": "3d18b62"
+   "commit": "3d18b62",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane (fixed in v24); the watchdog can restart a run after a frame hitch (fixed in v21)"
   },
   {
    "tag": "v15-light",
    "title": "Light modes",
    "notes": "Normal, Sunny and Night lighting on top of the shader styles, the continuous roll and the stuck-ball watchdog.",
    "date": "2026-10-24",
-   "commit": "6fb421a"
+   "commit": "6fb421a",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane; the menu is hidden behind the sky in the Sunny and Night light modes (fixed in v18); false watchdog restarts after frame hitches"
   },
   {
    "tag": "v16-figures",
    "title": "Music figures: zombie horde and Mort crowd",
    "notes": "Skyline pillars become a zombie horde with Aria Math and a crowd of Morts with Mort Jackson. Last version before the password-locked dev mode.",
    "date": "2026-10-24",
-   "commit": "3adada2"
+   "commit": "3adada2",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane; the menu is hidden behind the sky in the Sunny and Night light modes; false watchdog restarts after frame hitches"
   },
   {
    "tag": "v17-devmode",
    "title": "Dev mode",
    "notes": "Password-locked Claude Code editing of the page from the Pi, on top of the light modes and the music figures. Known bad: the title menu is hidden under the sky with Light = Sunny or Night (fixed in the next version).",
    "date": "2026-10-24",
-   "commit": "7d63ab3"
+   "commit": "7d63ab3",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane; the menu is hidden behind the sky in the lit modes; false watchdog restarts after frame hitches; its dev-mode panel points at a server that no longer accepts it"
   },
   {
    "tag": "v18-menufix",
    "title": "Light modes, menu fixed",
    "notes": "The game's menu stays visible over the sky. Known bad: the lit modes' light shafts never rendered (fixed in the next version).",
    "date": "2026-10-24",
-   "commit": "c7958d2"
+   "commit": "c7958d2",
+   "status": "issues",
+   "issues": "light shafts of the Sunny and Night modes never render (fixed in v19); camera does not follow the rolling lane; false watchdog restarts after frame hitches"
   },
   {
    "tag": "v19-reviewfix",
    "title": "Light modes, review fixes",
    "notes": "Light shafts and GL-state review fixes. Last version before the downloaded Mort model and the HUD/editor keyboard and music-lifetime fixes.",
    "date": "2026-10-24",
-   "commit": "b1fdef6"
+   "commit": "b1fdef6",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane (fixed in v24); false watchdog restarts after frame hitches (fixed in v21)"
   },
   {
    "tag": "v20-mort",
    "title": "Mort model and runtime fixes",
    "notes": "Downloaded Mort model with original colors, corrected HUD/editor shortcuts and music-source lifetime. Before startup reset-loop protection.",
    "date": "2026-10-24",
-   "commit": "4fdc5eb"
+   "commit": "4fdc5eb",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane (fixed in v24); false watchdog restarts after frame hitches (fixed in v21)"
   },
   {
    "tag": "v21-tunnel",
    "title": "Starting-tunnel reset protection",
    "notes": "Startup grace in seconds, no false stuck resets after delayed frames, and no stack rebuild loop from late music confirmations. Before the denser Mort crowd and King Julien obstacles.",
    "date": "2026-10-24",
-   "commit": "dd3c6d4"
+   "commit": "dd3c6d4",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane (fixed in v24)"
   },
   {
    "tag": "v22-julien",
    "title": "More Morts and King Julien blocks",
    "notes": "87 low-poly Morts per skyline chunk, King Julien PNGs on red obstacles during Mort Jackson, and immediate restoration with other music. Before the accurate textured Mort V2 replacement.",
    "date": "2026-10-24",
-   "commit": "1ce9ddf"
+   "commit": "1ce9ddf",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane (fixed in v24)"
   },
   {
    "tag": "v23-mort-v2",
    "title": "Accurate textured Mort V2",
    "notes": "87 original textured Mort V2 models, transparent fur cards and slope-aligned placement; King Julien blocks retained. Before the twist/roll camera-frame fix.",
    "date": "2026-10-24",
-   "commit": "5f7e617"
+   "commit": "5f7e617",
+   "status": "issues",
+   "issues": "camera does not follow the rolling lane (fixed in v24)"
   },
   {
    "tag": "v24-camera",
    "title": "Locked twist camera and inward-facing Morts",
    "notes": "Camera follows twists and rolls; Mort crowds stand equally far from both sides and turn 20 degrees inward.",
    "date": "2026-10-24",
-   "commit": "a93cfdb"
+   "commit": "a93cfdb",
+   "status": "ok"
   },
   {
    "tag": "v25-devmode",
    "title": "Dev mode (password-locked Claude Code editing)",
    "notes": "Type devmode on the page; with the password, Claude Code edits the page from a sandbox on the owner's Pi within a token share, freezing the version it replaces. Courses still limited to a straight track here.",
    "date": "2026-10-24",
-   "commit": "bfe8c0c"
+   "commit": "bfe8c0c",
+   "status": "issues",
+   "issues": "its dev-mode panel points at a server that no longer accepts it; otherwise plays like v24"
   },
   {
    "tag": "v26-stacktrack",
    "title": "Courses stack on curves and twists",
    "notes": "Stacking allowed on Curves/Twists as an experiment, dev mode, shader review fixes, textured Mort crowd and King Julien obstacles.",
    "date": "2026-10-24",
-   "commit": "b3d2b3d"
+   "commit": "b3d2b3d",
+   "status": "issues",
+   "issues": "stacked courses on Curves/Twists were an experiment: a ball can wedge or creep on them with no automatic restart until v28"
   },
   {
    "tag": "v27-renumber",
    "title": "Versions in order",
    "notes": "Snapshots numbered in the order they were live. Known gap: the creeping-ball rule described in c757516 was not in the code (fixed in the next version).",
    "date": "2026-10-25",
-   "commit": "055b24c"
+   "commit": "055b24c",
+   "status": "issues",
+   "issues": "a creeping (under 5 u/s) ball is not restarted automatically (fixed in v28)"
   },
   {
    "tag": "v28-watchdog",
    "title": "Creeping-ball watchdog",
    "notes": "Stuck-ball watchdog also restarts a ball creeping under 5 units/s; last version before the T pause key.",
    "date": "2026-10-25",
-   "commit": "837ab98"
+   "commit": "837ab98",
+   "status": "ok"
   },
   {
    "tag": "v29-pause",
    "title": "T pauses the game",
    "notes": "T pauses and resumes the game, on top of the creeping-ball watchdog; the last version with the procedural box zombies.",
    "date": "2026-10-25",
-   "commit": "07f418a"
+   "commit": "07f418a",
+   "status": "ok"
   },
   {
    "tag": "v30-minecraft-zombie",
    "title": "Minecraft zombie skyline",
    "notes": "Aria Math skyline uses Minecraft's own zombie model and skin; the last version with the blinding Sunny light.",
    "date": "2026-10-25",
-   "commit": "bd254ee"
+   "commit": "bd254ee",
+   "status": "ok"
   },
   {
    "tag": "v31-dev-ee548a",
    "title": "Before dev edit ee548a",
    "notes": "The root as it was before the dev-mode edit 'In index.html, change the HUD hint text from \"T pauses\" to \"T pauses the run\". Nothing else.'. Last commit: Sunny light: the sun is no longer blinding. A deeper blue sky, a smaller sun hal",
    "date": "2026-10-25",
-   "commit": "c30fea8"
+   "commit": "c30fea8",
+   "status": "ok"
   },
   {
    "tag": "v32-devedit",
    "title": "Dev-mode edit: HUD hint says T pauses the run",
    "notes": "The root as it was before the coins: the sunny-light rework plus the first in-game dev edit (hint text), with .nojekyll.",
    "date": "2026-10-25",
-   "commit": "9c48063"
+   "commit": "9c48063",
+   "status": "ok"
   },
   {
    "tag": "v33-coins",
    "title": "Collectable coins",
    "notes": "Collectable 3D coins on the hard parts of the course (peer build 4ea9ca2), on top of the Minecraft zombie skyline, sunny light fix and T-pause. Frozen before the dev-mode thrift update.",
    "date": "2026-10-26",
-   "commit": "b44b115"
+   "commit": "b44b115",
+   "status": "issues",
+   "issues": "the coins on tunnel roofs, high over the jump gaps and on the high side of the tilted lanes cannot be reached; a separate coin counter"
   },
   {
    "tag": "v34-dev-6e9dc2",
    "title": "Before dev edit 6e9dc2",
    "notes": "The root as it was before the dev-mode edit 'On the sunny light preset, the track is super bright and reflective. Make it more matte so that the '. Last commit: Dev mode: make jobs cheap and useful",
    "date": "2026-10-26",
-   "commit": "b815aff"
+   "commit": "b815aff",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v35-dev-3a59b2",
    "title": "Before dev edit 3a59b2",
    "notes": "The root as it was before the dev-mode edit 'In the sunny lighting preset, make the track more matte so that the player can clearly tell that the'. Last commit: Dev mode: take the job's usage split from the result event (per-message usage re",
    "date": "2026-10-26",
-   "commit": "9a4e094"
+   "commit": "9a4e094",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v36-sunny-matte",
    "title": "Sunny track, matte",
    "notes": "The user's own dev-mode edit: on the Sunny light the track is matte black with shadows and a restrained sun highlight (job 3a59b2, ed45b87).",
    "date": "2026-10-26",
-   "commit": "ed45b87"
+   "commit": "ed45b87",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes)"
   },
   {
    "tag": "v37-dev-656223",
    "title": "Before dev edit 656223",
    "notes": "The root as it was before the dev-mode edit 'On the sunny preset, make the buildings in the background darker and way less reflective because rig'. Last commit: Dev mode: continue the conversation, lift the caps, let questions read code",
    "date": "2026-10-26",
-   "commit": "3e502e7"
+   "commit": "3e502e7",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v38-dev-8a22ea",
    "title": "Before dev edit 8a22ea",
    "notes": "The root as it was before the dev-mode edit 'On the sunny lighting preset, make the buildings in the background always black and not reflect at a'. Last commit: Dev edit: On the sunny preset, make the buildings in the background da",
    "date": "2026-10-26",
-   "commit": "538f0f5"
+   "commit": "538f0f5",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v39-dev-6a4a4f",
    "title": "Before dev edit 6a4a4f",
    "notes": "The root as it was before the dev-mode edit 'On the sunny lighting preset, make the 3d models in the background when the music is set to original'. Last commit: Dev edit: On the sunny lighting preset, make the buildings in the back",
    "date": "2026-10-26",
-   "commit": "56df919"
+   "commit": "56df919",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v40-dev-baece0",
    "title": "Before dev edit baece0",
    "notes": "The root as it was before the dev-mode edit 'On the night lighting preset, make the reflections on the track cleaner, because right now they are '. Last commit: Dev edit: On the sunny lighting preset, make the 3d models in the back",
    "date": "2026-10-26",
-   "commit": "2a7e011"
+   "commit": "2a7e011",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v41-dev-895f7e",
    "title": "Before dev edit 895f7e",
    "notes": "The root as it was before the dev-mode edit 'Add a slider in the mods menu for the amount of steps the reflections take. Also feel free to playte'. Last commit: Dev edit: On the night lighting preset, make the reflections on the tr",
    "date": "2026-10-26",
-   "commit": "99d6bfe"
+   "commit": "99d6bfe",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v42-dev-af49c5",
    "title": "Before dev edit af49c5",
    "notes": "The root as it was before the dev-mode edit 'The ball is cut into horizontal strips.'. Last commit: Dev edit: Add a slider in the mods menu for the amount of steps the re",
    "date": "2026-10-26",
-   "commit": "7d9eb35"
+   "commit": "7d9eb35",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v43-dev-25d34d",
    "title": "Before dev edit 25d34d",
    "notes": "The root as it was before the dev-mode edit 'It still looks the same.'. Last commit: Dev edit: The ball is cut into horizontal strips.",
    "date": "2026-10-26",
-   "commit": "31a1229"
+   "commit": "31a1229",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v44-dev-e618df",
    "title": "Before dev edit e618df",
    "notes": "The root as it was before the dev-mode edit 'In the night lighting preset, you can only see the reflections on the track when it's facing upward.'. Last commit: Dev edit: It still looks the same.",
    "date": "2026-10-26",
-   "commit": "f6eb76e"
+   "commit": "f6eb76e",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v45-devedits",
    "title": "Dev-mode edits before the fourth soundtrack",
    "notes": "The root as it was before the Epic Sax Gandalf track: the coins, the dev-mode usage/cap rework and the in-game dev edits (sunny and night lighting tweaks, a Mod Menu slider for the restart steps).",
    "date": "2026-10-26",
-   "commit": "7629b46"
+   "commit": "7629b46",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes)"
   },
   {
    "tag": "v46-dev-bb488c",
    "title": "Before dev edit bb488c",
    "notes": "The root as it was before the dev-mode edit 'That worked, but it also made the reflections a lot cleaner, which is good. Now, the ball's reflecti'. Last commit: Music: Epic Sax Gandalf as the fourth soundtrack",
    "date": "2026-10-26",
-   "commit": "05e59ba"
+   "commit": "05e59ba",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v47-dev-ad6504",
    "title": "Before dev edit ad6504",
    "notes": "The root as it was before the dev-mode edit 'Make the default reflection steps all the way up at 96.'. Last commit: Dev edit: That worked, but it also made the reflections a lot cleaner,",
    "date": "2026-10-26",
-   "commit": "44473c7"
+   "commit": "44473c7",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v48-dev-5d170d",
    "title": "Before dev edit 5d170d",
    "notes": "The root as it was before the dev-mode edit 'Make a sunset lighting preset, where the sun is visible straight ahead of the track, and it's dark e'. Last commit: Dev edit: Make the default reflection steps all the way up at 96.",
    "date": "2026-10-26",
-   "commit": "5eda7ed"
+   "commit": "5eda7ed",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v49-dev-6ddbd2",
    "title": "Before dev edit 6ddbd2",
    "notes": "The root as it was before the dev-mode edit 'The sun seems to slowly move and then snap back on the sunset preset; can you make its position fixe'. Last commit: Dev edit: Make a sunset lighting preset, where the sun is visible stra",
    "date": "2026-10-26",
-   "commit": "e0c1d44"
+   "commit": "e0c1d44",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v50-dev-bd329f",
    "title": "Before dev edit bd329f",
    "notes": "The root as it was before the dev-mode edit 'Can you do the same thing with the background models on the sunset preset as it is in the sunny one,'. Last commit: Dev edit: The sun seems to slowly move and then snap back on the sunse",
    "date": "2026-10-26",
-   "commit": "abe3745"
+   "commit": "abe3745",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v51-dev-bb1c56",
    "title": "Before dev edit bb1c56",
    "notes": "The root as it was before the dev-mode edit 'The background models are fixed, but you can still the sun itself faintly through solid objects.'. Last commit: Dev edit: Can you do the same thing with the background models on the",
    "date": "2026-10-26",
-   "commit": "f39b42d"
+   "commit": "f39b42d",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v52-dev-a0c346",
    "title": "Before dev edit a0c346",
    "notes": "The root as it was before the dev-mode edit 'On the sunny preset, can you also borrow the reflections from the night preset there, but since its '. Last commit: Dev edit: The background models are fixed, but you can still the sun i",
    "date": "2026-10-26",
-   "commit": "027389f"
+   "commit": "027389f",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v53-dev-d8cd8d",
    "title": "Before dev edit d8cd8d",
    "notes": "The root as it was before the dev-mode edit 'In the mod menu, rename the drop-down labeled \"LIGHT\" to \"SHADERS\"'. Last commit: Dev edit: On the sunny preset, can you also borrow the reflections fro",
    "date": "2026-10-26",
-   "commit": "cf488c2"
+   "commit": "cf488c2",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
   },
   {
    "tag": "v54-dev-28df93",
    "title": "Before dev edit 28df93",
    "notes": "The root as it was before the dev-mode edit 'In the mod menu, remove the check boxes for Mort and King Julien, and make them both automatically t'. Last commit: Dev edit: In the mod menu, rename the drop-down labeled \"LIGHT\" to \"SH",
    "date": "2026-10-26",
-   "commit": "ce131ae"
+   "commit": "ce131ae",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes); an in-game dev-edit snapshot, not separately tested"
+  },
+  {
+   "tag": "v55-devedits2",
+   "title": "Root before reachable coins",
+   "notes": "The root as it was before the coin placement rework and the version status marks: the Epic Sax Gandalf track and the in-game dev edits since (reflection steps, lighting and menu tweaks).",
+   "date": "2026-10-26",
+   "commit": "69dff28",
+   "status": "issues",
+   "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes)"
   }
  ]
 }

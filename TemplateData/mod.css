@@ -197,12 +197,14 @@ html, body {
 /* gravity modes: the canvas banks with sideways gravity; a badge names ramp events */
 .hud-gbadge { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #ffd54f; opacity: 0; transition: opacity 0.2s; }
 .hud-gbadge.on { opacity: 1; }
-.hud-coins { text-transform: none; letter-spacing: 0.02em; font-size: 13px; color: #ffe082; margin-left: 10px; }
 
 /* version picker (TemplateData/versions.js): in the HUD when there is one, else a corner box; a note on old versions */
 .version-box { position: fixed; top: 8px; right: 14px; z-index: 11; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #e8e8e8; font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 .version-note { position: fixed; right: 14px; bottom: 14px; z-index: 11; padding: 6px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #e8e8e8; font: 12px "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 .version-note a { color: #00e676; }
+.version-warn { max-width: 46ch; margin-bottom: 4px; padding: 4px 6px; border-radius: 6px; font-weight: 600; }
+.version-warn.broken { background: rgba(200, 40, 40, 0.85); color: #fff; }
+.version-warn.issues { background: rgba(220, 160, 0, 0.85); color: #111; }
 
 .edit-pass { gap: 8px; }
 .edit-passbox { flex: 1; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(0,0,0,0.5); color: #fff; font: inherit; padding: 6px 8px; }

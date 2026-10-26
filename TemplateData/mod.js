@@ -616,7 +616,7 @@
     var varKlass = {};
     function headerOk(a) { var u = heapU32(); if (!u) return false; var k = u[a >> 2]; return k > 0 && (k & 3) === 0 && k < u.length * 4 && u[(a + 4) >> 2] === 0; }
     function majorityKlass(addrs) { var u = heapU32(), n = {}, best = 0, bk = 0; addrs.forEach(function (a) { if (!headerOk(a)) return; var k = u[a >> 2]; n[k] = (n[k] || 0) + 1; if (n[k] > best) { best = n[k]; bk = k; } }); return bk; }
-    function varKind(nm) { return /^ModCamera(?:Offset|Position)$/.test(nm) ? "vec3" : /^ModQ/.test(nm) ? "quat" : /^Mod(Block|Building)/.test(nm) ? "go" : "float"; }
+    function varKind(nm) { return /^ModCamera(?:Offset|Position)$/.test(nm) ? "vec3" : /^ModQ/.test(nm) ? "quat" : /^Mod(Block|Building)/.test(nm) ? "go" : /^(Score|SpeedUpCount)$/.test(nm) ? "int" : "float"; }
     function learnKlasses(found) {
         var u = heapU32(), f = heap32(); if (!u) return;
         if (!varKlass.float) varKlass.float = majorityKlass(["zforce", "yforce", "SteerForceLeft", "SteerForceRight"].reduce(function (acc, nm) { return acc.concat(liveOnly(found[nm] || H.vars[nm] || [])); }, []));
@@ -629,6 +629,8 @@
             });
             varKlass.vec3 = majorityKlass(offsets);
         }
+        // FsmInt (the game's Score, counted by the ScorePoint triggers, and SpeedUpCount): same layout as FsmFloat, value at +24
+        if (!varKlass.int) varKlass.int = majorityKlass(["Score", "SpeedUpCount"].reduce(function (acc, nm) { return acc.concat(liveOnly(found[nm] || H.vars[nm] || [])); }, []));
         if (!varKlass.go) varKlass.go = majorityKlass(Object.keys(found).filter(function (nm) { return varKind(nm) === "go"; }).reduce(function (acc, nm) { return acc.concat(liveOnly(found[nm])); }, []));
     }
     function varObjects(nm, list) { var u = heapU32(), k = varKlass[varKind(nm)]; if (varKind(nm) === "vec3" && !k) return []; return liveOnly(list).filter(function (a) { return headerOk(a) && (!k || u[a >> 2] === k); }); }
@@ -641,7 +643,7 @@
         var u = heapU32(), f = heap32(), u16 = heapU16(); if (!u) return;
         var t0 = performance.now(), N = u.length, STEP = 4 << 20;
         var B = { g: fbits(G0), b5: fbits(5), b105: fbits(10.5), bm4: fbits(-4), one: fbits(1), b10: fbits(10), bm10: fbits(-10), b300: fbits(300) };
-        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay", "ModQ1", "ModBlock", "ModBlockFlat", "ModBlockP", "ModBlockN", "ModBuilding", "ModBuildingFlat", "ModBuildingZombie", "ModBuildingMort", "ModHold", "ModMark", "ModCameraOffset", "ModQCamera", "ModCameraTick"].filter(function (nm) { return !H.vars[nm]; });
+        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "Score", "SpeedUpCount", "ModSectionDelay", "ModQ1", "ModBlock", "ModBlockFlat", "ModBlockP", "ModBlockN", "ModBuilding", "ModBuildingFlat", "ModBuildingZombie", "ModBuildingMort", "ModHold", "ModMark", "ModCameraOffset", "ModQCamera", "ModCameraTick"].filter(function (nm) { return !H.vars[nm]; });
         var firsts = {}; names.forEach(function (nm) { firsts[nm.charCodeAt(0)] = (firsts[nm.charCodeAt(0)] || []).concat([nm]); });
         var strs = {}, owner = {}, flags = null, found = {};
         names.forEach(function (nm) { strs[nm] = []; found[nm] = []; });
@@ -1189,7 +1191,13 @@
         frameDt: function () { return frameDt; },
         pause: function (on) { setPaused(on === undefined ? !paused : on); return paused; },
         paused: function () { return paused; },
-        speed: function () { return Math.sqrt(ballVel[0] * ballVel[0] + ballVel[1] * ballVel[1] + ballVel[2] * ballVel[2]); },   // units/s, for speed-driven styles (shaders.js)
+        speed: function () { return Math.sqrt(ballVel[0] * ballVel[0] + ballVel[1] * ballVel[1] + ballVel[2] * ballVel[2]); },
+        score: function () { var u = heapU32(), objs = H.vars.Score || []; if (!u || !objs.length) return null; var best = 0; for (var i = 0; i < objs.length; i++) { var v = u[(objs[i] + 24) >> 2] | 0; if (v > best) best = v; } return best; },
+        addScore: function (n) {               // the game's own score counter (FsmInt "Score"): coins count like lane blocks
+            var u = heapU32(), objs = H.vars.Score || []; if (!u || !objs.length || !gameRunning) return 0;
+            for (var i = 0; i < objs.length; i++) { var k = (objs[i] + 24) >> 2; u[k] = Math.max(0, (u[k] | 0) + (n | 0)); }
+            return objs.length;
+        },   // units/s, for speed-driven styles (shaders.js)
         spawnTrace: function () { return spawnTrace.slice(); },
         profileScans: function () { var r = {}, t; t = performance.now(); findTriple(0, G0, 0); r.triple = Math.round(performance.now() - t); t = performance.now(); nearSeqMulti([[[PITCH_SX, 0, 0, PITCH_CX], 3e-4], [[0, 0, 0, 1, 5, 6.482, -4.737, 1, 1, 1], 2e-3], [[0.43559, 0, 0, 0.90015, 0, 3.056, -1.207, 1, 1, 1], 3e-4]]); r.near3 = Math.round(performance.now() - t); t = performance.now(); nearSeq([PITCH_SX, 0, 0, PITCH_CX], 3e-4); r.near1 = Math.round(performance.now() - t); t = performance.now(); ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"].forEach(findStringObjects); r.strings5 = Math.round(performance.now() - t); t = performance.now(); findFsmFloatsMulti(["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "ModSectionDelay"]); r.multi = Math.round(performance.now() - t); return r; },
         fsmGet: function (name) { var f = heap32(); return varObjects(name, findFsmFloats(name)).map(function (a) { return [a, f[(a + 24) >> 2]]; }); },

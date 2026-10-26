@@ -193,3 +193,7 @@ html, body {
 .version-box { position: fixed; top: 8px; right: 14px; z-index: 11; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #e8e8e8; font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 .version-note { position: fixed; right: 14px; bottom: 14px; z-index: 11; padding: 6px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #e8e8e8; font: 12px "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 .version-note a { color: #00e676; }
+
+.version-warn { max-width: 46ch; margin-bottom: 4px; padding: 4px 6px; border-radius: 6px; font-weight: 600; }
+.version-warn.broken { background: rgba(200, 40, 40, 0.85); color: #fff; }
+.version-warn.issues { background: rgba(220, 160, 0, 0.85); color: #111; }

@@ -1,8 +1,12 @@
 /* Slope mod: collectable 3D coins (loaded after shaders.js, before mod.js).
  *
- * The coins sit on the course's own pieces in the places that are hard to reach: on the roof of the tunnels, in the
- * air over the jump gaps, at the edges of the thin lanes, on the high side of the tilted lanes, at the outer corners
- * of the doglegs, and at the very edge of some lane blocks. Nothing in the scene data is changed for them.
+ * The coins sit on the course's own pieces in the places that are hard to reach but reachable: along the walls inside
+ * the tunnels, on the lip of the jumps and just past it in the air, at the edges of the thin lanes, on the uphill side
+ * of the tilted lanes, at the outer corners of the doglegs, and at the very edge of some lane blocks. Every position
+ * was derived from the piece meshes and the ball physics (tools/coin_layout.py): the ball's centre rides 0.5 above a
+ * walkable floor, so a floor coin sits 1.0 above the floor and the 1.25 pick radius always catches it; an air coin sits
+ * where the trajectories of every speed (8..40 u/s) and push (zforce 24..110) pass within the pick radius. Each coin
+ * collected adds one point to the game's own score (SlopeMod.addScore). Nothing in the scene data is changed for them.
  *
  * How the coins know where the pieces are: the game draws every track piece with its own draw call, after uploading
  * the piece's object-to-world matrix (unity_ObjectToWorld) and with the piece's mesh in the bound vertex buffer. The
@@ -57,17 +61,18 @@
 
     // ------------------------------------------------------------------ layouts: [x, s, n] per piece, in its lane frame
     // x across the lane (the lane blocks span 0..10), s along the course from the piece's origin, n above its floor.
-    // Heights are the floor or roof height under the coin plus 1.0, so a ball riding there runs through the coin.
+    // n is the walkable floor under the coin plus 1.0 (the ball centre rides at +0.5), except the air coins past the lips.
     var LAYOUTS = {
-        tunnelArc: [[5, 20, 5.9], [5, 28, 5.9], [5, 36, 5.9], [5, 44, 5.9]],           // the ridge of the arch (roof at 4.9)
-        tunnelRoof: [[5, 14, 5.5], [5, 22, 5.5], [5, 30, 5.5]],                        // the beam on top of the stepped roof (4.5)
-        jumpGapMid: [[5, 18, 5.0], [5, 24, 5.6], [5, 30, 5.0]],                        // high over the gap: off the 2.8 lip, only a fast ball flies this high
-        jump: [[5, 18, 4.0], [5, 24, 4.4]],                                            // high off the 1.4 lip (a slow ball peaks at 2.6, 15 along)
-        thin: [[1.9, 15, 1], [-1.9, 30, 1], [1.9, 45, 1], [-1.5, 60, 1], [1.9, 75, 1]],   // the edges of the 5-wide lane (4.5 wide after s 43)
-        thinNoJump: [[1.9, 15, 1], [-1.9, 30, 1], [1.9, 45, 1], [-1.5, 60, 1], [1.9, 75, 1]],
-        dogleg: [[-4.3, 34, 1], [-0.2, 73, 1], [4.5, 118, 1]],                         // the outer corners of the two bends, and the crossing
-        tiltLeft: [[15.3, 7, 4.0]],                                                    // the high edge (floor at 3.0)
-        tiltRight: [[1.2, 7, 4.1]]
+        tunnelArc: [[1.6, 14, 1.0], [8.4, 24, 1.0], [1.6, 34, 1.0], [8.4, 44, 1.0]],   // on the floor inside, hugging the walls (3.6 of headroom there)
+        tunnelArcLong: [[1.6, 16, 1.0], [8.4, 30, 1.0], [1.6, 44, 1.0], [8.4, 58, 1.0], [1.6, 72, 1.0]],   // the start tunnel, same
+        tunnelRoof: [[1.5, 12, 0.8], [8.5, 22, 0.8], [1.5, 32, 0.8]],   // the low death tunnel (1.43 of headroom): inside, by the walls, low enough for the ball centre at 0.5
+        jumpGapMid: [[5.0, 12.5, 3.73], [5.0, 15.1, 3.32]],   // on the lip (top 2.73 at s 12.7, 32.6-degree ramp) and 2.4 past it, inside the band of every trajectory
+        jump: [[5.0, 12.5, 2.36], [5.0, 15.3, 1.59]],   // on the lip (top 1.36 at s 12.7, 24-degree ramp) and 2.6 past it
+        thin: [[1.7, 15, 1.0], [-1.7, 30, 1.0], [1.7, 45, 1.0], [-1.7, 60, 1.0], [1.7, 74, 1.0]],   // the edges: the ball centre can reach |x| 2.0 on the 5-wide lane
+        thinNoJump: [[1.7, 15, 1.0], [-1.7, 30, 1.0], [1.7, 45, 1.0], [-1.7, 60, 1.0], [1.7, 74, 1.0]],   // same lane under the thin switch and the doglegs
+        dogleg: [[-4.2, 34, 1.0], [-0.4, 76, 1.0], [4.4, 118, 1.0]],   // the outer corners of the two bends and the crossing, inside the reachable spans
+        tiltLeft: [[8.9, 7, 1.22]],   // the uphill side of the regular lane width (the floor there is 0.22); higher needs more than the 16 u/s^2 of steering once zforce passes ~94
+        tiltRight: [[1.1, 7, 4.07]]   // mirror: x 1.1 is uphill, floor 3.07
     };
     function laneBlockLayout(key) {        // one block in three: a coin at the very edge of the lane (the ball's centre can reach x 0.5 / 9.5)
         var h = 0; for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
@@ -176,21 +181,15 @@
             osc.connect(gain); osc.start(t0); osc.stop(t0 + 0.45);
         } catch (e) { /* no audio */ }
     }
-    var badge = null, menuBox = null;
-    function updateBadge() {
-        if (!badge) badge = document.getElementById("hud-coin-count");
-        if (!badge) return;
-        var txt = enabled ? "🪙 " + count : "";
-        if (badge.textContent !== txt) badge.textContent = txt;
-        badge.title = "Coins this run" + (best ? " · best " + best : "");
-        badge.classList.toggle("on", enabled && (count > 0 || !!ballPos));
-    }
+    var menuBox = null;
+    function updateBadge() { /* no separate coin counter: a coin is a point on the game's own score (SlopeMod.addScore) */ }
     function collect(c, now) {
         c.done = 1; c.popAt = now; count++; collectedTotal++;
         if (count > best) { best = count; lsSet(KEY_BEST, best); }
-        chime(); updateBadge();
+        chime();
+        try { if (window.SlopeMod && SlopeMod.addScore) SlopeMod.addScore(1); } catch (e) { errors++; }
     }
-    function reset() { pieces = {}; pieceCount = 0; loose = []; count = 0; ballPos = ballPrev = null; updateBadge(); }
+    function reset() { pieces = {}; pieceCount = 0; loose = []; count = 0; ballPos = ballPrev = null; }
 
     // ------------------------------------------------------------------ drawing
     var VS = [
@@ -375,7 +374,7 @@
         updateBadge();
     }
     function wireHud() {
-        menuBox = document.getElementById("hud-coins"); badge = document.getElementById("hud-coin-count");
+        menuBox = document.getElementById("hud-coins");
         if (menuBox) { menuBox.checked = enabled; menuBox.addEventListener("change", function () { setEnabled(menuBox.checked); }); }
         updateBadge();
     }
@@ -393,6 +392,9 @@
             loose.push({ wp: [x, y, z], up: up, fwd: fwd, right: norm3(cross(up, fwd)), phase: 0, done: 0, popAt: 0 }); return loose.length;
         },
         layouts: LAYOUTS,
+        matrices: function () {            // debug/test: one object-to-world matrix per piece kind (the first piece seen of each)
+            var out = {}; for (var k in pieces) { var p = pieces[k]; if (!out[p.kind]) out[p.kind] = Array.prototype.slice.call(p.m); } return out;
+        },
         coins: function () {               // debug/test: every live coin with its world position
             var out = [], b = ballPos; for (var k in pieces) pieces[k].coins.forEach(function (c) { out.push({ kind: pieces[k].kind, wp: c.wp.map(function (v) { return +v.toFixed(2); }), done: c.done, dist: b ? +Math.hypot(c.wp[0] - b[0], c.wp[1] - b[1], c.wp[2] - b[2]).toFixed(2) : null }); }); return out;
         },

@@ -6,11 +6,13 @@
     var m = location.pathname.match(/\/versions\/([^\/]+)\/(?:index\.html)?$/);
     var tag = m ? decodeURIComponent(m[1]) : "latest", root = m ? "../../" : "./";
     function go(t) { location.href = root + (t === "latest" ? "" : "versions/" + encodeURIComponent(t) + "/"); }
+    // status: "ok" | "issues" (playable with known problems) | "broken" (do not expect a normal game); issues: what is wrong
+    function flag(v) { return v.status === "broken" ? "\u26a0 " : v.status === "issues" ? "\u25b3 " : ""; }
     function build(man) {
         var sel = document.createElement("select"); sel.id = "hud-version"; sel.className = "hud-input hud-select"; sel.title = "Play another version of the mod. Older versions keep working if the latest one breaks.";
         function opt(value, text) { var o = document.createElement("option"); o.value = value; o.textContent = text; sel.appendChild(o); }
         var L = man.latest || {}; opt("latest", "Latest" + (L.title ? " – " + L.title : "") + (L.date ? " (" + L.date + ")" : ""));
-        (man.versions || []).map(function (v, i) { v.seq = i; return v; }).sort(function (a, b) { return (a.date || "") !== (b.date || "") ? ((b.date || "") < (a.date || "") ? -1 : 1) : b.seq - a.seq; }).forEach(function (v) { opt(v.tag, v.tag + (v.title ? " – " + v.title : "") + (v.date ? " (" + v.date + ")" : "")); });
+        (man.versions || []).map(function (v, i) { v.seq = i; return v; }).sort(function (a, b) { return (a.date || "") !== (b.date || "") ? ((b.date || "") < (a.date || "") ? -1 : 1) : b.seq - a.seq; }).forEach(function (v) { opt(v.tag, flag(v) + v.tag + (v.title ? " – " + v.title : "") + (v.date ? " (" + v.date + ")" : "") + (v.status === "broken" ? " – BROKEN" : v.status === "issues" ? " – has issues" : "")); });
         sel.value = tag; if (sel.value !== tag) { opt(tag, tag + " (unlisted)"); sel.value = tag; }
         sel.addEventListener("change", function () { if (sel.value !== tag) go(sel.value); });
         var label = document.createElement("label"); label.className = "hud-label"; label.htmlFor = "hud-version"; label.textContent = "Version";
@@ -23,6 +25,11 @@
             var note = document.createElement("div"); note.className = "version-note";
             var cur = (man.versions || []).filter(function (v) { return v.tag === tag; })[0];
             note.textContent = "Playing " + tag + (cur && cur.date ? " from " + cur.date : "") + ". ";
+            if (cur && (cur.status === "broken" || cur.status === "issues")) {
+                var warn = document.createElement("div"); warn.className = "version-warn " + cur.status;
+                warn.textContent = (cur.status === "broken" ? "\u26a0 This version is broken: " : "\u25b3 Known issues: ") + (cur.issues || "see the version list") + " ";
+                note.insertBefore(warn, note.firstChild);
+            }
             var a = document.createElement("a"); a.href = root; a.textContent = "Back to the latest version"; note.appendChild(a);
             document.body.appendChild(note);
         }

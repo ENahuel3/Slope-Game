@@ -225,3 +225,7 @@ html, body {
 .mod-options input[type=checkbox] { width: 22px; height: 22px; margin: 0; accent-color: #00e676; cursor: pointer; }
 .mod-menu-note { font-size: 12px; line-height: 1.5; color: #bac2be; margin: 18px 0; }
 @media (max-width: 600px) { .hud { gap: 8px; padding: 8px; } .hud-hint { display: none; } }
+
+.version-warn { max-width: 46ch; margin-bottom: 4px; padding: 4px 6px; border-radius: 6px; font-weight: 600; }
+.version-warn.broken { background: rgba(200, 40, 40, 0.85); color: #fff; }
+.version-warn.issues { background: rgba(220, 160, 0, 0.85); color: #111; }

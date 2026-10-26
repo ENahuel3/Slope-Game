@@ -205,3 +205,7 @@ html, body {
 .edit-pass { gap: 8px; }
 .edit-passbox { flex: 1; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(0,0,0,0.5); color: #fff; font: inherit; padding: 6px 8px; }
 .edit-passbox:focus { outline: none; border-color: #00e676; }
+
+.version-warn { max-width: 46ch; margin-bottom: 4px; padding: 4px 6px; border-radius: 6px; font-weight: 600; }
+.version-warn.broken { background: rgba(200, 40, 40, 0.85); color: #fff; }
+.version-warn.issues { background: rgba(220, 160, 0, 0.85); color: #111; }

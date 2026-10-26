@@ -9,7 +9,9 @@ import sys, os, json, subprocess, shutil, re, argparse, tempfile
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHARED_ENGINE = ['slope_wasmcode.unityweb', 'slope_wasmframework.unityweb', 'slope_memory.unityweb', 'slope_framework.unityweb', 'slope_code.unityweb']
 ap = argparse.ArgumentParser(); ap.add_argument('tag', nargs='?'); ap.add_argument('--from', dest='src'); ap.add_argument('--title', required=True); ap.add_argument('--notes', default='')
-ap.add_argument('--force', action='store_true'); ap.add_argument('--latest', action='store_true'); A = ap.parse_args()
+ap.add_argument('--force', action='store_true'); ap.add_argument('--latest', action='store_true')
+ap.add_argument('--status', choices=['ok', 'issues', 'broken'], default=None, help="playability: ok, issues (playable with known problems) or broken"); ap.add_argument('--issues', default=None, help="what is wrong, shown in the picker")
+A = ap.parse_args()
 def git(*a): return subprocess.check_output(['git', '-C', REPO] + list(a), stderr=subprocess.DEVNULL).decode().strip()
 man_path = os.path.join(REPO, 'versions', 'index.json'); os.makedirs(os.path.dirname(man_path), exist_ok=True)
 man = json.load(open(man_path)) if os.path.exists(man_path) else {'latest': {}, 'versions': []}
@@ -66,7 +68,10 @@ if '.version-box' not in css:
 open(css_path, 'w').write(css); open(os.path.join(tmp, 'index.html'), 'w').write(html)
 if os.path.exists(dst): shutil.rmtree(dst)
 shutil.move(tmp, dst)
-man['versions'] = [v for v in man['versions'] if v['tag'] != A.tag] + [{'tag': A.tag, 'title': A.title, 'notes': A.notes, 'date': date, 'commit': commit}]
+entry = {'tag': A.tag, 'title': A.title, 'notes': A.notes, 'date': date, 'commit': commit}
+if A.status: entry['status'] = A.status
+if A.issues: entry['issues'] = A.issues
+man['versions'] = [v for v in man['versions'] if v['tag'] != A.tag] + [entry]
 man['versions'].sort(key=lambda v: v['date'])
 json.dump(man, open(man_path, 'w'), indent=1)
 size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(dst) for f in fs)

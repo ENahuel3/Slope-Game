@@ -232,3 +232,7 @@ html, body {
 .pause-overlay.on { display: flex; }
 .pause-title { color: #00e676; font-weight: 800; letter-spacing: 0.3em; font-size: 42px; }
 .pause-hint { color: #e8e8e8; opacity: 0.8; font-size: 14px; }
+
+.version-warn { max-width: 46ch; margin-bottom: 4px; padding: 4px 6px; border-radius: 6px; font-weight: 600; }
+.version-warn.broken { background: rgba(200, 40, 40, 0.85); color: #fff; }
+.version-warn.issues { background: rgba(220, 160, 0, 0.85); color: #111; }
