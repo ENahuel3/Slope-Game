@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: The background models are fixed, but you can still the sun i",
-  "notes": "Made with the in-game dev mode (job bb1c56816185).",
+  "title": "Dev edit: On the sunny preset, can you also borrow the reflections fro",
+  "notes": "Made with the in-game dev mode (job a0c34690c93a).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -340,6 +340,13 @@
    "notes": "The root as it was before the dev-mode edit 'The background models are fixed, but you can still the sun itself faintly through solid objects.'. Last commit: Dev edit: Can you do the same thing with the background models on the",
    "date": "2026-10-26",
    "commit": "f39b42d"
+  },
+  {
+   "tag": "v52-dev-a0c346",
+   "title": "Before dev edit a0c346",
+   "notes": "The root as it was before the dev-mode edit 'On the sunny preset, can you also borrow the reflections from the night preset there, but since its '. Last commit: Dev edit: The background models are fixed, but you can still the sun i",
+   "date": "2026-10-26",
+   "commit": "027389f"
   }
  ]
 }
