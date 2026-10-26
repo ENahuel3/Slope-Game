@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: The sun seems to slowly move and then snap back on the sunse",
-  "notes": "Made with the in-game dev mode (job 6ddbd23b0322).",
+  "title": "Dev edit: Can you do the same thing with the background models on the ",
+  "notes": "Made with the in-game dev mode (job bd329fbb6fae).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -326,6 +326,13 @@
    "notes": "The root as it was before the dev-mode edit 'The sun seems to slowly move and then snap back on the sunset preset; can you make its position fixe'. Last commit: Dev edit: Make a sunset lighting preset, where the sun is visible stra",
    "date": "2026-10-26",
    "commit": "e0c1d44"
+  },
+  {
+   "tag": "v50-dev-bd329f",
+   "title": "Before dev edit bd329f",
+   "notes": "The root as it was before the dev-mode edit 'Can you do the same thing with the background models on the sunset preset as it is in the sunny one,'. Last commit: Dev edit: The sun seems to slowly move and then snap back on the sunse",
+   "date": "2026-10-26",
+   "commit": "abe3745"
   }
  ]
 }

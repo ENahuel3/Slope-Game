@@ -441,7 +441,7 @@
             "  skyCol += vec3(0.9, 0.93, 1.0) * star * 0.7;",
             "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
             "  if (sky) { gl_FragColor = vec4(mix(skyCol, c * (1.0 + 0.3 * emis), emis), (0.05 + 0.5 * pow(max(cosSun, 0.0), 10.0) + 0.6 * disc) * (1.0 - emis)); return; }",
-            "  vec3 col; float dist = 20.0;",
+            "  vec3 col; float dist = 20.0; float bgBlack = 0.0;",
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
@@ -457,10 +457,12 @@
             "    if (floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
             "      float fres = 0.3 + 0.7 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0); refl *= fres * floorness * 0.8; }",
             "    col = c * (1.0 + 0.3 * emis) + surf * (1.0 - emis) + refl * (1.0 - emis);",
+            "    bgBlack = smoothstep(10.0, 22.0, lz) * (1.0 - emis);",   // background buildings/towers: plain black, as in Sunny
             "  } else {",
             "    col = c * (1.0 + 0.3 * emis) + vec3(0.04, 0.03, 0.05) * (1.0 - emis);",
             "  }",
             "  float fog = 1.0 - exp(-dist * 0.012); col = mix(col, skyCol, fog * 0.8 * (1.0 - 0.6 * emis));",
+            "  col = mix(col, vec3(0.0), bgBlack);",
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
         ].join("\n"),
@@ -482,6 +484,17 @@
             "void main() {",
             "  vec3 c = texture2D(uTex, vUv).rgb;",
             "  c += texture2D(uTex2, vUv).rgb * uP.rgb;",
+            "  c += texture2D(uTex3, vUv).rgb * uQ.x;",
+            "  gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);",
+            "}"
+        ].join("\n"),
+
+        // Sunset composite: like lcomp, but the light shafts only show over the sky (the lighting pass leaves
+        // alpha 0 on solid geometry), so the sun's glow never shows through the ball, track or background.
+        lcompSky: [
+            "void main() {",
+            "  vec4 s = texture2D(uTex, vUv); vec3 c = s.rgb;",
+            "  c += texture2D(uTex2, vUv).rgb * uP.rgb * smoothstep(0.0, 0.03, s.a);",
             "  c += texture2D(uTex3, vUv).rgb * uQ.x;",
             "  gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);",
             "}"
@@ -563,7 +576,7 @@
         { fs: "bright", in: "a", out: "h2", p: [0.5] },
         { fs: "blur", in: "h2", out: "h3", p: [1, 0, 1.6] },
         { fs: "blur", in: "h3", out: "h2", p: [0, 1, 1.6] },
-        { fs: "lcomp", in: "a", in2: "h1", in3: "h2", out: "lit", p: [1.0, 0.4, 0.15], q: [0.6] }
+        { fs: "lcompSky", in: "a", in2: "h1", in3: "h2", out: "lit", p: [1.0, 0.4, 0.15], q: [0.6] }
     ] };
     var LIGHT_ORDER = ["normal", "sunny", "sunset", "night"];
 
