@@ -500,6 +500,7 @@
         lastDraws = draws;
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
         try { syncBuilding(); } catch (e) { /* diagnostics only */ }
+        try { stepAhead(); } catch (e) { /* never break the game loop */ }
         try { stepTrack(gameRunning && !build && !restartSeq); } catch (e) { if (!trackDebug.err) { trackDebug.err = String(e); note("track error: " + e); } }
         requestAnimationFrame(frameLoop);
     }
@@ -1040,6 +1041,30 @@
         }, 2500);
     }
 
+    // Render distance: how many speed-up sections (laps) of track are built ahead. The game builds one more lap each time
+    // the ball passes a speed-up arch ("Check score" on the spawner), so building N-1 extra laps once at the start of a
+    // run keeps N laps ahead for the rest of it. 1 = the normal game. The extras go one at a time, once the spawner is idle.
+    var KEY_VIEW = "slope-mod.viewDist", VIEW_MAX = 10;
+    var viewDist = (function () { var n = parseInt(lsGet(KEY_VIEW), 10); return (n >= 1 && n <= VIEW_MAX) ? n : 1; })();
+    var aheadRun = -1, aheadLeft = 0, aheadLast = 0;
+    function stepAhead() {
+        if (!gameRunning || build || restartSeq) return;
+        if (aheadRun !== lastRestart) { aheadRun = lastRestart; aheadLeft = viewDist - 1; aheadLast = frameNo + 60; }   // a new run: let its first section spawn before adding more
+        if (aheadLeft <= 0 || frameNo - aheadLast < 10) return;
+        if (gravityMode !== "off" && !(track && !track.moving)) return;                                               // a shaped track spawns block by block: wait until the spawner is idle
+        if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; }
+    }
+    function setViewDist(n) {
+        n = parseInt(n, 10);
+        if (!(n >= 1)) n = 1;
+        if (n > VIEW_MAX) n = VIEW_MAX;
+        if (gameRunning && aheadRun === lastRestart) aheadLeft = Math.max(0, aheadLeft + n - viewDist);   // raised mid-run: build the difference
+        viewDist = n; lsSet(KEY_VIEW, n);
+        var rng = document.getElementById("hud-view"), val = document.getElementById("hud-view-val");
+        if (rng && String(rng.value) !== String(n)) rng.value = n;
+        if (val) val.textContent = n;
+    }
+
     function setStackTarget(n) {
         n = parseInt(n, 10);
         if (!(n >= 1)) n = 1;
@@ -1240,6 +1265,12 @@
                 gravSel.addEventListener("blur", showHud);
             }
 
+            var viewRange = document.getElementById("hud-view");
+            if (viewRange) {
+                viewRange.value = viewDist; var viewVal = document.getElementById("hud-view-val"); if (viewVal) viewVal.textContent = viewDist;
+                viewRange.addEventListener("input", function () { setViewDist(viewRange.value); });
+                viewRange.addEventListener("change", function () { viewRange.blur(); });
+            }
             if (stackInput) {
                 stackInput.value = stackTarget; refreshStackNote();
                 stackInput.addEventListener("input", function () { setStackTarget(stackInput.value); });

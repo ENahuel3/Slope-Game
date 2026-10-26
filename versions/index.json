@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: In the mod menu, remove the check boxes for Mort and King Ju",
-  "notes": "Made with the in-game dev mode (job 28df938411f4).",
+  "title": "Dev edit: Y'know the parts of the track that are like arches and cause",
+  "notes": "Made with the in-game dev mode (job 1c813b08f7b0).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -465,6 +465,13 @@
    "commit": "69dff28",
    "status": "issues",
    "issues": "unreachable coins (tunnel roofs, high over the gaps, the high side of tilted lanes)"
+  },
+  {
+   "tag": "v56-dev-1c813b",
+   "title": "Before dev edit 1c813b",
+   "notes": "The root as it was before the dev-mode edit 'Y'know the parts of the track that are like arches and cause a speed up? Right now, it seems like yo'. Last commit: Coins: every coin derived from the piece geometry and the ball physics; a coin i",
+   "date": "2026-10-26",
+   "commit": "a30049e"
   }
  ]
 }

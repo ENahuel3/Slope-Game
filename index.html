@@ -51,6 +51,8 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
             <div id="mod-options" class="mod-options">
         <label class="hud-label" for="hud-stack" title="How many courses get stacked on top of each other before a death clears them (the rapid-Enter glitch, automated)">Courses</label>
         <input id="hud-stack" class="hud-input" type="number" min="1" max="99" step="1" value="1" inputmode="numeric" title="Type a number: 1 = normal game">
+        <label class="hud-label" for="hud-view" title="Render distance: how many speed-up sections of track are built ahead of you (1 = normal game). Applies from the next run or restart; raising it mid-run adds track right away.">Render distance <span id="hud-view-val">1</span></label>
+        <input id="hud-view" class="hud-range" type="range" min="1" max="10" step="1" value="1" title="Render distance (speed-up sections ahead)">
         <label class="hud-label" for="hud-style" title="Visual style: post-processing shaders over the game's frame (V cycles)">Style</label>
         <select id="hud-style" class="hud-input hud-select" title="Visual style (V cycles, Shift+V backwards)"></select>
         <label class="hud-label" for="hud-fx">Intensity</label>
