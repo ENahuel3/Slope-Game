@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Add a slider in the mods menu for the amount of steps the re",
-  "notes": "Made with the in-game dev mode (job 895f7e81f659).",
+  "title": "Dev edit: The ball is cut into horizontal strips.",
+  "notes": "Made with the in-game dev mode (job af49c59a3849).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -270,6 +270,13 @@
    "notes": "The root as it was before the dev-mode edit 'Add a slider in the mods menu for the amount of steps the reflections take. Also feel free to playte'. Last commit: Dev edit: On the night lighting preset, make the reflections on the tr",
    "date": "2026-10-26",
    "commit": "99d6bfe"
+  },
+  {
+   "tag": "v42-dev-af49c5",
+   "title": "Before dev edit af49c5",
+   "notes": "The root as it was before the dev-mode edit 'The ball is cut into horizontal strips.'. Last commit: Dev edit: Add a slider in the mods menu for the amount of steps the re",
+   "date": "2026-10-26",
+   "commit": "7d9eb35"
   }
  ]
 }

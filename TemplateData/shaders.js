@@ -182,7 +182,10 @@
         "    vec3 q = proj(p); if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) break;",
         "    float bz = linZ(depthAt(q.xy)); float diff = q.z - bz;",
         "    if (diff > 0.0 && diff < stp * 4.0) { hitFade = (1.0 - float(i) / uReflSteps) * (1.0 - smoothstep(0.7, 1.0, max(abs(q.x - 0.5), abs(q.y - 0.5)) * 2.0));",
-        "      vec3 s = texture2D(uTex, q.xy).rgb * 0.4 + texture2D(uTex, q.xy + vec2(0.003, 0.0)).rgb * 0.15 + texture2D(uTex, q.xy - vec2(0.003, 0.0)).rgb * 0.15 + texture2D(uTex, q.xy + vec2(0.0, 0.003)).rgb * 0.15 + texture2D(uTex, q.xy - vec2(0.0, 0.003)).rgb * 0.15; return s; }",
+        "      vec3 lo = p - R * stp, hi = p;",   // binary refinement: land on the actual surface instead of the quantised step, so the reflected ball is not cut into strips
+        "      for (int k = 0; k < 8; k++) { vec3 m = 0.5 * (lo + hi); vec3 qm = proj(m); if (qm.z - linZ(depthAt(qm.xy)) > 0.0) hi = m; else lo = m; }",
+        "      vec3 qh = proj(hi); if (qh.x < 0.0 || qh.x > 1.0 || qh.y < 0.0 || qh.y > 1.0) qh = q;",
+        "      return texture2D(uTex, qh.xy).rgb; }",
         "    p += R * stp; stp *= 1.05;",
         "  }",
         "  return vec3(0.0);",
