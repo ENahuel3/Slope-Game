@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: It still looks the same.",
-  "notes": "Made with the in-game dev mode (job 25d34de11a2c).",
+  "title": "Dev edit: In the night lighting preset, you can only see the reflectio",
+  "notes": "Made with the in-game dev mode (job e618df75d53a).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -284,6 +284,13 @@
    "notes": "The root as it was before the dev-mode edit 'It still looks the same.'. Last commit: Dev edit: The ball is cut into horizontal strips.",
    "date": "2026-10-26",
    "commit": "31a1229"
+  },
+  {
+   "tag": "v44-dev-e618df",
+   "title": "Before dev edit e618df",
+   "notes": "The root as it was before the dev-mode edit 'In the night lighting preset, you can only see the reflections on the track when it's facing upward.'. Last commit: Dev edit: It still looks the same.",
+   "date": "2026-10-26",
+   "commit": "f6eb76e"
   }
  ]
 }

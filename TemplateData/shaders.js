@@ -404,7 +404,8 @@
             "    vec3 surf = vec3(0.32, 0.33, 0.38) * (amb + direct);",
             "    float floorness = smoothstep(0.35, 0.8, dot(uRot * N, SKY_UP));",
             "    vec3 refl = vec3(0.0);",
-            "    if (floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, floorness)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
+            "    float upF = floorness; floorness = max(floorness, 1.0 - smoothstep(35.0, 60.0, lz));",   // the course rolls, so reflect on nearby surfaces at any angle, not only ones facing world up
+            "    if (floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
             "      float fres = 0.3 + 0.7 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0); refl *= fres * floorness * 0.8; }",
             "    col = c * (1.0 + 0.3 * emis) + surf * (1.0 - emis) + refl * (1.0 - emis);",
             "  } else {",
