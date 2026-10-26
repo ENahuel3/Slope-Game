@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Its fixed, but now they move slightly every time more track ",
-  "notes": "Made with the in-game dev mode (job 1cd367278981).",
+  "title": "Dev edit: Revert what you just did",
+  "notes": "Made with the in-game dev mode (job ec3974122ad7).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -495,6 +495,13 @@
    "notes": "The root as it was before the dev-mode edit 'Its fixed, but now they move slightly every time more track is loaded.'. Last commit: Dev edit: It works, but now the background models spawn in the middle",
    "date": "2026-10-26",
    "commit": "cc0123f"
+  },
+  {
+   "tag": "v60-dev-ec3974",
+   "title": "Before dev edit ec3974",
+   "notes": "The root as it was before the dev-mode edit 'Revert what you just did'. Last commit: Dev edit: Its fixed, but now they move slightly every time more track",
+   "date": "2026-10-26",
+   "commit": "54e6278"
   }
  ]
 }

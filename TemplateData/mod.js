@@ -1053,7 +1053,7 @@
         if (aheadLeft <= 0 || frameNo - aheadLast < 10) return;
         if (gravityMode !== "off" && !(track && !track.moving)) return;                                               // a shaped track spawns block by block: wait until the spawner is idle
         if (!aheadPrimed) { if (setState(SPAWNER, "Offset Buildings to Match Spawner")) { aheadPrimed = true; aheadLast = frameNo - 7; } return; }   // line the building chunk up with the spawner first, so the scenery lands beside the new lap and not on it
-        if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; }
+        if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; aheadPrimed = false; }
     }
     function setViewDist(n) {
         n = parseInt(n, 10);
