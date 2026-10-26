@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: The ball is cut into horizontal strips.",
-  "notes": "Made with the in-game dev mode (job af49c59a3849).",
+  "title": "Dev edit: It still looks the same.",
+  "notes": "Made with the in-game dev mode (job 25d34de11a2c).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -277,6 +277,13 @@
    "notes": "The root as it was before the dev-mode edit 'The ball is cut into horizontal strips.'. Last commit: Dev edit: Add a slider in the mods menu for the amount of steps the re",
    "date": "2026-10-26",
    "commit": "7d9eb35"
+  },
+  {
+   "tag": "v43-dev-25d34d",
+   "title": "Before dev edit 25d34d",
+   "notes": "The root as it was before the dev-mode edit 'It still looks the same.'. Last commit: Dev edit: The ball is cut into horizontal strips.",
+   "date": "2026-10-26",
+   "commit": "31a1229"
   }
  ]
 }
