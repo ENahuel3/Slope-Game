@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Y'know the parts of the track that are like arches and cause",
-  "notes": "Made with the in-game dev mode (job 1c813b08f7b0).",
+  "title": "Dev edit: It works, but now the background models spawn in the middle ",
+  "notes": "Made with the in-game dev mode (job 3185fb087af0).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -481,6 +481,13 @@
    "commit": "04b9692",
    "status": "issues",
    "issues": "coins inside the tunnels can sit in the arch wall or the death-tunnel roof, and the start tunnel has coins"
+  },
+  {
+   "tag": "v58-dev-3185fb",
+   "title": "Before dev edit 3185fb",
+   "notes": "The root as it was before the dev-mode edit 'It works, but now the background models spawn in the middle of the track too instead of just on the '. Last commit: Coins: back on top of the tunnels, none in the walls, none in the start tunnel",
+   "date": "2026-10-26",
+   "commit": "59b5ed8"
   }
  ]
 }

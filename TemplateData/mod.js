@@ -1046,13 +1046,14 @@
     // run keeps N laps ahead for the rest of it. 1 = the normal game. The extras go one at a time, once the spawner is idle.
     var KEY_VIEW = "slope-mod.viewDist", VIEW_MAX = 10;
     var viewDist = (function () { var n = parseInt(lsGet(KEY_VIEW), 10); return (n >= 1 && n <= VIEW_MAX) ? n : 1; })();
-    var aheadRun = -1, aheadLeft = 0, aheadLast = 0;
+    var aheadRun = -1, aheadLeft = 0, aheadLast = 0, aheadPrimed = false;
     function stepAhead() {
         if (!gameRunning || build || restartSeq) return;
         if (aheadRun !== lastRestart) { aheadRun = lastRestart; aheadLeft = viewDist - 1; aheadLast = frameNo + 60; }   // a new run: let its first section spawn before adding more
         if (aheadLeft <= 0 || frameNo - aheadLast < 10) return;
         if (gravityMode !== "off" && !(track && !track.moving)) return;                                               // a shaped track spawns block by block: wait until the spawner is idle
-        if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; }
+        if (!aheadPrimed) { if (setState(SPAWNER, "Offset Buildings to Match Spawner")) { aheadPrimed = true; aheadLast = frameNo - 7; } return; }   // line the building chunk up with the spawner first, so the scenery lands beside the new lap and not on it
+        if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; aheadPrimed = false; }
     }
     function setViewDist(n) {
         n = parseInt(n, 10);
