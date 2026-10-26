@@ -560,6 +560,14 @@
    "date": "2026-10-26",
    "commit": "e721094",
    "status": "ok"
+  },
+  {
+   "tag": "v69-superramps",
+   "title": "Super ramps",
+   "notes": "Super ramps: an orange wedge that shoves the ball to five times its speed and launches it, on top of the Gandalf skyline and reachable coins. Last version before the frame-time readout.",
+   "date": "2026-10-26",
+   "commit": "859d2d3",
+   "status": "ok"
   }
  ]
 }
