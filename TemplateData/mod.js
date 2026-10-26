@@ -885,7 +885,7 @@
                 track.sections.push({ s0: sNow, s1: sNow + BLOCK_LEN, a0: track.wroteA0, a1: a1, lat: vdot(gamePos, fx) + LANE_HALF * fx[0] });   // lane centre = game spawn line + 5 along world x, along the block's lateral axis
                 track.roll = a1; if (laneStep && track.wroteDir) consumeBlock();
             }
-            spawnTrace.push([frameNo, +sNow.toFixed(1), +gamePos[0].toFixed(1), +(track.wroteA0 * 180 / Math.PI).toFixed(1), +(track.wroteA1 * 180 / Math.PI).toFixed(1), +(sNow - sPrev).toFixed(0)]); if (spawnTrace.length > 400) spawnTrace.shift();
+            spawnTrace.push([frameNo, +sNow.toFixed(1), +gamePos[0].toFixed(1), +(track.wroteA0 * 180 / Math.PI).toFixed(1), +(track.wroteA1 * 180 / Math.PI).toFixed(1), +(sNow - sPrev).toFixed(0), laneStep ? 1 : 0, +(track.roll * 180 / Math.PI).toFixed(1)]); if (spawnTrace.length > 400) spawnTrace.shift();
         }
         else if (track.moving && ++track.stillFrames >= 8) { track.moving = false; planNextLap(sNow); }   // a run just finished: the jump block sits here
         track.lastSpawn = gamePos;
@@ -1268,6 +1268,8 @@
         setGravity: setGravityMode,
         setTwistQueue: function (q) { twistQueue = q.slice(); },   // degrees per upcoming lap, 0 = straight
         setLaneHalf: function (v) { LANE_HALF = +v; },               // debug/test
+        setSpawnerState: function (name) { setState(SPAWNER, name); },   // debug/test: jump the spawner to a state (e.g. a section) at its current spawn point
+        setCameraOffset: function (v) { CAMERA_OFFSET = v ? v.slice() : [0, 3.0560860633850098, -1.2071590423583984]; },   // debug/test: the follow camera's offset in the course frame (null = the game's own)
         setSectionDelay: function (v) { sectionDelayOverride = v; },   // debug/test (null = automatic)
         key: function (type, k) { keyEvent(type, k, k === "ArrowLeft" ? 37 : 39); },   // debug/test
         setAutopilot: function (on) { autopilot = !!on; if (!on && autoKey) { keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39); autoKey = null; } },
