@@ -1121,6 +1121,28 @@
     }
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initFpsCounter); else initFpsCounter();
 
+    // VSync: on (default) = Unity's loop runs on requestAnimationFrame; off = Emscripten's setTimeout timing (uncapped, may tear).
+    var KEY_VSYNC = "slope-mod.vsync";
+    function initVsync() {
+        var box = document.getElementById("hud-vsync");
+        if (!box) return;
+        var on = lsGet(KEY_VSYNC) !== "0";
+        box.checked = on;
+        function apply() {
+            try {
+                var M = game && game.Module;
+                if (!M) return;
+                var B = M.Browser || window.Browser, setT = M._emscripten_set_main_loop_timing;
+                if (!B || !B.mainLoop || typeof setT !== "function") return;
+                var want = on ? 1 : 0;
+                if (B.mainLoop.timingMode !== want) setT(want, on ? 1 : 0);
+            } catch (e) { /* never break the game */ }
+        }
+        box.addEventListener("change", function () { on = box.checked; lsSet(KEY_VSYNC, on ? "1" : "0"); apply(); });
+        setInterval(function () { if (!on || lsGet(KEY_VSYNC) === "0") apply(); }, 1000);
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initVsync); else initVsync();
+
     function setStackTarget(n) {
         n = parseInt(n, 10);
         if (!(n >= 1)) n = 1;

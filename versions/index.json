@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Rename \"Intensity\" In settings to \"Style Intensity\"",
-  "notes": "Made with the in-game dev mode (job 5d89f0b34b15).",
+  "title": "Dev edit: Can you add a checkbox in settings to toggle vsync",
+  "notes": "Made with the in-game dev mode (job b3bc1037266a).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -674,6 +674,13 @@
    "date": "2026-10-26",
    "commit": "604a252",
    "status": "ok"
+  },
+  {
+   "tag": "v85-dev-b3bc10",
+   "title": "Before dev edit b3bc10",
+   "notes": "The root as it was before the dev-mode edit 'Can you add a checkbox in settings to toggle vsync'. Last commit: Leaderboard: a working one, in the game's own menu style, without id.net",
+   "date": "2026-10-26",
+   "commit": "445950d"
   }
  ]
 }
