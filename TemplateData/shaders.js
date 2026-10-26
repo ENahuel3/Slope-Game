@@ -417,6 +417,52 @@
             "}"
         ].join("\n"),
 
+        // Sunset: a dusk sky with the low sun drawn dead ahead of the track, strong warm sunlight with
+        // screen-space shadow rays (as in Sunny) over a dim ambient, and the Night preset's neon reflections.
+        sunset: [
+            "void main() {",
+            "  vec3 c = texture2D(uTex, vUv).rgb; float d = depthAt(vUv); bool hasDepth = uLight.w > 0.5;",
+            "  bool sky = hasDepth ? isSky(d) : (lum(c) < 0.02);",
+            "  vec3 L = uLight.xyz;",
+            "  vec3 rdW = uRot * viewRay(vUv); float up = dot(rdW, SKY_UP);",
+            "  vec3 sunW = uRot * L;",
+            "  vec3 zenith = vec3(0.04, 0.05, 0.16), horizon = vec3(0.55, 0.26, 0.20), sunCol = vec3(1.0, 0.55, 0.26);",
+            "  float t = clamp(up * 1.6 + 0.1, 0.0, 1.0);",
+            "  vec3 skyCol = mix(horizon, zenith, pow(t, 0.55));",
+            "  float cosSun = dot(rdW, sunW);",
+            "  skyCol += sunCol * (0.45 * pow(max(cosSun, 0.0), 12.0) + 0.5 * pow(max(cosSun, 0.0), 120.0));",
+            "  float disc = smoothstep(0.9988, 0.9994, cosSun);",
+            "  skyCol = mix(skyCol, vec3(1.0, 0.9, 0.7), disc);",
+            "  vec3 cell = floor(rdW * 170.0); float h = hash3(cell);",
+            "  float star = step(0.9965, h) * (0.6 + 0.4 * sin(uTime * (2.0 + 6.0 * hash3(cell + 1.0)) + h * 50.0));",
+            "  vec3 cf = fract(rdW * 170.0) - 0.5; star *= (1.0 - smoothstep(0.05, 0.35, length(cf))) * smoothstep(0.25, 0.6, up);",
+            "  skyCol += vec3(0.9, 0.93, 1.0) * star * 0.7;",
+            "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
+            "  if (sky) { gl_FragColor = vec4(mix(skyCol, c * (1.0 + 0.3 * emis), emis), (0.05 + 0.5 * pow(max(cosSun, 0.0), 10.0) + 0.6 * disc) * (1.0 - emis)); return; }",
+            "  vec3 col; float dist = 20.0;",
+            "  if (hasDepth) {",
+            "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
+            "    float ndl = max(dot(N, L), 0.0);",
+            "    float sh = (ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
+            "    vec3 amb = vec3(0.07, 0.06, 0.12);",
+            "    vec3 direct = sunCol * 2.6 * ndl * sh;",
+            "    vec3 surf = vec3(0.26, 0.26, 0.29) * (amb + direct);",
+            "    vec3 Hv = normalize(L - normalize(P));",
+            "    surf += sunCol * 0.05 * pow(max(dot(N, Hv), 0.0), 8.0) * sh * ndl;",
+            "    float floorness = smoothstep(0.35, 0.8, dot(uRot * N, SKY_UP));",
+            "    vec3 refl = vec3(0.0);",
+            "    float upF = floorness; floorness = max(floorness, 1.0 - smoothstep(35.0, 60.0, lz));",
+            "    if (floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
+            "      float fres = 0.3 + 0.7 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0); refl *= fres * floorness * 0.8; }",
+            "    col = c * (1.0 + 0.3 * emis) + surf * (1.0 - emis) + refl * (1.0 - emis);",
+            "  } else {",
+            "    col = c * (1.0 + 0.3 * emis) + vec3(0.04, 0.03, 0.05) * (1.0 - emis);",
+            "  }",
+            "  float fog = 1.0 - exp(-dist * 0.012); col = mix(col, skyCol, fog * 0.8 * (1.0 - 0.6 * emis));",
+            "  gl_FragColor = vec4(col, 0.0);",
+            "}"
+        ].join("\n"),
+
         // Light shafts: march from the pixel toward the light through the lighting pass's alpha mask
         // (sky brightness around the sun / moon). uP.x density, uP.y decay, uP.z weight. Half size.
         rays: [
@@ -508,7 +554,16 @@
             { fs: "lcomp", in: "a", in2: "h1", in3: "h2", out: "lit", p: [0.55, 0.65, 0.95], q: [0.7] }
         ] }
     };
-    var LIGHT_ORDER = ["normal", "sunny", "night"];
+    // Sunset: the sun sits straight ahead along the course axis, about 18 degrees above the lane.
+    LIGHTS.sunset = { id: "sunset", name: "Sunset", dir: norm3([0.0, -0.454, 0.891]), failed: false, passes: [
+        { fs: "sunset", in: "scene", out: "a" },
+        { fs: "rays", in: "a", out: "h1", p: [1.0, 0.95, 0.05] },
+        { fs: "bright", in: "a", out: "h2", p: [0.5] },
+        { fs: "blur", in: "h2", out: "h3", p: [1, 0, 1.6] },
+        { fs: "blur", in: "h3", out: "h2", p: [0, 1, 1.6] },
+        { fs: "lcomp", in: "a", in2: "h1", in3: "h2", out: "lit", p: [1.0, 0.6, 0.3], q: [0.6] }
+    ] };
+    var LIGHT_ORDER = ["normal", "sunny", "sunset", "night"];
 
     // ======================================================================
     // Settings

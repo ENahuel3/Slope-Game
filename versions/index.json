@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Make the default reflection steps all the way up at 96.",
-  "notes": "Made with the in-game dev mode (job ad6504644e3a).",
+  "title": "Dev edit: Make a sunset lighting preset, where the sun is visible stra",
+  "notes": "Made with the in-game dev mode (job 5d170db6e5f6).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -312,6 +312,13 @@
    "notes": "The root as it was before the dev-mode edit 'Make the default reflection steps all the way up at 96.'. Last commit: Dev edit: That worked, but it also made the reflections a lot cleaner,",
    "date": "2026-10-26",
    "commit": "44473c7"
+  },
+  {
+   "tag": "v48-dev-5d170d",
+   "title": "Before dev edit 5d170d",
+   "notes": "The root as it was before the dev-mode edit 'Make a sunset lighting preset, where the sun is visible straight ahead of the track, and it's dark e'. Last commit: Dev edit: Make the default reflection steps all the way up at 96.",
+   "date": "2026-10-26",
+   "commit": "5eda7ed"
   }
  ]
 }
