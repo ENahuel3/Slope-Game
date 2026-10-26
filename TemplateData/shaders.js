@@ -425,13 +425,15 @@
             "  bool sky = hasDepth ? isSky(d) : (lum(c) < 0.02);",
             "  vec3 L = uLight.xyz;",
             "  vec3 rdW = uRot * viewRay(vUv); float up = dot(rdW, SKY_UP);",
-            "  vec3 sunW = uRot * L;",
-            "  vec3 zenith = vec3(0.04, 0.05, 0.16), horizon = vec3(0.55, 0.26, 0.20), sunCol = vec3(1.0, 0.55, 0.26);",
+            "  vec3 zenith = vec3(0.01, 0.014, 0.065), horizon = vec3(0.95, 0.24, 0.07), sunCol = vec3(1.0, 0.36, 0.12);",
+            "  vec3 purple = vec3(0.42, 0.09, 0.36);",
             "  float t = clamp(up * 1.6 + 0.1, 0.0, 1.0);",
-            "  vec3 skyCol = mix(horizon, zenith, pow(t, 0.55));",
-            "  float cosSun = dot(rdW, sunW);",
+            "  vec3 skyCol = mix(horizon, purple, smoothstep(0.0, 0.4, t));",
+            "  skyCol = mix(skyCol, zenith, smoothstep(0.3, 0.85, t));",
+            "  vec2 sd = (vUv - uLightUV.xy) * vec2(uRes.x / uRes.y, 1.0) * 3.0;",   // the sun is pinned to a fixed screen position (uLightUV.xy)
+            "  float cosSun = 1.0 - 0.5 * dot(sd, sd);",
             "  skyCol += sunCol * (0.45 * pow(max(cosSun, 0.0), 12.0) + 0.5 * pow(max(cosSun, 0.0), 120.0));",
-            "  float disc = smoothstep(0.9988, 0.9994, cosSun);",
+            "  float disc = smoothstep(0.989, 0.993, cosSun);",
             "  skyCol = mix(skyCol, vec3(1.0, 0.9, 0.7), disc);",
             "  vec3 cell = floor(rdW * 170.0); float h = hash3(cell);",
             "  float star = step(0.9965, h) * (0.6 + 0.4 * sin(uTime * (2.0 + 6.0 * hash3(cell + 1.0)) + h * 50.0));",
@@ -555,13 +557,13 @@
         ] }
     };
     // Sunset: the sun sits straight ahead along the course axis, about 18 degrees above the lane.
-    LIGHTS.sunset = { id: "sunset", name: "Sunset", dir: norm3([0.0, -0.454, 0.891]), failed: false, passes: [
+    LIGHTS.sunset = { id: "sunset", name: "Sunset", dir: norm3([0.0, -0.454, 0.891]), fixedUV: [0.5, 0.6], failed: false, passes: [
         { fs: "sunset", in: "scene", out: "a" },
         { fs: "rays", in: "a", out: "h1", p: [1.0, 0.95, 0.05] },
         { fs: "bright", in: "a", out: "h2", p: [0.5] },
         { fs: "blur", in: "h2", out: "h3", p: [1, 0, 1.6] },
         { fs: "blur", in: "h3", out: "h2", p: [0, 1, 1.6] },
-        { fs: "lcomp", in: "a", in2: "h1", in3: "h2", out: "lit", p: [1.0, 0.6, 0.3], q: [0.6] }
+        { fs: "lcomp", in: "a", in2: "h1", in3: "h2", out: "lit", p: [1.0, 0.4, 0.15], q: [0.6] }
     ] };
     var LIGHT_ORDER = ["normal", "sunny", "sunset", "night"];
 
@@ -704,11 +706,12 @@
         if (!CAMERA.live) { CAMERA.b = 1.7320508; CAMERA.a = CAMERA.b / aspect; }   // Unity's default 60-degree camera until the matrix shows up
         return CAMERA;
     }
-    function lightInView(dirW) {
+    function lightInView(dirW, fixedUV) {
         var C = CAMERA;
         var L = [C.right[0] * dirW[0] + C.right[1] * dirW[1] + C.right[2] * dirW[2], C.up[0] * dirW[0] + C.up[1] * dirW[1] + C.up[2] * dirW[2], C.back[0] * dirW[0] + C.back[1] * dirW[1] + C.back[2] * dirW[2]];
         var uv = [0.5, 0.5], front = 0;
         if (L[2] < -1e-3) { uv = [0.5 + 0.5 * C.a * L[0] / -L[2], 0.5 + 0.5 * C.b * L[1] / -L[2]]; front = 1; }
+        if (fixedUV) { uv = fixedUV; front = 1; }
         return { dir: L, uv: uv, front: front };
     }
 
@@ -1000,7 +1003,7 @@
             var t = (now() - t0) / 1000, hue = (t / HUE_PERIOD) % 1, speed = speedNorm();
             var cam = updateCamera(w, h);
             var hasDepth = !!(sceneBuf.depth) ? 1 : 0;
-            var lv = light && light.dir ? lightInView(light.dir) : { dir: [0, 0, 1], uv: [0.5, 0.5], front: 0 };
+            var lv = light && light.dir ? lightInView(light.dir, light.fixedUV) : { dir: [0, 0, 1], uv: [0.5, 0.5], front: 0 };
             var rot = [cam.right[0], cam.right[1], cam.right[2], cam.up[0], cam.up[1], cam.up[2], cam.back[0], cam.back[1], cam.back[2]];
             for (var i = 0; i < chain.length; i++) {
                 var pass = chain[i], p = program(pass.fs);
