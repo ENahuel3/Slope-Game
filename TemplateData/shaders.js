@@ -337,8 +337,7 @@
             "  vec3 skyCol = mix(horizon, zenith, pow(t, 0.7));",
             "  float cosSun = dot(rdW, sunW);",
             "  vec3 hazeCol = mix(horizon, zenith, 0.25);",   // fog colour: the sky without the sun's glow or clouds, so distant geometry does not wash out to white
-            "  skyCol += sunCol * (0.12 * pow(max(cosSun, 0.0), 8.0) + 0.35 * pow(max(cosSun, 0.0), 64.0));",
-            "  float disc = smoothstep(0.9993, 0.9997, cosSun); skyCol = mix(skyCol, vec3(1.0, 0.98, 0.92), disc);",
+            "  float disc = 0.0;",   // the sun itself is not drawn: no disc or glow in the sky
             "  if (up > 0.02) { vec3 e1 = vec3(1.0, 0.0, 0.0), e2 = cross(SKY_UP, e1); vec2 cp = vec2(dot(rdW, e1), dot(rdW, e2)) / (up + 0.15);",
             "    float cl = fbm(cp * 2.2 + vec2(uTime * 0.02, 0.0)); cl = smoothstep(0.52, 0.78, cl) * smoothstep(0.02, 0.2, up);",
             "    skyCol = mix(skyCol, vec3(1.0, 0.99, 0.97), cl * 0.85); }",
@@ -354,7 +353,7 @@
             "    vec3 direct = sunCol * 1.35 * ndl * sh;",
             "    vec3 surf = vec3(0.15, 0.15, 0.16) * (amb + direct);",   // matte dark albedo so the black track reads as black
             "    vec3 Hv = normalize(L - normalize(P)); float fr = 0.25 + 0.75 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0);",
-            "    vec3 spec = sunCol * (0.35 * pow(max(dot(N, Hv), 0.0), 40.0) * fr) * sh * ndl;",   // tight sun highlight keeps a hint of gloss
+            "    vec3 spec = sunCol * (0.3 * pow(max(dot(N, Hv), 0.0), 40.0) * fr + 0.06 * pow(max(dot(N, Hv), 0.0), 8.0)) * sh * ndl;",   // tight highlight plus a faint sheen that is lit outside shadows so they stay readable
             "    col = c * (1.0 + 0.15 * emis) + (surf + spec) * (1.0 - emis);",
             "  } else {",
             "    col = c + vec3(0.55) * mix(horizon, zenith, 0.5) * 0.5 * (1.0 - emis);",
@@ -379,8 +378,7 @@
             "  float t = clamp(up * 1.6 + 0.1, 0.0, 1.0);",
             "  vec3 skyCol = mix(horizon, zenith, pow(t, 0.6));",
             "  float cosMoon = dot(rdW, moonW);",
-            "  skyCol += moonCol * (0.08 * pow(max(cosMoon, 0.0), 6.0) + 0.35 * pow(max(cosMoon, 0.0), 90.0));",
-            "  float disc = smoothstep(0.99955, 0.99975, cosMoon); skyCol = mix(skyCol, vec3(0.92, 0.94, 1.0), disc);",
+            "  float disc = 0.0;",   // the moon itself is not drawn: no disc or halo in the sky
             "  vec3 cell = floor(rdW * 170.0); float h = hash3(cell);",
             "  float star = step(0.9935, h) * (0.6 + 0.4 * sin(uTime * (2.0 + 6.0 * hash3(cell + 1.0)) + h * 50.0));",
             "  vec3 cf = fract(rdW * 170.0) - 0.5; star *= (1.0 - smoothstep(0.05, 0.35, length(cf))) * smoothstep(0.0, 0.15, up);",

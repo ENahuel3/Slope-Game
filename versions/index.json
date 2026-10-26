@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: On the sunny light preset, the track is super bright and ref",
-  "notes": "Made with the in-game dev mode (job 6e9dc2ee715e).",
+  "title": "Dev edit: In the sunny lighting preset, make the track more matte so t",
+  "notes": "Made with the in-game dev mode (job 3a59b2396ac7).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -221,6 +221,13 @@
    "notes": "The root as it was before the dev-mode edit 'On the sunny light preset, the track is super bright and reflective. Make it more matte so that the '. Last commit: Dev mode: make jobs cheap and useful",
    "date": "2026-10-26",
    "commit": "b815aff"
+  },
+  {
+   "tag": "v35-dev-3a59b2",
+   "title": "Before dev edit 3a59b2",
+   "notes": "The root as it was before the dev-mode edit 'In the sunny lighting preset, make the track more matte so that the player can clearly tell that the'. Last commit: Dev mode: take the job's usage split from the result event (per-message usage re",
+   "date": "2026-10-26",
+   "commit": "9a4e094"
   }
  ]
 }
