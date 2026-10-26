@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: In the shaders drop-down In settings, make \"Normal\" say \"Off",
-  "notes": "Made with the in-game dev mode (job be7a5f83a3d0).",
+  "title": "Dev edit: On the night shader preset, make the background models black",
+  "notes": "Made with the in-game dev mode (job 30d0544f08fd).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -617,6 +617,13 @@
    "notes": "The root as it was before the dev-mode edit 'In the shaders drop-down In settings, make \"Normal\" say \"Off\"'. Last commit: Dev edit: Remove the time counter in the top right next to the setting",
    "date": "2026-10-26",
    "commit": "aea0be1"
+  },
+  {
+   "tag": "v77-dev-30d054",
+   "title": "Before dev edit 30d054",
+   "notes": "The root as it was before the dev-mode edit 'On the night shader preset, make the background models black like they are on the other shaders.'. Last commit: Dev edit: In the shaders drop-down In settings, make \"Normal\" say \"Off",
+   "date": "2026-10-26",
+   "commit": "72cc7e9"
   }
  ]
 }

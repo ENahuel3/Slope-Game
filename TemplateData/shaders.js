@@ -399,11 +399,12 @@
             "    float haze = fbm(cp * 1.4 + vec2(uTime * 0.01, 3.0)); skyCol += vec3(0.05, 0.06, 0.12) * smoothstep(0.45, 0.8, haze) * smoothstep(0.02, 0.25, up); }",
             "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
             "  if (sky) { gl_FragColor = vec4(mix(skyCol, c * (1.0 + 0.3 * emis), emis), (0.35 * pow(max(cosMoon, 0.0), 14.0) + disc * 0.8) * (1.0 - emis)); return; }",   // the UI has no depth: keep it over the sky
-            "  vec3 col; float dist = 20.0;",
+            "  vec3 col; float dist = 20.0; float bgBlack = 0.0;",
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
             "    float sh = (ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 2.0) : 1.0;",
+            "    bgBlack = smoothstep(10.0, 22.0, lz) * (1.0 - emis);",   // background buildings/towers: plain black, as in Sunny
             "    vec3 amb = vec3(0.05, 0.065, 0.13);",
             "    vec3 direct = moonCol * 0.55 * ndl * sh;",
             "    vec3 surf = vec3(0.32, 0.33, 0.38) * (amb + direct);",
@@ -417,6 +418,7 @@
             "    col = c * (1.0 + 0.3 * emis) + vec3(0.03, 0.035, 0.06) * (1.0 - emis);",
             "  }",
             "  float fog = 1.0 - exp(-dist * 0.016); col = mix(col, skyCol, fog * 0.9 * (1.0 - 0.6 * emis));",
+            "  col = mix(col, vec3(0.0), bgBlack);",
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
         ].join("\n"),
