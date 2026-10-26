@@ -291,6 +291,13 @@
    "notes": "The root as it was before the dev-mode edit 'In the night lighting preset, you can only see the reflections on the track when it's facing upward.'. Last commit: Dev edit: It still looks the same.",
    "date": "2026-10-26",
    "commit": "f6eb76e"
+  },
+  {
+   "tag": "v45-devedits",
+   "title": "Dev-mode edits before the fourth soundtrack",
+   "notes": "The root as it was before the Epic Sax Gandalf track: the coins, the dev-mode usage/cap rework and the in-game dev edits (sunny and night lighting tweaks, a Mod Menu slider for the restart steps).",
+   "date": "2026-10-26",
+   "commit": "7629b46"
   }
  ]
 }
