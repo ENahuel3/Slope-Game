@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: In dev mode remove at the bottom where it says how many toke",
-  "notes": "Made with the in-game dev mode (job 0182532d395b).",
+  "title": "Dev edit: Change the render distance slider so that the maximum render",
+  "notes": "Made with the in-game dev mode (job aca2ba47ff05).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -538,6 +538,13 @@
    "notes": "The root as it was before the dev-mode edit 'In dev mode remove at the bottom where it says how many tokens and the money'. Last commit: Dev edit: Format the fps counter to the rest of the text in that top b",
    "date": "2026-10-26",
    "commit": "8f70751"
+  },
+  {
+   "tag": "v66-dev-aca2ba",
+   "title": "Before dev edit aca2ba",
+   "notes": "The root as it was before the dev-mode edit 'Change the render distance slider so that the maximum render distance is 50'. Last commit: Dev edit: In dev mode remove at the bottom where it says how many toke",
+   "date": "2026-10-26",
+   "commit": "2893946"
   }
  ]
 }

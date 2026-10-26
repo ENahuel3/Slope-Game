@@ -1044,7 +1044,7 @@
     // Render distance: how many speed-up sections (laps) of track are built ahead. The game builds one more lap each time
     // the ball passes a speed-up arch ("Check score" on the spawner), so building N-1 extra laps once at the start of a
     // run keeps N laps ahead for the rest of it. 1 = the normal game. The extras go one at a time, once the spawner is idle.
-    var KEY_VIEW = "slope-mod.viewDist", VIEW_MAX = 10;
+    var KEY_VIEW = "slope-mod.viewDist", VIEW_MAX = 50;
     var viewDist = (function () { var n = parseInt(lsGet(KEY_VIEW), 10); return (n >= 1 && n <= VIEW_MAX) ? n : 1; })();
     var aheadRun = -1, aheadLeft = 0, aheadLast = 0, aheadPrimed = false;
     function stepAhead() {
