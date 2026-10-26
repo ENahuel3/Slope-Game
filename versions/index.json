@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: On the night shader preset, make the background models black",
-  "notes": "Made with the in-game dev mode (job 30d0544f08fd).",
+  "title": "Dev edit: In the style settings dropdown, add all 7 of the colors of t",
+  "notes": "Made with the in-game dev mode (job f0cf71ddf7a1).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -624,6 +624,13 @@
    "notes": "The root as it was before the dev-mode edit 'On the night shader preset, make the background models black like they are on the other shaders.'. Last commit: Dev edit: In the shaders drop-down In settings, make \"Normal\" say \"Off",
    "date": "2026-10-26",
    "commit": "72cc7e9"
+  },
+  {
+   "tag": "v78-dev-f0cf71",
+   "title": "Before dev edit f0cf71",
+   "notes": "The root as it was before the dev-mode edit 'In the style settings dropdown, add all 7 of the colors of the rainbow before the other styles that '. Last commit: Dev edit: On the night shader preset, make the background models black",
+   "date": "2026-10-26",
+   "commit": "d079b16"
   }
  ]
 }

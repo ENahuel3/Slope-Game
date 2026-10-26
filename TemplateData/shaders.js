@@ -240,6 +240,16 @@
             "}"
         ].join("\n"),
 
+        // Single colour: the whole frame in the brightness of one colour, uP.xyz (the rainbow's seven colours).
+        mono: [
+            "void main() {",
+            "  vec3 c = texture2D(uTex, vUv).rgb;",
+            "  float y = clamp((lum(c) - 0.5) * 1.2 + 0.5, 0.0, 1.0);",
+            "  vec3 o = uP.xyz * (0.04 + 1.1 * y);",
+            "  gl_FragColor = vec4(mix(c, clamp(o, 0.0, 1.0), uAmount), 1.0);",
+            "}"
+        ].join("\n"),
+
         // Bloom threshold: keeps what is bright or saturated (the neon), written at half size.
         bright: [
             "void main() {",
@@ -544,6 +554,10 @@
         return STYLES[id];
     }
     define("classic", { name: "Classic", passes: [] });
+    [["red", "Red", 1, 0.05, 0.05], ["orange", "Orange", 1, 0.5, 0.0], ["yellow", "Yellow", 1, 0.95, 0.05], ["green", "Green", 0.1, 1, 0.15],
+        ["blue", "Blue", 0.1, 0.35, 1], ["indigo", "Indigo", 0.3, 0.1, 0.85], ["violet", "Violet", 0.65, 0.15, 1]].forEach(function (k) {
+        define("color-" + k[0], { name: k[1], passes: [{ fs: "mono", in: "scene", out: "screen", p: [k[2], k[3], k[4], 1] }] });
+    });
     define("rainbow", { name: "Rainbow", passes: [{ fs: "rainbow", in: "scene", out: "screen" }] });
     define("neon", { name: "Neon glow", passes: bloom("scene", 0.45, 1.5).concat([
         { fs: "finish", in: "scene", in2: "h1", out: "screen", p: [1.1, 0.15, 0.25, 0], q: [0, 0.15] }]) });
