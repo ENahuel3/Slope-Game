@@ -908,7 +908,7 @@
     // ======================================================================
     // Presenting a frame
     // ======================================================================
-    var TEX_UNITS = 4;
+    var TEX_UNITS = 4, maxAttribs = 0;
     function saveState() {
         var s = {};
         s.program = g.getParameter(gl.CURRENT_PROGRAM);
@@ -939,7 +939,7 @@
         else if (vaoMode === "oes") s.vao = g.getParameter(vaoExt.VERTEX_ARRAY_BINDING_OES);
         else {
             s.attribs = [];
-            var n = g.getParameter(gl.MAX_VERTEX_ATTRIBS);
+            var n = maxAttribs || (maxAttribs = g.getParameter(gl.MAX_VERTEX_ATTRIBS));   // constant: query once, not per frame
             for (var a = 0; a < n; a++) {
                 var en = g.getVertexAttrib(a, gl.VERTEX_ATTRIB_ARRAY_ENABLED);
                 s.attribs.push(en);

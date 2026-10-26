@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Can you add a checkbox in settings to toggle vsync",
-  "notes": "Made with the in-game dev mode (job b3bc1037266a).",
+  "title": "Dev edit: Please optimize the whole thing; the 1% low frame rates are ",
+  "notes": "Made with the in-game dev mode (job b2608f293eb5).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -681,6 +681,13 @@
    "notes": "The root as it was before the dev-mode edit 'Can you add a checkbox in settings to toggle vsync'. Last commit: Leaderboard: a working one, in the game's own menu style, without id.net",
    "date": "2026-10-26",
    "commit": "445950d"
+  },
+  {
+   "tag": "v86-dev-b2608f",
+   "title": "Before dev edit b2608f",
+   "notes": "The root as it was before the dev-mode edit 'Please optimize the whole thing; the 1% low frame rates are abysmal'. Last commit: Dev edit: Can you add a checkbox in settings to toggle vsync",
+   "date": "2026-10-26",
+   "commit": "7fe7388"
   }
  ]
 }
