@@ -4,7 +4,7 @@ The game pushes the ball with zforce (+z) and yforce = -10 zforce (-y) plus grav
 normal acceleration is a_n = R2 (9.81 + 0.3 zforce) (12..30 for zforce 24..110) and the ball speed is 8..40 u/s."""
 import json, math, sys
 sys.path.insert(0, sys.argv[1]); SP = sys.argv[1]
-import geometry as G, coingeo3 as C
+import geometry as G, floors as C
 R2 = G.R2
 FC = {}
 for kind in C.M:
@@ -43,11 +43,16 @@ layouts['dogleg'] = [[-4.2, 34, 1.0], [-0.4, 76, 1.0], [4.4, 118, 1.0]]
 # once zforce passes ~94: a_n sin 22.9 deg); n follows the tilted floor
 for kind, x in (('tiltLeft', 8.9), ('tiltRight', 1.1)):
     f = floor(kind, x, 7); layouts[kind] = [[x, 7, round(f + 1.0, 2)]]
-# arch tunnels: on the floor inside, hugging the walls (headroom there is 3.5)
-layouts['tunnelArc'] = [[1.6, 14, 1.0], [8.4, 24, 1.0], [1.6, 34, 1.0], [8.4, 44, 1.0]]
-layouts['tunnelArcLong'] = [[1.6, 16, 1.0], [8.4, 30, 1.0], [1.6, 44, 1.0], [8.4, 58, 1.0], [1.6, 72, 1.0]]
-# the low death tunnel (1.43 of headroom): inside at the sides, low enough for the ball centre at 0.5
-layouts['tunnelRoof'] = [[1.5, 12, 0.8], [8.5, 22, 0.8], [1.5, 32, 0.8]]
+# tunnels: the ball can land on a tunnel after a gap lip (a jumpGapMid lip at 20+ u/s peaks ~4.9 high), so the coins
+# sit on the walkable top: the ridge of the arch (4.92 at x 5) and the centre beam of the stepped death-tunnel roof
+# (4.45 at x 4..6). Nothing inside: the arch meets the floor near x 0.5 and the death tunnel's side bays are 1.46 high,
+# so interior coins (radius 0.8) end up in the walls or the roof. The start tunnel (tunnelArcLong) gets none at all,
+# and lane-block edge coins under any tunnel are hidden by coins.js (they would sit in the arch wall).
+def top(kind, x, s):
+    f = floor(kind, x, s); return f
+layouts['tunnelArc'] = [[5, s, round(top('tunnelArc', 5, s) + 1.0, 2)] for s in (20, 28, 36, 44)]
+layouts['tunnelArcLong'] = []
+layouts['tunnelRoof'] = [[5, s, round(top('tunnelRoof', 5, s) + 1.0, 2)] for s in (14, 22, 30)]
 # jumps: one coin on the lip the ball always crosses, one in the air 3 units past it inside the band of all trajectories
 for kind, d in (('jump', 2.6), ('jumpGapMid', 2.4)):   # close enough to the lip that every speed's trajectory passes within the pick radius
     (ax, as_, an), (s_top, n_top, deg, margin) = air_coin(kind, d)
@@ -58,11 +63,6 @@ for kind, cs in layouts.items():
     k = 'thin' if kind == 'thinNoJump' else kind
     for i, (x, s, n) in enumerate(cs):
         if kind in ('jump', 'jumpGapMid') and i == 1: continue
-        if kind == 'tunnelRoof':   # the walls mesh has no floor of its own: the lane block under it is the floor (n=0), headroom 1.43
-            report.append((kind, x, s, n, 'ok (lane floor 0, roof at 1.43, ball centre 0.5 -> %.2f away)' % (n - 0.5))); continue
-        if kind in ('tunnelArc', 'tunnelArcLong'):
-            hits = C.make_fc(C.lane_tris(kind)[0])[1](x, s); inner = [h for h, up in hits if h > 0.1]
-            report.append((kind, x, s, n, 'ok (lane floor 0, arch inside at %.2f)' % (inner[0] if inner else 99))); continue
         report.append((kind, x, s, n, check_floor_coin(k, x, s, n)))
 for r in report: print(r)
 print('\nvar LAYOUTS = ' + json.dumps(layouts))

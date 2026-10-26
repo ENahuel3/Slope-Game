@@ -472,6 +472,15 @@
    "notes": "The root as it was before the dev-mode edit 'Y'know the parts of the track that are like arches and cause a speed up? Right now, it seems like yo'. Last commit: Coins: every coin derived from the piece geometry and the ball physics; a coin i",
    "date": "2026-10-26",
    "commit": "a30049e"
+  },
+  {
+   "tag": "v57-coins-reachable",
+   "title": "Reachable coins, scored",
+   "notes": "Coins derived from the piece geometry and the ball physics, each worth a point on the game's score; version status marks in the picker. Known: coins inside the tunnels could sit in the walls and the start tunnel had coins (fixed next).",
+   "date": "2026-10-26",
+   "commit": "04b9692",
+   "status": "issues",
+   "issues": "coins inside the tunnels can sit in the arch wall or the death-tunnel roof, and the start tunnel has coins"
   }
  ]
 }

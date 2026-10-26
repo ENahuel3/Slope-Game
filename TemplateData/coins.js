@@ -1,8 +1,9 @@
 /* Slope mod: collectable 3D coins (loaded after shaders.js, before mod.js).
  *
- * The coins sit on the course's own pieces in the places that are hard to reach but reachable: along the walls inside
- * the tunnels, on the lip of the jumps and just past it in the air, at the edges of the thin lanes, on the uphill side
- * of the tilted lanes, at the outer corners of the doglegs, and at the very edge of some lane blocks. Every position
+ * The coins sit on the course's own pieces in the places that are hard to reach but reachable: on top of the tunnels
+ * (a ball lands there off a gap lip), on the lip of the jumps and just past it in the air, at the edges of the thin
+ * lanes, on the uphill side of the tilted lanes, at the outer corners of the doglegs, and at the very edge of some lane
+ * blocks (not under a tunnel, where the edge is inside the wall; the start tunnel has none at all). Every position
  * was derived from the piece meshes and the ball physics (tools/coin_layout.py): the ball's centre rides 0.5 above a
  * walkable floor, so a floor coin sits 1.0 above the floor and the 1.25 pick radius always catches it; an air coin sits
  * where the trajectories of every speed (8..40 u/s) and push (zforce 24..110) pass within the pick radius. Each coin
@@ -63,9 +64,9 @@
     // x across the lane (the lane blocks span 0..10), s along the course from the piece's origin, n above its floor.
     // n is the walkable floor under the coin plus 1.0 (the ball centre rides at +0.5), except the air coins past the lips.
     var LAYOUTS = {
-        tunnelArc: [[1.6, 14, 1.0], [8.4, 24, 1.0], [1.6, 34, 1.0], [8.4, 44, 1.0]],   // on the floor inside, hugging the walls (3.6 of headroom there)
-        tunnelArcLong: [[1.6, 16, 1.0], [8.4, 30, 1.0], [1.6, 44, 1.0], [8.4, 58, 1.0], [1.6, 72, 1.0]],   // the start tunnel, same
-        tunnelRoof: [[1.5, 12, 0.8], [8.5, 22, 0.8], [1.5, 32, 0.8]],   // the low death tunnel (1.43 of headroom): inside, by the walls, low enough for the ball centre at 0.5
+        tunnelArc: [[5, 20, 5.92], [5, 28, 5.92], [5, 36, 5.92], [5, 44, 5.81]],   // the ridge of the arch (4.92): a ball lands up there after a gap lip
+        tunnelArcLong: [],   // the start tunnel: no coins (the ball starts inside it)
+        tunnelRoof: [[5, 14, 5.46], [5, 22, 5.45], [5, 30, 5.43]],   // the centre beam of the stepped death-tunnel roof (4.45 at x 4..6)
         jumpGapMid: [[5.0, 12.5, 3.73], [5.0, 15.1, 3.32]],   // on the lip (top 2.73 at s 12.7, 32.6-degree ramp) and 2.4 past it, inside the band of every trajectory
         jump: [[5.0, 12.5, 2.36], [5.0, 15.3, 1.59]],   // on the lip (top 1.36 at s 12.7, 24-degree ramp) and 2.6 past it
         thin: [[1.7, 15, 1.0], [-1.7, 30, 1.0], [1.7, 45, 1.0], [-1.7, 60, 1.0], [1.7, 74, 1.0]],   // the edges: the ball centre can reach |x| 2.0 on the 5-wide lane
@@ -92,6 +93,8 @@
     // ------------------------------------------------------------------ watching the game's draw calls
     var bufKind = (typeof WeakMap === "function") ? new WeakMap() : null;   // WebGLBuffer -> mesh name
     var pieces = {}, pieceCount = 0, loose = [];       // key -> piece; loose: planted coins (debug)
+    var TUNNELS = { tunnelArc: 56.6, tunnelArcLong: 84.8, tunnelRoof: 41, deathTunnel: 42.5 };   // kinds whose span hides lane-block coins
+    var tunnelGen = 0, hiddenGen = -1;
     var frame = 0, ballPos = null, ballPrev = null, camVP = null, vpLast = null, o2wLast = null;
     var count = 0, collectedTotal = 0, errors = 0, drawnLast = 0, seenKinds = {};
     function state(ctx) { var s = ctx.__slopeCoins; if (!s) { s = ctx.__slopeCoins = { ab: null, attribBuf: {}, vao: null, vaoAttribs: (bufKind ? new WeakMap() : null) }; } return s; }
@@ -151,7 +154,7 @@
             }
             var key = kind + "@" + m[12].toFixed(1) + "," + m[13].toFixed(1) + "," + m[14].toFixed(1);
             var p = pieces[key];
-            if (!p) { p = pieces[key] = makePiece(kind, key, m); pieceCount++; seenKinds[kind] = (seenKinds[kind] || 0) + 1; }
+            if (!p) { p = pieces[key] = makePiece(kind, key, m); pieceCount++; seenKinds[kind] = (seenKinds[kind] || 0) + 1; if (TUNNELS[kind]) tunnelGen++; }
             p.seen = frame;
         }
         P.drawElements = function () { try { sawDraw(this); } catch (e) { errors++; } return oDE.apply(this, arguments); };
@@ -166,7 +169,23 @@
         var coins = layout.map(function (c, i) {
             return { wp: m4mulp(M, toLocal(c[0], c[1], c[2])), up: up, fwd: fwd, right: right, phase: (c[1] * 0.37 + c[0] * 0.11 + i) % 6.283, done: 0, popAt: 0 };
         });
-        return { kind: kind, key: key, m: M, coins: coins, seen: frame };
+        var piece = { kind: kind, key: key, m: M, coins: coins, seen: frame, org: [m[12], m[13], m[14]], up: up, fwd: fwd, right: right, lane: !LAYOUTS[kind] };
+        if (piece.lane) hiddenGen = -1;    // a new lane block: re-check which edge coins are under a tunnel
+        return piece;
+    }
+    function underTunnel(wp) {             // inside the box of any tunnel piece seen: lane frame 0..length along, 0..10 across, below its roof
+        for (var k in pieces) {
+            var t = pieces[k], len = TUNNELS[t.kind]; if (!len) continue;
+            var d = [wp[0] - t.org[0], wp[1] - t.org[1], wp[2] - t.org[2]];
+            var s = d[0] * t.fwd[0] + d[1] * t.fwd[1] + d[2] * t.fwd[2], x = d[0] * t.right[0] + d[1] * t.right[1] + d[2] * t.right[2], n = d[0] * t.up[0] + d[1] * t.up[1] + d[2] * t.up[2];
+            if (s >= -1 && s <= len + 1 && x >= -1 && x <= 11 && n < 5) return true;
+        }
+        return false;
+    }
+    function refreshHidden() {
+        if (hiddenGen === tunnelGen) return;
+        hiddenGen = tunnelGen;
+        for (var k in pieces) { var p = pieces[k]; if (!p.lane) continue; for (var i = 0; i < p.coins.length; i++) p.coins[i].hidden = underTunnel(p.coins[i].wp); }
     }
 
     // ------------------------------------------------------------------ collecting
@@ -277,7 +296,8 @@
     var model = new Float32Array(16);
     function liveCoins(now) {
         var out = [];
-        for (var k in pieces) { var p = pieces[k]; for (var i = 0; i < p.coins.length; i++) { var c = p.coins[i]; if (!c.done || now - c.popAt < POP_MS) out.push(c); } }
+        refreshHidden();
+        for (var k in pieces) { var p = pieces[k]; for (var i = 0; i < p.coins.length; i++) { var c = p.coins[i]; if (!c.hidden && (!c.done || now - c.popAt < POP_MS)) out.push(c); } }
         for (var j = 0; j < loose.length; j++) { var l = loose[j]; if (!l.done || now - l.popAt < POP_MS) out.push(l); }
         return out;
     }
@@ -286,7 +306,7 @@
         var now = performance.now();
         if (!enabled) { drawnLast = 0; return; }
         // expire the pieces the game stopped drawing (passed, or despawned); a teleporting ball is a restart
-        for (var k in pieces) if (frame - pieces[k].seen > EXPIRE_FRAMES) { delete pieces[k]; pieceCount--; }
+        for (var k in pieces) if (frame - pieces[k].seen > EXPIRE_FRAMES) { if (TUNNELS[pieces[k].kind]) tunnelGen++; delete pieces[k]; pieceCount--; }
         if (ballPos && ballPrev && Math.hypot(ballPos[0] - ballPrev[0], ballPos[1] - ballPrev[1], ballPos[2] - ballPrev[2]) > 20) { var keep = ballPos; reset(); ballPos = keep; }
         var list = liveCoins(now);
         if (ballPos) {
@@ -396,7 +416,7 @@
             var out = {}; for (var k in pieces) { var p = pieces[k]; if (!out[p.kind]) out[p.kind] = Array.prototype.slice.call(p.m); } return out;
         },
         coins: function () {               // debug/test: every live coin with its world position
-            var out = [], b = ballPos; for (var k in pieces) pieces[k].coins.forEach(function (c) { out.push({ kind: pieces[k].kind, wp: c.wp.map(function (v) { return +v.toFixed(2); }), done: c.done, dist: b ? +Math.hypot(c.wp[0] - b[0], c.wp[1] - b[1], c.wp[2] - b[2]).toFixed(2) : null }); }); return out;
+            var out = [], b = ballPos; refreshHidden(); for (var k in pieces) pieces[k].coins.forEach(function (c) { out.push({ kind: pieces[k].kind, wp: c.wp.map(function (v) { return +v.toFixed(2); }), done: c.done, hidden: !!c.hidden, dist: b ? +Math.hypot(c.wp[0] - b[0], c.wp[1] - b[1], c.wp[2] - b[2]).toFixed(2) : null }); }); return out;
         },
         stats: function () {
             var total = 0, left = 0; for (var k in pieces) { total += pieces[k].coins.length; left += pieces[k].coins.filter(function (c) { return !c.done; }).length; }

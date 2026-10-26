@@ -14,8 +14,11 @@ piece's origin) and ray-casts it; `floors.py` finds the walkable floor under eve
 occupy (floor under a 0.45 footprint). `layout.py` places the coins:
 
 - floor coins 1.0 above the walkable floor (the centre rides at +0.5, the pick radius is 1.25);
-- tunnel coins on the lane floor inside, by the walls (arch headroom 3.6 there; the death tunnel has 1.43, so its
-  coins sit at 0.8);
+- tunnel coins on the walkable top: the ridge of the arch (4.92) and the centre beam of the stepped death-tunnel
+  roof (4.45), where a ball lands after a gap lip (a jumpGapMid lip at 20+ u/s peaks about 4.9 high). Nothing inside
+  the tunnels (the arch meets the floor near x 0.5 and the death tunnel's side bays are 1.46 high, so a coin of radius
+  0.8 there is in the wall or the roof), nothing at all in the start tunnel, and coins.js hides the lane-block edge
+  coins that fall under any tunnel's span;
 - tilted lanes: the uphill side of the regular lane width. Holding higher needs a lateral acceleration of
   a_n sin 22.9 deg, which exceeds the 16 u/s^2 of steering (480 N / 30 kg) once zforce passes about 94;
 - jumps: one coin on the lip the ball always crosses and one in the air d past it, with d chosen so that the band
