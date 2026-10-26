@@ -520,7 +520,7 @@
     })();
     var lightId = (function () { var s = lsGet(KEY_LIGHT); return s && LIGHTS[s] ? s : "normal"; })();
     var intensity = (function () { var v = parseFloat(lsGet(KEY_FX)); return v >= 0 && v <= 1 ? v : 1; })();
-    var reflSteps = (function () { var v = parseInt(lsGet("slope.reflSteps"), 10); return v >= 8 && v <= 96 ? v : 48; })();
+    var reflSteps = (function () { var v = parseInt(lsGet("slope.reflSteps"), 10); return v >= 8 && v <= 96 ? v : 96; })();
     var enabled = true;
 
     // ======================================================================

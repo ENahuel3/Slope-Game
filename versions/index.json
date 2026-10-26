@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: That worked, but it also made the reflections a lot cleaner,",
-  "notes": "Made with the in-game dev mode (job bb488c3dd51c).",
+  "title": "Dev edit: Make the default reflection steps all the way up at 96.",
+  "notes": "Made with the in-game dev mode (job ad6504644e3a).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -305,6 +305,13 @@
    "notes": "The root as it was before the dev-mode edit 'That worked, but it also made the reflections a lot cleaner, which is good. Now, the ball's reflecti'. Last commit: Music: Epic Sax Gandalf as the fourth soundtrack",
    "date": "2026-10-26",
    "commit": "05e59ba"
+  },
+  {
+   "tag": "v47-dev-ad6504",
+   "title": "Before dev edit ad6504",
+   "notes": "The root as it was before the dev-mode edit 'Make the default reflection steps all the way up at 96.'. Last commit: Dev edit: That worked, but it also made the reflections a lot cleaner,",
+   "date": "2026-10-26",
+   "commit": "44473c7"
   }
  ]
 }
