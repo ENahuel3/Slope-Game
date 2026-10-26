@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: On high render distances, as the track generates, the backgr",
-  "notes": "Made with the in-game dev mode (job b79bbbdd8039).",
+  "title": "Dev edit: It's even worse now; as a test make it so the background mod",
+  "notes": "Made with the in-game dev mode (job 7fb891cf288e).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -568,6 +568,13 @@
    "date": "2026-10-26",
    "commit": "859d2d3",
    "status": "ok"
+  },
+  {
+   "tag": "v70-dev-7fb891",
+   "title": "Before dev edit 7fb891",
+   "notes": "The root as it was before the dev-mode edit 'It's even worse now; as a test make it so the background models strictly only generate once and neve'. Last commit: Versions: freeze v69-superramps (859d2d3) before the frame-time readout",
+   "date": "2026-10-26",
+   "commit": "502d544"
   }
  ]
 }
