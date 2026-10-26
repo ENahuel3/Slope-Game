@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: It's even worse now; as a test make it so the background mod",
-  "notes": "Made with the in-game dev mode (job 7fb891cf288e).",
+  "title": "Dev edit: In dev mode it says your responses twice can you fix this",
+  "notes": "Made with the in-game dev mode (job 46114f4b6124).",
   "date": "2026-10-26"
  },
  "versions": [
@@ -575,6 +575,13 @@
    "notes": "The root as it was before the dev-mode edit 'It's even worse now; as a test make it so the background models strictly only generate once and neve'. Last commit: Versions: freeze v69-superramps (859d2d3) before the frame-time readout",
    "date": "2026-10-26",
    "commit": "502d544"
+  },
+  {
+   "tag": "v71-dev-46114f",
+   "title": "Before dev edit 46114f",
+   "notes": "The root as it was before the dev-mode edit 'In dev mode it says your responses twice can you fix this'. Last commit: Dev edit: It's even worse now; as a test make it so the background mod",
+   "date": "2026-10-26",
+   "commit": "a30aaf9"
   }
  ]
 }

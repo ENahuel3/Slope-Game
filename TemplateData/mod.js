@@ -1214,6 +1214,10 @@
         if (devToken()) refreshBudget(); else showLocked();
     }
     function closePanel() { if (panel) panel.classList.remove("open"); if (editBox) editBox.blur(); if (passBox) passBox.blur(); }
+    function logWithSummary(job) {         // the final reply is often already in the log: add the summary only when it is not
+        var log = job.log || [], s = String(job.summary || "").trim();
+        return s && log.join("\n").indexOf(s) < 0 ? log.concat(["", job.summary]) : log;
+    }
     function setLog(lines) { editLog.textContent = (lines || []).join("\n"); editLog.scrollTop = editLog.scrollHeight; }
     function submitEdit() {
         var prompt = (editBox.value || "").trim();
@@ -1229,9 +1233,9 @@
             setLog(job.log);
             if (job.state === "queued") editStatus.textContent = "Queued" + (job.position > 1 ? " (" + (job.position - 1) + " ahead)" : "") + "…";
             else if (job.state === "running") editStatus.textContent = "Claude is working…";
-            else if (job.state === "done") { editStatus.textContent = "Published " + (job.commit || "") + " (" + fmtTok(job.tokens) + " tokens" + (job.version ? ", previous version kept as " + job.version : "") + "). Live in about a minute; reload to see it."; if (job.summary) setLog(job.log.concat(["", job.summary])); }
+            else if (job.state === "done") { editStatus.textContent = "Published " + (job.commit || "") + " (" + fmtTok(job.tokens) + " tokens" + (job.version ? ", previous version kept as " + job.version : "") + "). Live in about a minute; reload to see it."; if (job.summary) setLog(logWithSummary(job)); }
             else if (job.state === "answered") editStatus.textContent = "Answered, nothing changed (" + fmtTok(job.tokens) + " tokens).";
-            else if (job.state === "failed") { editStatus.textContent = "Not applied."; if (job.summary) setLog(job.log.concat(["", job.summary])); }
+            else if (job.state === "failed") { editStatus.textContent = "Not applied."; if (job.summary) setLog(logWithSummary(job)); }
             if (job.state === "done" || job.state === "answered" || job.state === "failed") { editSend.disabled = false; refreshBudget(); return; }
             editPoll = setTimeout(pollJob, 2000);
         }).catch(function (e) { editStatus.textContent = e.message; editSend.disabled = false; });
