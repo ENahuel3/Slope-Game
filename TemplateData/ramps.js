@@ -39,10 +39,19 @@
             if (s0 < P.minS) { decided[f.key] = false; continue; }                             // not in or right after the start tunnel
             var mid = [f.org[0] + f.fwd[0] * 7 + f.up[0], f.org[1] + f.fwd[1] * 7 + f.up[1], f.org[2] + f.fwd[2] * 7 + f.up[2]];
             if (SlopeCoins.underTunnel && SlopeCoins.underTunnel(mid)) { decided[f.key] = false; continue; }   // no ramp under a roof
-            var want = (hash(f.key) % P.every) === 0 && s0 - lastRampS >= P.minGap * BLOCK;
+            var gap = s0 - lastRampS;
+            var want = gap >= P.minGap * BLOCK && ((hash(f.key) % P.every) === 0 || gap >= 2 * P.every * BLOCK);   // a long dry spell forces one
             decided[f.key] = want;
             if (want) { lastRampS = s0; ramps[f.key] = makeRamp(f); geometryVersion++; if (window.SlopeCoins && SlopeCoins.muteBlock) SlopeCoins.muteBlock(f.key); }
         }
+    }
+    // A new run puts the ball back at the start, but lastRampS still held the previous run's last ramp far down the
+    // course, so the min-gap rule refused every ramp until the ball passed that point again (ramps only on run one).
+    var prevBallS = null;
+    function resetOnRestart(ball, ballS) {
+        if (!ball) return;
+        if (prevBallS !== null && ballS < prevBallS - 4 * BLOCK) { lastRampS = -1e9; ramps = {}; decided = {}; geometryVersion++; }
+        prevBallS = ballS;
     }
     function makeRamp(f) {
         // the wedge in the block's lane frame: x inset..10-inset, foot at s=foot (n 0) rising to s=top (n rise)
@@ -132,6 +141,7 @@
         for (var k2 in decided) if (!live[k2]) delete decided[k2];
         var ball = SlopeCoins.ballPos();
         var ballS = ball ? dot(ball, FWD0) : -1e9;
+        resetOnRestart(ball, ballS);
         consider(frames, ballS);
         check(ball);
         var keys = Object.keys(ramps), vp = SlopeCoins.camera();

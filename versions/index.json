@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Delete the old vanilla leaderboard button which is literally",
-  "notes": "Made with the in-game dev mode (job 2838737d8a5c).",
+  "title": "Dev edit: Even with super ramps are enabled, I've only ever seen them ",
+  "notes": "Made with the in-game dev mode (job 5e8b52cffd07).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -840,6 +840,13 @@
    "notes": "The root as it was before the dev-mode edit 'Delete the old vanilla leaderboard button which is literally underneath the vanilla one (they overla'. Last commit: Dev edit: On the main menu screen, remove the button that's under the",
    "date": "2026-10-27",
    "commit": "8dcc55d"
+  },
+  {
+   "tag": "v107-dev-5e8b52",
+   "title": "Before dev edit 5e8b52",
+   "notes": "The root as it was before the dev-mode edit 'Even with super ramps are enabled, I've only ever seen them actually spawn on one run and never agai'. Last commit: Dev edit: Delete the old vanilla leaderboard button which is literally",
+   "date": "2026-10-27",
+   "commit": "7c04bb5"
   }
  ]
 }
