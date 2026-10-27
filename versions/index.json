@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Even with super ramps are enabled, I've only ever seen them ",
-  "notes": "Made with the in-game dev mode (job 5e8b52cffd07).",
+  "title": "Dev edit: Give super ramps a hitbox that corresponds to their shape.",
+  "notes": "Made with the in-game dev mode (job c75a9b6d9abf).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -847,6 +847,13 @@
    "notes": "The root as it was before the dev-mode edit 'Even with super ramps are enabled, I've only ever seen them actually spawn on one run and never agai'. Last commit: Dev edit: Delete the old vanilla leaderboard button which is literally",
    "date": "2026-10-27",
    "commit": "7c04bb5"
+  },
+  {
+   "tag": "v108-dev-c75a9b",
+   "title": "Before dev edit c75a9b",
+   "notes": "The root as it was before the dev-mode edit 'Give super ramps a hitbox that corresponds to their shape.'. Last commit: Dev edit: Even with super ramps are enabled, I've only ever seen them",
+   "date": "2026-10-27",
+   "commit": "9fb8c3c"
   }
  ]
 }
