@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Make the leaderboard button not appear until the Unity loadi",
-  "notes": "Made with the in-game dev mode (job 772d22267b61).",
+  "title": "Dev edit: There is a bug where sometimes the game restarts right befor",
+  "notes": "Made with the in-game dev mode (job 13a7e188b6be).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -753,6 +753,13 @@
    "date": "2026-10-26",
    "commit": "eaee935",
    "status": "ok"
+  },
+  {
+   "tag": "v96-dev-13a7e1",
+   "title": "Before dev edit 13a7e1",
+   "notes": "The root as it was before the dev-mode edit 'There is a bug where sometimes the game restarts right before the first time the screen says speed u'. Last commit: Remove TemplateData/sedv7ElgT, a sed temp file the dev-mode sandbox committed",
+   "date": "2026-10-26",
+   "commit": "a61ce6d"
   },
   {
    "tag": "v94-framecap",

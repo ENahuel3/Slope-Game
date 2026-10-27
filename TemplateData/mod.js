@@ -203,6 +203,12 @@
         if (el.src !== src) { el.src = src; }
         var p = el.play(); if (p && p.catch) p.catch(function () { /* autoplay blocked until a gesture; the next restart retries */ });
     }
+    function musicPlayedOut(node) {
+        if (node.__slopeEnded) return true;
+        if (node.loop || node.__slopeT0 === undefined || !node.context) return false;
+        var rate = node.playbackRate && node.playbackRate.value > 0 ? node.playbackRate.value : 1;
+        return (node.__slopeOffset || 0) + (node.context.currentTime - node.__slopeT0) * rate >= node.__slopeDur - 0.1;
+    }
     function pauseCustom() { if (audioEl && !audioEl.paused) audioEl.pause(); }
     function musicNodeElapsed(node) {
         if (!node || node.__slopeStartedAt === undefined) return node && node.__slopeOffset || 0;
@@ -219,16 +225,23 @@
             musicRoot = musicNode = this;
             this.__slopeDead = false;
             this.__slopeOffset = offset || 0;
+            this.__slopeT0 = this.context.currentTime;
             if (isCustomMusic()) {
                 this.__slopeSuppressed = true;              // the game's track stays silent
                 playCustom();
                 return;
             }
             this.__slopeStartedAt = this.context.currentTime;
+            var self = this; this.addEventListener("ended", function () { self.__slopeEnded = true; });
             return absStart.apply(this, arguments);
         };
         AudioBufferSourceNode.prototype.stop = function () {
-            if (this.__slopeDur >= MUSIC_MIN_SECONDS && this === musicRoot) {
+            if (this.__slopeDur >= MUSIC_MIN_SECONDS && this === musicRoot && musicPlayedOut(this)) {
+                // A non-looping track that has played to its end and is then stopped (or its pooled object despawned)
+                // is not a death: on a slow first lap this used to land just before the first speed-up and restart the run.
+                note("music track ended by itself (not a death)");
+                this.__slopeDead = true;
+            } else if (this.__slopeDur >= MUSIC_MIN_SECONDS && this === musicRoot) {
                 musicStopped = true;
                 pauseCustom();
                 this.__slopeDead = true;
