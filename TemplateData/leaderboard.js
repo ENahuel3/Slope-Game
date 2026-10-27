@@ -116,14 +116,40 @@
             if (playerName) post(lastRunScore);
             setTimeout(openPanel, 400);
         }
-        if (firstRun && !open) { build(); if (titleBtn.style.display === "none") titleBtn.style.display = "flex"; }
+        if (firstRun && !open && loaded()) { build(); if (titleBtn.style.display === "none") titleBtn.style.display = "flex"; }
+    }
+    function loaded() { try { return !SlopeMod.loaded || SlopeMod.loaded(); } catch (e) { return true; } }
+
+    // ------------------------------------------------------------------ the shader style's colour (shaders.js recolours the game's green; match it)
+    var TINTS = { "color-red": [1, 0.05, 0.05], "color-orange": [1, 0.5, 0], "color-yellow": [1, 0.95, 0.05], "color-blue": [0.1, 0.35, 1],
+        "color-indigo": [0.3, 0.1, 0.85], "color-violet": [0.65, 0.15, 1], synthwave: [0.1, 0.55, 1], noir: [0.85, 0.85, 0.85] };
+    function hueRgb(h) {   // fully saturated, full value
+        var f = function (n) { var k = (n + h * 6) % 6; return 1 - Math.max(0, Math.min(k, 4 - k, 1)); };
+        return [f(5), f(3), f(1)];
+    }
+    function styleRgb() {
+        var S = window.SlopeShaders; if (!S) return null;
+        try {
+            if (S.enabled && !S.enabled()) return null;
+            var id = S.style(), amt = S.intensity ? S.intensity() : 1, t;
+            if (id === "rainbow") t = hueRgb((performance.now() / 3500 + 0.82) % 1);
+            else if (TINTS[id]) { var c = TINTS[id], mx = Math.max(c[0], c[1], c[2]); t = [c[0] / mx, c[1] / mx, c[2] / mx]; }
+            else return null;
+            return [t[0] * amt, 1 + (t[1] - 1) * amt, t[2] * amt];   // blended from the game's green by the effect amount
+        } catch (e) { return null; }
+    }
+    var lastTint = "";
+    function tint() {
+        if (!root) return;
+        var c = styleRgb(), s = c ? "rgb(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + ")" : "#00ff00";
+        if (s !== lastTint) { lastTint = s; root.style.setProperty("--lb-c", s); }
     }
     document.addEventListener("keydown", function (e) {
         var t = e.target; if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
         if ((e.key === "l" || e.key === "L") && !running()) { if (open) closePanel(); else openPanel(); }
         else if (e.key === "Escape" && open) closePanel();
     });
-    function start() { build(); setInterval(tick, 250); }
+    function start() { build(); setInterval(tick, 250); setInterval(tint, 100); tint(); }
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
     window.SlopeLeaderboard = {
         open: openPanel, close: closePanel, refresh: refresh,

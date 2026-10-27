@@ -160,6 +160,7 @@
     var COURSE_BATCH = 5190;
 
     var frameDraws = [];          // index counts of draws in the frame being rendered
+    var gameReadyAt = 0, sceneSeen = false;   // loading finished / first full scene frame drawn (SlopeMod.loaded)
 
     function hookContext(P) {
         var origDE = P.drawElements, origDA = P.drawArrays;
@@ -500,6 +501,7 @@
             perfWin.n++; perfWin.sum += gapL; if (gapL > perfWin.max) perfWin.max = gapL; if (!perfWin.t0) perfWin.t0 = nowL;
             else if (nowL - perfWin.t0 >= 1000) { perf = { fps: Math.round(perfWin.n * 1000 / (nowL - perfWin.t0)), frameMs: +(perfWin.sum / perfWin.n).toFixed(1), worstMs: Math.round(perfWin.max) }; perfWin = { n: 0, sum: 0, max: 0, t0: nowL }; } } lastLoopT = nowL;
         var draws = frameDraws; frameDraws = lastDraws; frameDraws.length = 0;
+        if (!sceneSeen && gameReadyAt && draws.length >= 12) sceneSeen = true;   // Unity's splash draws a few quads; the menu scene draws many
         lastDraws = draws;
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
         try { syncBuilding(); } catch (e) { /* diagnostics only */ }
@@ -1437,7 +1439,10 @@
             tickTimer();
             showHud();
         },
+        // true once the loading bar and Unity's splash are gone (first full scene frame, or 8 s after load as a fallback)
+        loaded: function () { return !!gameReadyAt && (sceneSeen || Date.now() - gameReadyAt > 8000); },
         onGameReady: function () {
+            gameReadyAt = Date.now();
             startedAt = Date.now();
             setTimeout(discoverHeap, 300);
             tickTimer();

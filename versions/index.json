@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "v91-framepacing \u2014 Smooth play and accurate 1% lows",
-  "notes": "Automatic render quality during play, cached WebGL state, paced spawning and batched ramps. FPS uses frame-boundary timestamps for actual Unity draws, excluding CPU phase jitter. Firefox 1920x1200 Night test: 1% low 29.7 to 54.1 FPS; p99 33.22 to 17.12 ms. Full resolution remains selectable; native menus preserved.",
-  "date": "2026-10-26"
+  "title": "Dev edit: Make the leaderboard button not appear until the Unity loadi",
+  "notes": "Made with the in-game dev mode (job 772d22267b61).",
+  "date": "2026-10-27"
  },
  "versions": [
   {
@@ -738,6 +738,13 @@
    "date": "2026-10-26",
    "commit": "9667ee3",
    "status": "ok"
+  },
+  {
+   "tag": "v93-dev-772d22",
+   "title": "Before dev edit 772d22",
+   "notes": "The root as it was before the dev-mode edit 'Make the leaderboard button not appear until the Unity loading screen is gone, and make the style co'. Last commit: Dev mode: publish survives a moving branch; the sandbox unit allows resource sys",
+   "date": "2026-10-26",
+   "commit": "290756f"
   }
  ]
 }
