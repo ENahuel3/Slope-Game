@@ -100,3 +100,13 @@ Respect the existing coordination protocol: one low-priority browser at once,
 small/short tests; never silently change CPU power caps. No CPU power settings
 were changed. Preserve the pre-existing modified tracked
 `tools/__pycache__/fsmparse.cpython-314.pyc`; it is excluded from this release.
+
+## Release validation
+
+Implementation commit: `34da055`. The root game and v90 snapshot contain that
+implementation; the following metadata commit adds the immutable v90 snapshot.
+`tools/version_static_check.py`: **all frozen versions valid, 0 with problems**.
+Historical snapshot CRLF/trailing spaces are preserved byte-for-byte; root
+source diff and JS syntax checks pass. Publication target is `origin/mod` and
+GitHub Pages; validate served script hashes after pushing. Persistent Claude
+memory links to this handoff. No background browser/test process is left running.
