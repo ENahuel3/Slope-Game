@@ -1329,11 +1329,23 @@
         if (devToken()) refreshBudget(); else showLocked();
     }
     function closePanel() { if (panel) panel.classList.remove("open"); if (editBox) editBox.blur(); if (passBox) passBox.blur(); }
-    function logWithSummary(job) {         // the final reply is often already in the log: add the summary only when it is not
-        var log = job.log || [], flat = function (t) { return String(t || "").replace(/\s+/g, " ").trim(); }, s = flat(job.summary);   // the summary is one line and may be cut short, the log keeps its line breaks
-        return s && flat(log.join(" ")).indexOf(s) < 0 ? log.concat(["", job.summary]) : log;
+    // Comparable text: markdown marks, ellipses and whitespace ignored (the summary is one line, may be cut short and
+    // formatted differently from the reply in the log).
+    function flatText(t) { return String(t || "").replace(/[*_`#>]/g, "").replace(/(…|\.\.\.)\s*$/, "").replace(/\s+/g, " ").trim(); }
+    function dedupeLog(log) {              // the reply can reach the log twice (streamed, then as the result): keep its first copy
+        var blocks = (log || []).join("\n").split(/\n\s*\n/), kept = [], seen = "";
+        for (var i = 0; i < blocks.length; i++) {
+            var f = flatText(blocks[i]);
+            if (f.length >= 40 && seen.indexOf(f) >= 0) continue;
+            kept.push(blocks[i]); seen += " " + f;
+        }
+        return kept.join("\n\n").split("\n");
     }
-    function setLog(lines) { editLog.textContent = (lines || []).join("\n"); editLog.scrollTop = editLog.scrollHeight; }
+    function logWithSummary(job) {         // the final reply is often already in the log: add the summary only when it is not
+        var log = dedupeLog(job.log), s = flatText(job.summary).slice(0, 80);
+        return s && flatText(log.join(" ")).indexOf(s) < 0 ? log.concat(["", job.summary]) : log;
+    }
+    function setLog(lines) { editLog.textContent = dedupeLog(lines).join("\n"); editLog.scrollTop = editLog.scrollHeight; }
     function submitEdit() {
         var prompt = (editBox.value || "").trim();
         if (prompt.length < 4) { editStatus.textContent = "Say what you want changed."; return; }

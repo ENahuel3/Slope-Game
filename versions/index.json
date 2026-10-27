@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Remove the VSync option from settings.",
-  "notes": "Made with the in-game dev mode (job e5f992242d67).",
+  "title": "Dev edit: In dev mode your responses show up twice, please fix this.",
+  "notes": "Made with the in-game dev mode (job fc04cbeb516c).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -819,6 +819,13 @@
    "notes": "The root as it was before the dev-mode edit 'Remove the VSync option from settings.'. Last commit: Dev edit: The leaderboard button spawns too early after death; wait un",
    "date": "2026-10-27",
    "commit": "d6da5db"
+  },
+  {
+   "tag": "v104-dev-fc04cb",
+   "title": "Before dev edit fc04cb",
+   "notes": "The root as it was before the dev-mode edit 'In dev mode your responses show up twice, please fix this.'. Last commit: Dev edit: Remove the VSync option from settings.",
+   "date": "2026-10-27",
+   "commit": "94733f4"
   }
  ]
 }
