@@ -1133,27 +1133,61 @@
     }
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initFpsCounter); else initFpsCounter();
 
-    // VSync: on (default) = Unity's loop runs on requestAnimationFrame; off = Emscripten's setTimeout timing (uncapped, may tear).
-    var KEY_VSYNC = "slope-mod.vsync";
-    function initVsync() {
-        var box = document.getElementById("hud-vsync");
-        if (!box) return;
-        var on = lsGet(KEY_VSYNC) !== "0";
-        box.checked = on;
-        function apply() {
-            try {
-                var M = game && game.Module;
-                if (!M) return;
-                var B = M.Browser || window.Browser, setT = M._emscripten_set_main_loop_timing;
-                if (!B || !B.mainLoop || typeof setT !== "function") return;
-                var want = on ? 1 : 0;
-                if (B.mainLoop.timingMode !== want) setT(want, on ? 1 : 0);
-            } catch (e) { /* never break the game */ }
+    // VSync and frame cap: requestAnimationFrame is wrapped. VSync on + no cap passes straight through. Otherwise callbacks are
+    // batched (kept in order) and fired from rAF (vsync on, skipping frames to honour the cap) or from a message/timer tick
+    // (vsync off, uncapped or paced by the cap).
+    var KEY_VSYNC = "slope-mod.vsync", KEY_CAP = "slope-mod.frameCap";
+    var vsyncOn = lsGet(KEY_VSYNC) !== "0", capStep = parseInt(lsGet(KEY_CAP), 10);
+    if (!(capStep >= 1 && capStep <= 25)) capStep = 25;            // 1..24 = 10..240 fps, 25 = unlimited
+    (function installFramePacer() {
+        var rawRaf = window.requestAnimationFrame.bind(window), rawCaf = window.cancelAnimationFrame.bind(window);
+        var queue = [], nextId = 1, scheduled = false, lastRun = 0, chan = null;
+        function interval() { return capStep >= 25 ? 0 : 1000 / (capStep * 10); }
+        function run(t) {
+            scheduled = false; lastRun = performance.now();
+            var q = queue; queue = [];
+            for (var i = 0; i < q.length; i++) { if (q[i].cb) { try { q[i].cb(t); } catch (e) { setTimeout(function (er) { throw er; }.bind(null, e), 0); } } }
         }
-        box.addEventListener("change", function () { on = box.checked; lsSet(KEY_VSYNC, on ? "1" : "0"); apply(); });
-        setInterval(function () { if (!on || lsGet(KEY_VSYNC) === "0") apply(); }, 1000);
+        function tickRaf(t) {
+            var iv = interval();
+            if (iv && performance.now() - lastRun < iv - 2) { rawRaf(tickRaf); return; }
+            run(t);
+        }
+        function tickFree() {
+            var iv = interval(), wait = iv ? iv - (performance.now() - lastRun) : 0;
+            if (wait > 1) { setTimeout(tickFree, wait - 1); return; }
+            run(performance.now());
+        }
+        function kick() {
+            if (scheduled) return;
+            scheduled = true;
+            if (vsyncOn) { rawRaf(tickRaf); return; }
+            if (interval()) { setTimeout(tickFree, 0); return; }
+            try {
+                if (!chan) { chan = new MessageChannel(); chan.port1.onmessage = tickFree; }
+                chan.port2.postMessage(0);
+            } catch (e) { setTimeout(tickFree, 0); }
+        }
+        window.requestAnimationFrame = function (cb) {
+            if (vsyncOn && capStep >= 25 && !queue.length && !scheduled) return rawRaf(cb);
+            var id = -(nextId++);                                  // negative ids never clash with the browser's
+            queue.push({ id: id, cb: cb }); kick(); return id;
+        };
+        window.cancelAnimationFrame = function (id) {
+            if (id < 0) { for (var i = 0; i < queue.length; i++) if (queue[i].id === id) queue[i].cb = null; }
+            else rawCaf(id);
+        };
+    })();
+    function initFrameSettings() {
+        var box = document.getElementById("hud-vsync"), cap = document.getElementById("hud-cap"), val = document.getElementById("hud-cap-val");
+        if (box) { box.checked = vsyncOn; box.addEventListener("change", function () { vsyncOn = box.checked; lsSet(KEY_VSYNC, vsyncOn ? "1" : "0"); }); }
+        if (cap) {
+            var show = function () { if (val) val.textContent = capStep >= 25 ? "Unlimited" : String(capStep * 10); };
+            cap.value = capStep; show();
+            cap.addEventListener("input", function () { capStep = parseInt(cap.value, 10) || 25; lsSet(KEY_CAP, capStep); show(); });
+        }
     }
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initVsync); else initVsync();
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initFrameSettings); else initFrameSettings();
 
     function setStackTarget(n) {
         n = parseInt(n, 10);
