@@ -166,6 +166,9 @@
     // batched UI buffer, drawn as 54 indices at byte 108, 48 at 216 and 6 at 312; nothing else on the title menu uses
     // those offsets. titleMenu comes from the previous frame's draw list (frameLoop).
     var titleMenu = false, HIDDEN_TITLE_DRAWS = { "54@108": 1, "48@216": 1, "6@312": 1 };
+    // The "Guest" label above Login is a 30-index draw at offset 0 that comes right after the download button's last draw
+    // (6@312); "SLOPE" and the Login label are 30@0 too, but come elsewhere in the order, so they are kept.
+    var prevTitleDraw = "";
     // Game-over screen: its small UI draws (index count < 300) come in a fixed order: speaker icon (54, 6), the game's
     // Leaderboard button (54 box, 66 label), AGAIN (54, 30), Menu (54, 24), then the id.net leaderboard panel (everything
     // after). The Leaderboard button and the panel are not drawn, so that space is empty; the mod's own Leaderboard box
@@ -181,7 +184,10 @@
         var origDEI = P.drawElementsInstanced, origDAI = P.drawArraysInstanced;
         P.drawElements = function (mode, count, type, offset) {
             frameDraws.push(count);
-            if (titleMenu && HIDDEN_TITLE_DRAWS[count + "@" + offset]) return;
+            if (titleMenu) {
+                var key = count + "@" + offset, prev = prevTitleDraw; prevTitleDraw = key;
+                if (HIDDEN_TITLE_DRAWS[key] || (key === "30@0" && prev === "6@312")) return;
+            }
             if (count < 300) { var ord = uiOrd++; frameUi.push(count); if (overMenu && (ord === 2 || ord === 3 || ord >= 8)) return; }
             return origDE.apply(this, arguments);
         };

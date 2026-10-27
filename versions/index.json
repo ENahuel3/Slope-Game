@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: On the same screen you just edited, make it so that when the",
-  "notes": "Made with the in-game dev mode (job 77250898defa).",
+  "title": "Dev edit: Delete the word \"Guest\" on the main menu above the login but",
+  "notes": "Made with the in-game dev mode (job 48260d570fcd).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -875,6 +875,13 @@
    "notes": "The root as it was before the dev-mode edit 'On the same screen you just edited, make it so that when the cursor is over the modded leaderboard b'. Last commit: Dev edit: On the screen with the modded leaderboard menu and the again",
    "date": "2026-10-27",
    "commit": "25c7671"
+  },
+  {
+   "tag": "v112-dev-48260d",
+   "title": "Before dev edit 48260d",
+   "notes": "The root as it was before the dev-mode edit 'Delete the word \"Guest\" on the main menu above the login button.'. Last commit: Dev edit: On the same screen you just edited, make it so that when the",
+   "date": "2026-10-27",
+   "commit": "58bfaec"
   }
  ]
 }
