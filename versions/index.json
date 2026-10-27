@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Delete the word \"Guest\" on the main menu above the login but",
-  "notes": "Made with the in-game dev mode (job 48260d570fcd).",
+  "title": "Dev edit: Try again, it said tools/probe_out/ord_0.png was deleted; di",
+  "notes": "Made with the in-game dev mode (job 3f23c3fee9db).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -882,6 +882,13 @@
    "notes": "The root as it was before the dev-mode edit 'Delete the word \"Guest\" on the main menu above the login button.'. Last commit: Dev edit: On the same screen you just edited, make it so that when the",
    "date": "2026-10-27",
    "commit": "58bfaec"
+  },
+  {
+   "tag": "v113-dev-3f23c3",
+   "title": "Before dev edit 3f23c3",
+   "notes": "The root as it was before the dev-mode edit 'Try again, it said tools/probe_out/ord_0.png was deleted; discarded.'. Last commit: Dev edit: Delete the word \"Guest\" on the main menu above the login but",
+   "date": "2026-10-27",
+   "commit": "7cb7a51"
   }
  ]
 }
