@@ -172,79 +172,6 @@
     // its 48@0 label (no other title draw is 48@0).
     var prevTitleDraw = "";
     HIDDEN_TITLE_DRAWS["48@0"] = 1;
-    // Unity's UI still clicks the hidden download and Feedback buttons, so clicks on their spots are swallowed while the
-    // title menu shows. Their screen rects come from their skipped box draws: about once a second the draw is replayed
-    // into a quarter-size offscreen target cleared to white, with blending set to dst * 0.5 so every pixel it covers
-    // darkens whatever the shader outputs, and the darkened bounding box is read back (canvas-relative, 0..1).
-    var deadRects = {}, measureAt = {}, measureRb = null;
-    function measureHidden(gl, draw, args, name) {
-        var t = performance.now();
-        if (measureAt[name] && t - measureAt[name] < 1000) return;
-        measureAt[name] = t;
-        var gl2 = !!gl.READ_FRAMEBUFFER;
-        if (gl2 && gl.getParameter(gl.PIXEL_PACK_BUFFER_BINDING)) return;
-        var dbW = gl.drawingBufferWidth, dbH = gl.drawingBufferHeight;
-        var W = Math.max(1, Math.ceil(dbW / 4)), H = Math.max(1, Math.ceil(dbH / 4)), m = measureRb;
-        var rb0 = gl.getParameter(gl.RENDERBUFFER_BINDING);
-        if (!m || m.gl !== gl || m.w !== W || m.h !== H) {
-            if (m && m.gl === gl) { gl.deleteFramebuffer(m.fb); gl.deleteRenderbuffer(m.rb); }
-            m = measureRb = { gl: gl, w: W, h: H, fb: gl.createFramebuffer(), rb: gl.createRenderbuffer(), px: new Uint8Array(W * H * 4) };
-            gl.bindRenderbuffer(gl.RENDERBUFFER, m.rb);
-            gl.renderbufferStorage(gl.RENDERBUFFER, gl2 ? gl.RGBA8 : gl.RGBA4, W, H);
-            gl.bindRenderbuffer(gl.RENDERBUFFER, rb0);
-        }
-        var drawFb = gl.getParameter(gl.FRAMEBUFFER_BINDING), readFb = gl2 ? gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) : null;
-        var vp = gl.getParameter(gl.VIEWPORT), mask = gl.getParameter(gl.COLOR_WRITEMASK), cc = gl.getParameter(gl.COLOR_CLEAR_VALUE);
-        var blend = gl.isEnabled(gl.BLEND), scissor = gl.isEnabled(gl.SCISSOR_TEST), bc = gl.getParameter(gl.BLEND_COLOR);
-        var bf = [gl.getParameter(gl.BLEND_SRC_RGB), gl.getParameter(gl.BLEND_DST_RGB), gl.getParameter(gl.BLEND_SRC_ALPHA), gl.getParameter(gl.BLEND_DST_ALPHA)];
-        var eqRgb = gl.getParameter(gl.BLEND_EQUATION_RGB), eqA = gl.getParameter(gl.BLEND_EQUATION_ALPHA);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, m.fb);
-        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, m.rb);
-        var ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
-        if (ok) {
-            var sx = W / dbW, sy = H / dbH;
-            gl.viewport(vp[0] * sx, vp[1] * sy, vp[2] * sx, vp[3] * sy);
-            gl.disable(gl.SCISSOR_TEST); gl.colorMask(true, true, true, true);
-            gl.clearColor(1, 1, 1, 1); gl.clear(gl.COLOR_BUFFER_BIT);
-            gl.enable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD); gl.blendColor(0.5, 0.5, 0.5, 0.5);
-            gl.blendFuncSeparate(gl.ZERO, gl.CONSTANT_COLOR, gl.ZERO, gl.CONSTANT_COLOR);
-            draw.apply(gl, args);
-            gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, m.px);
-        }
-        if (gl2) { gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, drawFb); gl.bindFramebuffer(gl.READ_FRAMEBUFFER, readFb); }
-        else gl.bindFramebuffer(gl.FRAMEBUFFER, drawFb);
-        gl.viewport(vp[0], vp[1], vp[2], vp[3]); gl.colorMask(mask[0], mask[1], mask[2], mask[3]);
-        gl.clearColor(cc[0], cc[1], cc[2], cc[3]); gl.blendColor(bc[0], bc[1], bc[2], bc[3]);
-        gl.blendEquationSeparate(eqRgb, eqA); gl.blendFuncSeparate(bf[0], bf[1], bf[2], bf[3]);
-        if (blend) gl.enable(gl.BLEND); else gl.disable(gl.BLEND);
-        if (scissor) gl.enable(gl.SCISSOR_TEST);
-        if (!ok) return;
-        var x0 = W, y0 = H, x1 = -1, y1 = -1, px = m.px;
-        for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
-            if (px[(y * W + x) * 4] > 200) continue;
-            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
-        }
-        if (x1 < 0) { delete deadRects[name]; return; }
-        // inset by one quarter-size sample, so rounding never eats the edge of a neighbouring button (Leaderboard)
-        deadRects[name] = { l: (x0 + 1) / W, r: x1 / W, t: 1 - y1 / H, b: 1 - (y0 + 1) / H };
-    }
-    function onDeadRect(e) {
-        var c = e.target;
-        if (!titleMenu || !c || c.tagName !== "CANVAS") return false;
-        var p = e.changedTouches ? e.changedTouches[0] : e;
-        if (!p) return false;
-        var r = c.getBoundingClientRect(), x = (p.clientX - r.left) / r.width, y = (p.clientY - r.top) / r.height;
-        for (var k in deadRects) {
-            var d = deadRects[k];
-            if (x >= d.l && x <= d.r && y >= d.t && y <= d.b) return true;
-        }
-        return false;
-    }
-    ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "touchstart", "touchend"].forEach(function (type) {
-        window.addEventListener(type, function (e) {
-            if (onDeadRect(e)) { e.preventDefault(); e.stopImmediatePropagation(); }
-        }, { capture: true, passive: false });
-    });
     // Game-over screen: its small UI draws (index count < 300) come in a fixed order: speaker icon (54, 6), the game's
     // Leaderboard button (54 box, 66 label), AGAIN (54, 30), Menu (54, 24), then the id.net leaderboard panel (everything
     // after). The Leaderboard button and the panel are not drawn, so that space is empty; the mod's own Leaderboard box
@@ -262,10 +189,7 @@
             frameDraws.push(count);
             if (titleMenu) {
                 var key = count + "@" + offset, prev = prevTitleDraw; prevTitleDraw = key;
-                if (key === "54@108") measureHidden(this, origDE, arguments, "download");
-                var feedbackBox = key === "54@0" && prev === "66@0";
-                if (feedbackBox) measureHidden(this, origDE, arguments, "feedback");
-                if (HIDDEN_TITLE_DRAWS[key] || (key === "30@0" && prev === "6@312") || feedbackBox) return;
+                if (HIDDEN_TITLE_DRAWS[key] || (key === "30@0" && prev === "6@312") || (key === "54@0" && prev === "66@0")) return;
             }
             if (count < 300) { var ord = uiOrd++; frameUi.push(count); if (overMenu && (ord === 2 || ord === 3 || ord >= 8)) return; }
             return origDE.apply(this, arguments);
@@ -1535,7 +1459,6 @@
         stackTarget: function () { return stackTarget; },
         courseBatches: function () { return lastCourseCount; },
         log: function () { return debugLog.slice(); },
-        deadRects: function () { return JSON.parse(JSON.stringify(deadRects)); },
         frame: function () { return frameNo; },
         overMenu: function () { return overMenu; },   // on the game-over screen (OVER_UI_SIG)
         stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, stuckRestarts: stuckRestarts, renderDistance: viewDist, aheadLeft: aheadLeft, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, fps: perf.fps, frameMs: perf.frameMs, worstMs: perf.worstMs, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaders: window.SlopeShaders ? SlopeShaders.stats() : null }; },

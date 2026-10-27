@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: You successfully hid the download button and feedback button",
-  "notes": "Made with the in-game dev mode (job 766e4d95aa5f).",
+  "title": "Dev edit: Undo the click blocker thing.",
+  "notes": "Made with the in-game dev mode (job d21fab97d367).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -896,6 +896,13 @@
    "notes": "The root as it was before the dev-mode edit 'You successfully hid the download button and feedback button on the main menu, but you can still cli'. Last commit: Dev edit: Try again, it said tools/probe_out/ord_0.png was deleted; di",
    "date": "2026-10-27",
    "commit": "891fd4f"
+  },
+  {
+   "tag": "v115-dev-d21fab",
+   "title": "Before dev edit d21fab",
+   "notes": "The root as it was before the dev-mode edit 'Undo the click blocker thing.'. Last commit: Dev edit: You successfully hid the download button and feedback button",
+   "date": "2026-10-27",
+   "commit": "7f0b6e9"
   }
  ]
 }
