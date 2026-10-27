@@ -1266,6 +1266,22 @@
     }
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initFrameSettings); else initFrameSettings();
 
+    // Version picker: versions.js builds #hud-version asynchronously from versions/index.json; mark known-broken
+    // releases (by tag prefix) whose index entry does not say so.
+    var BROKEN_TAGS = ["v115"];
+    function markBrokenVersions() {
+        var sel = document.getElementById("hud-version");
+        if (!sel) return false;
+        Array.prototype.forEach.call(sel.options, function (o) {
+            var hit = BROKEN_TAGS.some(function (t) { return o.value === t || o.value.indexOf(t + "-") === 0; });
+            if (hit && !/BROKEN/.test(o.textContent)) o.textContent = "⚠ " + o.textContent + " – BROKEN";
+        });
+        return true;
+    }
+    (function waitVersionPicker(n) {
+        if (!markBrokenVersions() && n < 120) setTimeout(function () { waitVersionPicker(n + 1); }, 500);
+    })(0);
+
     function setStackTarget(n) {
         n = parseInt(n, 10);
         if (!(n >= 1)) n = 1;
