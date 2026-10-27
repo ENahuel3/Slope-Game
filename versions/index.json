@@ -722,6 +722,14 @@
    "commit": "34da055",
    "status": "issues",
    "issues": "The 1% low readout includes CPU submission-phase jitter even when frame boundaries are regular; corrected in v91. Gameplay optimizations remain available."
+  },
+  {
+   "tag": "v91-framepacing",
+   "title": "Smooth play and accurate 1% lows",
+   "notes": "Frame-pacing optimizations with a frame-boundary FPS/1% low readout, excluding CPU submission-phase jitter and duplicate draws within a refresh. Firefox stress: 1% low 29.7 to 54.1 FPS; p99 frame 33.22 to 17.12 ms. Automatic quality defaults on, Full resolution available, menus and input preserved.",
+   "date": "2026-10-26",
+   "commit": "6607bb8",
+   "status": "ok"
   }
  ]
 }
