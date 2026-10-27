@@ -1364,6 +1364,21 @@
         }
     }, true);
 
+    // Leaderboard button after a run: leaderboard.js only shows its title-menu box before the
+    // first run, so after dying and going back to the menu it never came back. Once the game
+    // has been stopped for 1.5 s and the board is closed, show it again (a new run or opening
+    // the board hides it, as before).
+    var lbStoppedAt = 0;
+    setInterval(function () {
+        if (gameRunning || !deaths) { lbStoppedAt = 0; return; }
+        if (!lbStoppedAt) { lbStoppedAt = Date.now(); return; }
+        if (Date.now() - lbStoppedAt < 1500) return;
+        var lb = window.SlopeLeaderboard, btn = document.querySelector(".lb-title-btn");
+        if (!lb || !btn || btn.style.display !== "none") return;
+        try { if (lb.stats().open) return; } catch (e) { return; }
+        btn.style.display = "flex";
+    }, 250);
+
     window.SlopeMod = {
         blockedCount: function () { return blockedCount; },
         stackTarget: function () { return stackTarget; },
