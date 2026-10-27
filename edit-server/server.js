@@ -493,16 +493,41 @@ async function pump() {
             if (r.status !== 0) throw new Error("The page no longer works after this edit, so it was not published. " + line);
             say(line);
         }
-        if (CFG.freeze) { say("Freezing the version this replaces…"); job.frozen = freezeOutgoing(job, say); }
-        git(["add", "-A", "--", ...files, "versions"]);
+        // Publish on top of whatever the branch is now: another dev job or a developer may have pushed since the sync at
+        // the start of this job. The edit is kept as a patch and re-applied to a fresh checkout, up to three times.
+        const patch = git(["diff", "--binary", "HEAD", "--", ...files]);
+        const untracked = git(["ls-files", "--others", "--exclude-standard", "--", ...files]).split("\n").filter(Boolean);
+        const keep = {}; for (const f of untracked) keep[f] = fs.readFileSync(path.join(CFG.repoDir, f));
         const title = job.prompt.replace(/\s+/g, " ").slice(0, 60);
-        git(["-c", "user.name=" + CFG.authorName, "-c", "user.email=" + CFG.authorEmail, "commit", "--quiet", "-m",
-             "Dev edit: " + title + "\n\nRequest: " + job.prompt + "\n\n" + (job.summary ? job.summary + "\n\n" : "") +
-             "Made by Claude Code through the in-game dev mode (job " + job.id + ", " + tokens.toLocaleString() + " tokens" + (job.cost ? ", $" + job.cost.toFixed(3) : "") + ")." +
-             (job.frozen ? " The version it replaces is frozen as " + job.frozen + "." : "")]);
-        job.commit = git(["rev-parse", "--short", "HEAD"]);
-        if (CFG.push) { say("Publishing…"); git(["push", "--quiet", CFG.remote, "HEAD:" + CFG.branch]); say("Pushed " + job.commit + ". GitHub Pages serves it in about a minute; reload to see it."); }
-        else say("Committed " + job.commit + " (push disabled).");
+        let published = false, lastErr = null;
+        for (let attempt = 1; attempt <= 3 && !published; attempt++) {
+            try {
+                if (attempt > 1) { say("The branch moved while this edit was made; re-applying the edit on the new version (try " + attempt + ")…"); syncRepo();
+                    for (const f in keep) { fs.mkdirSync(path.dirname(path.join(CFG.repoDir, f)), { recursive: true }); fs.writeFileSync(path.join(CFG.repoDir, f), keep[f]); }
+                    if (patch.trim()) { const r = spawnSync("git", ["apply", "--3way", "--whitespace=nowarn"], { cwd: CFG.repoDir, input: patch + "\n", encoding: "utf8" }); if (r.status !== 0) throw new Error("the edit no longer applies to the current version: " + (r.stderr || "").trim().split("\n").slice(-2).join(" ")); }
+                    const again = validate(job); if (again) throw new Error(again);
+                }
+                job.frozen = null;
+                if (CFG.freeze) { say("Freezing the version this replaces…"); job.frozen = freezeOutgoing(job, say); }
+                git(["add", "-A", "--", ...files, "versions"]);
+                git(["-c", "user.name=" + CFG.authorName, "-c", "user.email=" + CFG.authorEmail, "commit", "--quiet", "-m",
+                     "Dev edit: " + title + "\n\nRequest: " + job.prompt + "\n\n" + (job.summary ? job.summary + "\n\n" : "") +
+                     "Made by Claude Code through the in-game dev mode (job " + job.id + ", " + tokens.toLocaleString() + " tokens" + (job.cost ? ", $" + job.cost.toFixed(3) : "") + ")." +
+                     (job.frozen ? " The version it replaces is frozen as " + job.frozen + "." : "")]);
+                job.commit = git(["rev-parse", "--short", "HEAD"]);
+                if (CFG.push) {
+                    say("Publishing…");
+                    try { git(["push", "--quiet", CFG.remote, "HEAD:" + CFG.branch]); }
+                    catch (e) { lastErr = e; if (attempt < 3) { say("Push rejected (the branch moved)."); continue; } throw e; }
+                    say("Pushed " + job.commit + ". GitHub Pages serves it in about a minute; reload to see it.");
+                } else say("Committed " + job.commit + " (push disabled).");
+                published = true;
+            } catch (e) {
+                if (attempt >= 3 || /no longer applies|discarded|outside the allowed set|does not parse/.test(String(e.message))) throw e;
+                lastErr = e; say("Could not publish on this try: " + String(e.message).slice(0, 160));
+            }
+        }
+        if (!published) throw lastErr || new Error("could not publish");
         job.state = "done";
     } catch (e) {
         job.error = String(e.message || e).slice(0, 1200);

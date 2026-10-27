@@ -730,6 +730,14 @@
    "date": "2026-10-26",
    "commit": "6607bb8",
    "status": "ok"
+  },
+  {
+   "tag": "v92-framepacing2",
+   "title": "Frame pacing with accurate timing",
+   "notes": "Codex's frame pacing (adaptive resolution, cached WebGL state) with accurate rendered-frame timing. Last version before the frame-cap slider.",
+   "date": "2026-10-26",
+   "commit": "9667ee3",
+   "status": "ok"
   }
  ]
 }
