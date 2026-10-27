@@ -1183,7 +1183,8 @@
     // batched (kept in order) and fired from rAF (vsync on, skipping frames to honour the cap) or from a message/timer tick
     // (vsync off, uncapped or paced by the cap).
     var KEY_VSYNC = "slope-mod.vsync", KEY_CAP = "slope-mod.frameCap";
-    var vsyncOn = lsGet(KEY_VSYNC) !== "0", capStep = parseInt(lsGet(KEY_CAP), 10);
+    var vsyncOn = true, capStep;                                   // VSync option removed from settings: always on
+    capStep = parseInt(lsGet(KEY_CAP), 10);
     if (!(capStep >= 1 && capStep <= 25)) capStep = 25;            // 1..24 = 10..240 fps, 25 = unlimited
     (function installFramePacer() {
         var rawRaf = window.requestAnimationFrame.bind(window), rawCaf = window.cancelAnimationFrame.bind(window);
@@ -1225,7 +1226,7 @@
         };
     })();
     function initFrameSettings() {
-        var box = document.getElementById("hud-vsync"), cap = document.getElementById("hud-cap"), val = document.getElementById("hud-cap-val");
+        var box = null, cap = document.getElementById("hud-cap"), val = document.getElementById("hud-cap-val");
         if (box) { box.checked = vsyncOn; box.addEventListener("change", function () { vsyncOn = box.checked; lsSet(KEY_VSYNC, vsyncOn ? "1" : "0"); }); }
         if (cap) {
             var show = function () { if (val) val.textContent = capStep >= 25 ? "Unlimited" : String(capStep * 10); };

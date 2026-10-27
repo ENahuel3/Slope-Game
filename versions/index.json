@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: The leaderboard button spawns too early after death; wait un",
-  "notes": "Made with the in-game dev mode (job 2438ed988f05).",
+  "title": "Dev edit: Remove the VSync option from settings.",
+  "notes": "Made with the in-game dev mode (job e5f992242d67).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -812,6 +812,13 @@
    "notes": "The root as it was before the dev-mode edit 'The leaderboard button spawns too early after death; wait until the black screen appears.'. Last commit: Dev edit: After you die, and are on the screen with the again button,",
    "date": "2026-10-27",
    "commit": "e15d23c"
+  },
+  {
+   "tag": "v103-dev-e5f992",
+   "title": "Before dev edit e5f992",
+   "notes": "The root as it was before the dev-mode edit 'Remove the VSync option from settings.'. Last commit: Dev edit: The leaderboard button spawns too early after death; wait un",
+   "date": "2026-10-27",
+   "commit": "d6da5db"
   }
  ]
 }
