@@ -274,6 +274,7 @@ html, body {
 .lb-name-input { display: inline-block; min-width: calc(var(--u) * 120); font: inherit; font-size: calc(var(--u) * 22); color: var(--lb-c); background: #000; border: none; border-bottom: 2px solid var(--lb-c); outline: none; padding: 0 calc(var(--u) * 4); text-transform: uppercase; }
 .lb-name-input::placeholder { color: var(--lb-c); opacity: 0.6; }
 .lb-over-btn { width: calc(var(--u) * 314); height: calc(var(--u) * 74); left: calc(50% - var(--u) * 157); top: calc(50% - var(--u) * 37); display: none; background: transparent; }   /* see-through, like AGAIN */
+.lb-over-btn:hover, .lb-over-btn:focus { background: transparent; color: #ff0000; border-color: #ff0000; }   /* hover: red, still see-through, like AGAIN */
 .lb-root.lb-hold .lb-panel { visibility: hidden; }
 /* title menu: the game draws its Leaderboard button in the same style as Login / Play / Credits, so the mod's box draws
    nothing and is only the click target over it (314 x 70 at 471/600, the game's box) that opens the mod's board. The
