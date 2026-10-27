@@ -54,7 +54,9 @@ try:
         if A.baseline:
             page.route('**/TemplateData/gl-state.js*', lambda route: route.fulfill(body='', content_type='text/javascript'))
         # Count hot-path typed-array allocations independently of Chrome's sampling profiler.
-        page.add_init_script('''window.stateQueries=0; window.stateQueryParams={};
+        page.add_init_script('''const nativeRAF=window.requestAnimationFrame;
+          window.requestAnimationFrame=fn=>nativeRAF.call(window,t=>{window.benchRAFTime=t;return fn(t);});
+          window.stateQueries=0; window.stateQueryParams={};
           for(const GL of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
             if(!GL) continue; const get=GL.prototype.getParameter;
             GL.prototype.getParameter=function() { window.stateQueries++; window.stateQueryParams[arguments[0]]=(window.stateQueryParams[arguments[0]]||0)+1; return get.apply(this,arguments); };
@@ -79,10 +81,10 @@ try:
           window.taskObserver=new PerformanceObserver(list=>{ for(const e of list.getEntries()) longTasks.push({start:e.startTime-sampleStart,ms:e.duration}); });
           if(PerformanceObserver.supportedEntryTypes.includes('longtask')) taskObserver.observe({type:'longtask'});
           let lastRender;
-          SlopeShaders.onScene(function() {
+          SlopeShaders.onScene(function(info) {
             if(!sampling) return;
-            const at=performance.now();
-            if(lastRender!==undefined) { const dt=at-lastRender; renderSamples.push(dt); if(dt>25 && renderSlowFrames.length<500) renderSlowFrames.push({at:at-sampleStart,ms:dt,draws:SlopeMod.drawCounts().length,game:SlopeMod.stats(),track:SlopeMod.track()}); }
+            const at=typeof info.timestamp==='number' ? info.timestamp : window.benchRAFTime;
+            if(lastRender!==undefined && at>lastRender) { const dt=at-lastRender; renderSamples.push(dt); if(dt>25 && renderSlowFrames.length<500) renderSlowFrames.push({at:at-sampleStart,ms:dt,draws:SlopeMod.drawCounts().length,game:SlopeMod.stats(),track:SlopeMod.track()}); }
             lastRender=at;
           });
           let last;

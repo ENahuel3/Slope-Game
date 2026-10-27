@@ -13,7 +13,7 @@
     var intervals = new Float32Array(300), intervalCount = 0, intervalAt = 0, renderAt = 0, reportedAt = 0;
     var pacing = { fps: 0, low1Fps: 0, p99Ms: 0 };
     function record(t) {
-        if (document.hidden) { renderAt = 0; return; }
+        if (document.hidden || (window.SlopeMod && SlopeMod.paused())) { renderAt = 0; return; }
         if (renderAt && t > renderAt) { intervals[intervalAt] = t - renderAt; intervalAt = (intervalAt + 1) % intervals.length; intervalCount = Math.min(intervalCount + 1, intervals.length); }
         renderAt = t;
         if (!intervalCount || t - reportedAt < 1000) return;
@@ -54,8 +54,8 @@
         var select = document.getElementById('hud-quality'); if (select) select.value = mode;
         return true;
     }
-    function scene() {
-        var timestamp = performance.now(); record(timestamp);
+    function scene(info) {
+        var timestamp = info && typeof info.timestamp === 'number' ? info.timestamp : performance.now(); record(timestamp);
         if (!canvas || mode !== 'auto') return;
         // Keep Unity's legacy menu coordinates and the DOM leaderboard at native
         // resolution; adapt only while the ball is live.

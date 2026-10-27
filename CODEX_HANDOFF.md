@@ -6,8 +6,8 @@ resuming at 6pm. Work branch: `frame-pacing`. Integrated origin/mod through
 `fe565a3` before applying the changes; preserve the leaderboard, prior shader
 optimizations and dev-mode sandbox changes from those commits.
 
-Release: **v90-framepacing**. Outgoing `fe565a3` is frozen as **v89-sandbox**;
-the new implementation is also frozen under `versions/v90-framepacing/` and
+Current release: **v91-framepacing**, following the initial v90 performance release. Outgoing `fe565a3` is frozen as **v89-sandbox**;
+the implementations are frozen under `versions/v90-framepacing/` and `versions/v91-framepacing/` and
 listed with title/notes/date/commit/status. Root is the latest release. No shared
 engine files, music, scene bundle or mesh geometry were modified.
 
@@ -46,7 +46,33 @@ engine files, music, scene bundle or mesh geometry were modified.
 - `index.html` / `mod.css`: script ordering, canvas attachment, independent CSS
   size, Render quality setting. README documents behavior and measurement.
 
-## Evidence and limits
+## v91 timing correction
+
+v90's scene-hook `performance.now()` intervals included CPU phase jitter even
+when the browser's frame boundaries were regular. v91 passes the RAF timestamp
+through the scene-hook info object, and samples that only when Unity draws.
+Duplicate draws within one browser frame do not count as extra displayed frames.
+A deterministic regression injects 8ms CPU phase jitter into regular 60Hz frame
+boundaries and verifies the 1% low stays near 60. The benchmark uses the same
+boundary method even when routing old baseline scripts.
+
+Matched 20-second scenario settings (Firefox/Intel, 1920x1200, Night + Rainbow,
+view distance 10, two courses, autopilot):
+
+| Frame-boundary metric | fe565a3 baseline | v91 |
+|---|---:|---:|
+| Mean rendered FPS | 58.1 | 59.9 |
+| 1% low FPS | 29.7 | 54.1 |
+| p99 frame interval | 33.22 ms | 17.12 ms |
+| Worst frame interval | 34.20 ms | 33.22 ms |
+
+Both had no page/GL errors. Revised native-state audit was empty. These are
+separate random-course runs, not an identical recorded scene. Evidence:
+`/tmp/slope-boundary-before.json`, `/tmp/slope-boundary-after.json`.
+The older v90 submission-time measurements below are retained as investigation
+history; do not confuse them with the corrected frame-boundary FPS numbers.
+
+## Earlier investigation and limits
 
 The earlier Chromium RAF-only tests were insufficient: RAF can tick without a
 Unity draw. `tools/frame_bench.py` now samples scene hooks directly and supports
@@ -110,3 +136,6 @@ Historical snapshot CRLF/trailing spaces are preserved byte-for-byte; root
 source diff and JS syntax checks pass. Publication target is `origin/mod` and
 GitHub Pages; validate served script hashes after pushing. Persistent Claude
 memory links to this handoff. No background browser/test process is left running.
+
+The v90 push `2992259` was verified served on GitHub Pages, including its immutable
+snapshot. v91 preserves that release and corrects the frame-time measurement.

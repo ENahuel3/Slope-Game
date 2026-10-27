@@ -699,7 +699,7 @@
         if (typeof cb !== "function") return origRAF.call(window, cb);
         return origRAF.call(window, function (t) {
             try { return cb(t); }
-            finally { if (dirty) { dirty = false; var sceneState; try { sceneState = runSceneHooks(); } catch (e) { stats.errors++; warn("scene hook failed: " + e); } try { present(sceneState); } catch (e) { stats.errors++; warn("present failed: " + e); } } }
+            finally { if (dirty) { dirty = false; var sceneState; try { sceneState = runSceneHooks(t); } catch (e) { stats.errors++; warn("scene hook failed: " + e); } try { present(sceneState); } catch (e) { stats.errors++; warn("present failed: " + e); } } }
         });
     };
     // Scene hooks (SlopeShaders.onScene): other modules draw into the game's frame after the game's draws and before
@@ -707,7 +707,7 @@
     // points, the frame's size and whether the frame is the lighting stand-in; the framebuffer, viewport, program,
     // buffers, textures, vertex array and the enable bits are saved around it like around the passes.
     var sceneHooks = [];
-    function runSceneHooks() {
+    function runSceneHooks(timestamp) {
         if (!sceneHooks.length || !gl || (gl.isContextLost && gl.isContextLost())) return;
         var w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
         if (!(w > 0 && h > 0)) return;
@@ -717,7 +717,7 @@
             g.bindFramebuffer(gl.FRAMEBUFFER, target);
             if (isGL2) g.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
             g.viewport(0, 0, w, h);
-            var info = { gl: gl, g: g, isGL2: isGL2, vaoMode: vaoMode, vaoExt: vaoExt, width: w, height: h, redirected: !!target, vp: vpMat };
+            var info = { timestamp: timestamp, gl: gl, g: g, isGL2: isGL2, vaoMode: vaoMode, vaoExt: vaoExt, width: w, height: h, redirected: !!target, vp: vpMat };
             for (var i = 0; i < sceneHooks.length; i++) { try { sceneHooks[i](info); } catch (e) { stats.errors++; warn("scene hook: " + e); } }
         } finally { restoreState(state); }
         return state;

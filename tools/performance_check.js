@@ -56,4 +56,7 @@ display=[1920,1200];listeners.resize();playing=false;now+=17;scene();
 assert.equal(canvas.clientWidth,1920,'menus keep native coordinates');
 playing=true;now+=17;scene();
 assert(canvas.clientWidth<1500,'live play reapplies render budget');
+let stamp=now;
+for(let i=0;i<600;i++) { stamp+=1000/60; now=stamp+(i%2)*8;scene({timestamp:stamp}); }
+assert(api.stats().low1Fps>59.5,'CPU submission phase jitter is not a missed rendered frame');
 console.log('PASS automatic resolution budget, aspect, bounds, opt-out, suspension, pause, recovery and resize');

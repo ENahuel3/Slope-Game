@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "v90-framepacing \u2014 Smooth frame pacing",
-  "notes": "Automatic render quality during play, native menus, actual rendered-frame FPS and 1% low readout, cached WebGL state, paced track generation, batched ramps and smaller heap discovery slices. Firefox stress test: 1% low about 24 to 41 FPS; worst frame 50 to 27 ms. Full resolution remains selectable.",
+  "title": "v91-framepacing \u2014 Smooth play and accurate 1% lows",
+  "notes": "Automatic render quality during play, cached WebGL state, paced spawning and batched ramps. FPS uses frame-boundary timestamps for actual Unity draws, excluding CPU phase jitter. Firefox 1920x1200 Night test: 1% low 29.7 to 54.1 FPS; p99 33.22 to 17.12 ms. Full resolution remains selectable; native menus preserved.",
   "date": "2026-10-26"
  },
  "versions": [
@@ -720,7 +720,8 @@
    "notes": "Automatic render quality during live play with Full resolution opt-out; actual scene FPS and 1% lows; mirrored WebGL state, paced straight-track spawning, batched ramp VAOs and smaller heap-discovery slices. Firefox 1920x1200 Night stress: 1% low 24.3 to 40.8 FPS, worst interval 50 to 27 ms; all rendering/input regressions passed.",
    "date": "2026-10-26",
    "commit": "34da055",
-   "status": "ok"
+   "status": "issues",
+   "issues": "The 1% low readout includes CPU submission-phase jitter even when frame boundaries are regular; corrected in v91. Gameplay optimizations remain available."
   }
  ]
 }
