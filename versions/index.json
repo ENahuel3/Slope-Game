@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: In dev mode your responses show up twice, please fix this.",
-  "notes": "Made with the in-game dev mode (job fc04cbeb516c).",
+  "title": "Dev edit: On the main menu screen, remove the button that's under the ",
+  "notes": "Made with the in-game dev mode (job 5f7f4ea24df0).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -826,6 +826,13 @@
    "notes": "The root as it was before the dev-mode edit 'In dev mode your responses show up twice, please fix this.'. Last commit: Dev edit: Remove the VSync option from settings.",
    "date": "2026-10-27",
    "commit": "94733f4"
+  },
+  {
+   "tag": "v105-dev-5f7f4e",
+   "title": "Before dev edit 5f7f4e",
+   "notes": "The root as it was before the dev-mode edit 'On the main menu screen, remove the button that's under the modded leaderboard button, and take note'. Last commit: Dev edit: In dev mode your responses show up twice, please fix this.",
+   "date": "2026-10-27",
+   "commit": "fc8417d"
   }
  ]
 }
