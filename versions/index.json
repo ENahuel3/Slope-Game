@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: On the main menu screen, remove the button that's under the ",
-  "notes": "Made with the in-game dev mode (job 5f7f4ea24df0).",
+  "title": "Dev edit: Delete the old vanilla leaderboard button which is literally",
+  "notes": "Made with the in-game dev mode (job 2838737d8a5c).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -833,6 +833,13 @@
    "notes": "The root as it was before the dev-mode edit 'On the main menu screen, remove the button that's under the modded leaderboard button, and take note'. Last commit: Dev edit: In dev mode your responses show up twice, please fix this.",
    "date": "2026-10-27",
    "commit": "fc8417d"
+  },
+  {
+   "tag": "v106-dev-283873",
+   "title": "Before dev edit 283873",
+   "notes": "The root as it was before the dev-mode edit 'Delete the old vanilla leaderboard button which is literally underneath the vanilla one (they overla'. Last commit: Dev edit: On the main menu screen, remove the button that's under the",
+   "date": "2026-10-27",
+   "commit": "8dcc55d"
   }
  ]
 }

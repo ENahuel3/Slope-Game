@@ -162,10 +162,18 @@
     var frameDraws = [];          // index counts of draws in the frame being rendered
     var gameReadyAt = 0, sceneSeen = false;   // loading finished / first full scene frame drawn (SlopeMod.loaded)
 
+    // Title menu: the "download" (Google Play) button under Leaderboard is not drawn. Its border, label and icon are one
+    // batched UI buffer, drawn as 54 indices at byte 108, 48 at 216 and 6 at 312; nothing else on the title menu uses
+    // those offsets. titleMenu comes from the previous frame's draw list (frameLoop).
+    var titleMenu = false, HIDDEN_TITLE_DRAWS = { "54@108": 1, "48@216": 1, "6@312": 1 };
     function hookContext(P) {
         var origDE = P.drawElements, origDA = P.drawArrays;
         var origDEI = P.drawElementsInstanced, origDAI = P.drawArraysInstanced;
-        P.drawElements = function (mode, count) { frameDraws.push(count); return origDE.apply(this, arguments); };
+        P.drawElements = function (mode, count, type, offset) {
+            frameDraws.push(count);
+            if (titleMenu && HIDDEN_TITLE_DRAWS[count + "@" + offset]) return;
+            return origDE.apply(this, arguments);
+        };
         P.drawArrays = function (mode, first, count) { frameDraws.push(count); return origDA.apply(this, arguments); };
         if (origDEI) P.drawElementsInstanced = function (mode, count) { frameDraws.push(count); return origDEI.apply(this, arguments); };
         if (origDAI) P.drawArraysInstanced = function (mode, first, count) { frameDraws.push(count); return origDAI.apply(this, arguments); };
@@ -516,6 +524,7 @@
         var draws = frameDraws; frameDraws = lastDraws; frameDraws.length = 0;
         if (!sceneSeen && gameReadyAt && draws.length >= 12) sceneSeen = true;   // Unity's splash draws a few quads; the menu scene draws many
         lastDraws = draws;
+        titleMenu = isTitleMenu(draws);
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
         try { syncBuilding(); } catch (e) { /* diagnostics only */ }
         try { stepAhead(); } catch (e) { /* never break the game loop */ }
@@ -1392,6 +1401,11 @@
         if (gameRunning || !deaths || !d.length || d.length >= 40) return null;
         for (var i = 0; i < d.length; i++) if (d[i] > 300) return null;   // the 3D scene is still up: not on a menu yet
         return d.indexOf(42) >= 0 && d.indexOf(48) >= 0 ? "title" : "over";
+    }
+    function isTitleMenu(d) {               // the same rule as menuScreen, before the first run too (drives HIDDEN_TITLE_DRAWS)
+        if (gameRunning || !d.length || d.length >= 40) return false;
+        for (var i = 0; i < d.length; i++) if (d[i] > 300) return false;
+        return d.indexOf(42) >= 0 && d.indexOf(48) >= 0;
     }
     function lbOverlay(root) {
         if (lbCover && lbCover.parentNode === root) return;

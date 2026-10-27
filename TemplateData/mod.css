@@ -277,10 +277,8 @@ html, body {
 .lb-over-top { left: calc(50% - var(--u) * 158); top: 0; width: calc(var(--u) * 316); height: calc(var(--u) * 86); }   /* ...and the game's own Leaderboard button at the top */
 .lb-over-btn { width: calc(var(--u) * 314); height: calc(var(--u) * 74); left: calc(50% - var(--u) * 157); top: calc(50% - var(--u) * 37); display: none; }
 .lb-root.lb-hold .lb-panel { visibility: hidden; }
-/* title menu: the box is clear inside, so the game's own Leaderboard label shows through in the same style as Login /
-   Play / Credits, and it keeps their 314 x 74 shape. The game's own button is shorter (70) because the "download" button
-   overlaps it: ::before hides the two stray border lines inside the box, ::after removes the download button below it. */
-.lb-title-btn:not(.lb-over-btn), .lb-title-btn:not(.lb-over-btn):hover, .lb-title-btn:not(.lb-over-btn):focus { background: transparent; color: transparent; }
-.lb-title-btn:not(.lb-over-btn)::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--u) * 7); background: #000; }
-.lb-title-btn:not(.lb-over-btn)::after { content: ""; position: absolute; top: calc(100% + 2px); left: calc(var(--u) * 19); width: calc(var(--u) * 272); height: calc(var(--u) * 42); background: #000; }
+/* title menu: the game draws its Leaderboard button in the same style as Login / Play / Credits, so the mod's box draws
+   nothing and is only the click target over it (314 x 70 at 471/600, the game's box) that opens the mod's board. The
+   "download" button under it is not drawn at all (mod.js HIDDEN_TITLE_DRAWS). */
+.lb-title-btn:not(.lb-over-btn), .lb-title-btn:not(.lb-over-btn):hover, .lb-title-btn:not(.lb-over-btn):focus { background: transparent; color: transparent; border-color: transparent; height: calc(var(--u) * 70) !important; }
 .lb-status { font-size: calc(var(--u) * 16); opacity: 0.75; min-height: 1.4em; }
