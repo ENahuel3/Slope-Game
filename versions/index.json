@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Try again, it said tools/probe_out/ord_0.png was deleted; di",
-  "notes": "Made with the in-game dev mode (job 3f23c3fee9db).",
+  "title": "Dev edit: You successfully hid the download button and feedback button",
+  "notes": "Made with the in-game dev mode (job 766e4d95aa5f).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -889,6 +889,13 @@
    "notes": "The root as it was before the dev-mode edit 'Try again, it said tools/probe_out/ord_0.png was deleted; discarded.'. Last commit: Dev edit: Delete the word \"Guest\" on the main menu above the login but",
    "date": "2026-10-27",
    "commit": "7cb7a51"
+  },
+  {
+   "tag": "v114-dev-766e4d",
+   "title": "Before dev edit 766e4d",
+   "notes": "The root as it was before the dev-mode edit 'You successfully hid the download button and feedback button on the main menu, but you can still cli'. Last commit: Dev edit: Try again, it said tools/probe_out/ord_0.png was deleted; di",
+   "date": "2026-10-27",
+   "commit": "891fd4f"
   }
  ]
 }
