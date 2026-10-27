@@ -44,8 +44,11 @@
             '<div class="lb-foot"><div class="lb-you"></div><div><span class="lb-dim">NAME </span><input class="lb-name-input" maxlength="14" placeholder="TYPE NAME" spellcheck="false" autocomplete="off"></div><div class="lb-status"></div></div>';
         rowsEl = panel.querySelector(".lb-rows"); footEl = panel.querySelector(".lb-you"); statusEl = panel.querySelector(".lb-status"); nameInput = panel.querySelector(".lb-name-input");
         nameInput.value = playerName;
+        // key events never reach this field's own listeners (mod.js shields page inputs from Unity's window-level key handlers
+        // and stops propagation there; Enter/Escape blur the field from that shield), so the name is taken from input/change
+        nameInput.addEventListener("input", function () { playerName = String(nameInput.value || "").replace(/[^A-Za-z0-9 _.\-]/g, "").slice(0, 14); lsSet(KEY_NAME, playerName || null); });
         nameInput.addEventListener("change", function () { setName(nameInput.value); });
-        nameInput.addEventListener("keydown", function (e) { if (e.key === "Enter") { setName(nameInput.value); nameInput.blur(); } e.stopPropagation(); });
+        nameInput.addEventListener("blur", function () { setName(nameInput.value); });
         panel.querySelector(".lb-close").addEventListener("click", closePanel);
         root.appendChild(titleBtn); root.appendChild(panel);
         document.body.appendChild(root);

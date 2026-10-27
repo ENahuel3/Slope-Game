@@ -1071,13 +1071,17 @@
     ["keydown", "keypress", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {
             var t = e.target;
-            if (!t || !t.closest || !t.closest("#hud, #edit-panel")) return;
+            if (!t || !t.closest || !t.closest("#hud, #edit-panel, .lb-root")) return;   // the HUD, the dev-mode panel and the leaderboard's name field
             // Returning focus to the closed menu button must still allow play.
             if (t.id === "mod-menu-button" && !(modMenu && modMenu.open) && /^(ArrowLeft|ArrowRight|[aAdDqQrRfFvVlL])$/.test(e.key)) return;
             e.stopImmediatePropagation();
             if (type !== "keydown") return;
             // The shield also stops events reaching target/document listeners, so handle
             // editor shortcuts here before returning control to the browser.
+            if (t.closest(".lb-root")) {              // the leaderboard's name field: Enter or Escape leaves it (its own listeners never see keys through this shield)
+                if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); t.blur(); }
+                return;
+            }
             if (t.closest("#edit-panel")) {
                 if (e.key === "Escape") { e.preventDefault(); closePanel(); }
                 else if (e.key === "Enter" && t === passBox) { e.preventDefault(); unlock(); }

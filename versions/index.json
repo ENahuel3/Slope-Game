@@ -782,6 +782,15 @@
    "date": "2026-10-27",
    "commit": "1416f86",
    "status": "ok"
+  },
+  {
+   "tag": "v99-devedits3",
+   "title": "Dev edits after the continuous roll",
+   "notes": "The in-game dev edits that followed the continuous-roll bundle and the twisted-piece coins. Last version whose leaderboard name field could not be typed into.",
+   "date": "2026-10-27",
+   "commit": "4049d07",
+   "status": "issues",
+   "issues": "the leaderboard's TYPE NAME field does not accept keystrokes (fixed in the next version)"
   }
  ]
 }
