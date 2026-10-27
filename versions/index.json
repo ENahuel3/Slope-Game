@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: There is a bug where sometimes the game restarts right befor",
-  "notes": "Made with the in-game dev mode (job 13a7e188b6be).",
+  "title": "Dev edit: In TemplateData/mod.css make the SUPER RAMP! flash text 10% ",
+  "notes": "Made with the in-game dev mode (job 363c07be8a4f).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -760,6 +760,13 @@
    "notes": "The root as it was before the dev-mode edit 'There is a bug where sometimes the game restarts right before the first time the screen says speed u'. Last commit: Remove TemplateData/sedv7ElgT, a sed temp file the dev-mode sandbox committed",
    "date": "2026-10-26",
    "commit": "a61ce6d"
+  },
+  {
+   "tag": "v98-dev-363c07",
+   "title": "Before dev edit 363c07",
+   "notes": "The root as it was before the dev-mode edit 'In TemplateData/mod.css make the SUPER RAMP! flash text 10% smaller (its font-size). Run node --chec'. Last commit: Dev mode: allow capset in the sandbox unit so Chromium can launch its GPU proces",
+   "date": "2026-10-26",
+   "commit": "4054345"
   },
   {
    "tag": "v94-framecap",

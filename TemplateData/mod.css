@@ -246,7 +246,7 @@ html, body {
 .pause-hint { color: #e8e8e8; opacity: 0.8; font-size: 14px; }
 
 /* super ramps (TemplateData/ramps.js) */
-.ramp-flash { position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%) scale(0.6); z-index: 12; pointer-events: none; color: #ffab40; font: 900 52px "Segoe UI", Roboto, Helvetica, Arial, sans-serif; letter-spacing: 0.22em; text-shadow: 0 0 18px #ff6d00, 0 0 2px #000; opacity: 0; }
+.ramp-flash { position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%) scale(0.6); z-index: 12; pointer-events: none; color: #ffab40; font: 900 46.8px "Segoe UI", Roboto, Helvetica, Arial, sans-serif; letter-spacing: 0.22em; text-shadow: 0 0 18px #ff6d00, 0 0 2px #000; opacity: 0; }
 .ramp-flash.on { animation: ramp-flash 1.1s ease-out forwards; }
 @keyframes ramp-flash { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -60%) scale(1); } }
 
