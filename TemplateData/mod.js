@@ -499,7 +499,7 @@
         var nowL = performance.now(); if (lastLoopT) { var gapL = nowL - lastLoopT; if (gapL > worstGap) { worstGap = gapL; worstGapFrame = frameNo; } if (gapL > 300) { bigGaps.push([frameNo, Math.round(gapL)]); if (bigGaps.length > 60) bigGaps.shift(); }
             perfWin.n++; perfWin.sum += gapL; if (gapL > perfWin.max) perfWin.max = gapL; if (!perfWin.t0) perfWin.t0 = nowL;
             else if (nowL - perfWin.t0 >= 1000) { perf = { fps: Math.round(perfWin.n * 1000 / (nowL - perfWin.t0)), frameMs: +(perfWin.sum / perfWin.n).toFixed(1), worstMs: Math.round(perfWin.max) }; perfWin = { n: 0, sum: 0, max: 0, t0: nowL }; } } lastLoopT = nowL;
-        var draws = frameDraws; frameDraws = [];
+        var draws = frameDraws; frameDraws = lastDraws; frameDraws.length = 0;
         lastDraws = draws;
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
         try { syncBuilding(); } catch (e) { /* diagnostics only */ }
@@ -645,7 +645,7 @@
     function discoverHeap() {
         if (discover) return;
         var u = heapU32(), f = heap32(), u16 = heapU16(); if (!u) return;
-        var t0 = performance.now(), N = u.length, STEP = 4 << 20;
+        var t0 = performance.now(), N = u.length, STEP = 1 << 15;
         var B = { g: fbits(G0), b5: fbits(5), b105: fbits(10.5), bm4: fbits(-4), one: fbits(1), b10: fbits(10), bm10: fbits(-10), b300: fbits(300) };
         var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "Score", "SpeedUpCount", "ModSectionDelay", "ModQ1", "ModBlock", "ModBlockFlat", "ModBlockP", "ModBlockN", "ModBuilding", "ModBuildingFlat", "ModBuildingZombie", "ModBuildingMort", "ModBuildingGandalf", "ModHold", "ModMark", "ModCameraOffset", "ModQCamera", "ModCameraTick"].filter(function (nm) { return !H.vars[nm]; });
         var firsts = {}; names.forEach(function (nm) { firsts[nm.charCodeAt(0)] = (firsts[nm.charCodeAt(0)] || []).concat([nm]); });
@@ -705,7 +705,7 @@
         }
         function slice() {
             try {
-                var budget = performance.now() + 12;      // ms of work per frame
+                var budget = performance.now() + 2;       // small chunks keep discovery from blocking a frame
                 while (performance.now() < budget) {
                     if (st.pass === 0) { if (st.i >= N - 10) { st.pass = 1; st.i = 0; continue; } var e = Math.min(st.i + STEP, N - 10); passA(st.i, e); st.i = e; }
                     else if (st.pass === 1) { if (!names.length || st.i >= u16.length - 20) { st.pass = 2; st.i = 0; flags = new Uint8Array((N >> 3) + 1); Object.keys(owner).forEach(function (a) { a = +a; flags[a >> 5] |= 1 << ((a >> 2) & 7); }); continue; } var e1 = Math.min(st.i + 2 * STEP, u16.length - 20); passB(st.i, e1); st.i = e1; }
@@ -959,9 +959,9 @@
         if (playing) trackBall();
         stepBoost();
         var nowT = performance.now(); if (lastFrameT) frameDt = frameDt * 0.9 + Math.min(0.1, (nowT - lastFrameT) / 1000) * 0.1; lastFrameT = nowT;
-        // one spawn step per mod frame while a track mode runs (the spawner's step states wait on ModGo, which the mod
-        // sets after writing the next block's prefab and roll; the state clears it), the vanilla one-frame burst otherwise
-        var perFrame = gravityMode !== "off" && gameRunning && !build && !restartSeq && (sectionDelayOverride === null || sectionDelayOverride > 0);
+        // Release one spawn step per frame during live play, including straight
+        // tracks. Hidden stack construction still uses the original burst path.
+        var perFrame = gameRunning && !build && !restartSeq && (sectionDelayOverride === null || sectionDelayOverride > 0);
         writeFloatVar("ModHold", perFrame ? 1000 : 0);               // every spawner step re-arms its Wait from this: 0 = burst, 1000 s = hold
         setSectionDelay(0);                                          // ...and the mod releases one step per frame (the step re-arms before any further update)
         if (playing) resolveRig();
@@ -1076,11 +1076,18 @@
     // run keeps N laps ahead for the rest of it. 1 = the normal game. The extras go one at a time, once the spawner is idle.
     var KEY_VIEW = "slope-mod.viewDist", VIEW_MAX = 50;
     var viewDist = (function () { var n = parseInt(lsGet(KEY_VIEW), 10); return (n >= 1 && n <= VIEW_MAX) ? n : 1; })();
-    var aheadRun = -1, aheadLeft = 0, aheadLast = 0, aheadPrimed = false;
+    var aheadRun = -1, aheadLeft = 0, aheadLast = 0, aheadPrimed = false, aheadPos = null, aheadMoved = 0;
     function stepAhead() {
         if (!gameRunning || build || restartSeq) return;
-        if (aheadRun !== lastRestart) { aheadRun = lastRestart; aheadLeft = viewDist - 1; aheadLast = frameNo + 60; aheadPrimed = false; }   // a new run: let its first section spawn before adding more
-        if (aheadLeft <= 0 || frameNo - aheadLast < 10) return;
+        if (aheadRun !== lastRestart) { aheadRun = lastRestart; aheadLeft = viewDist - 1; aheadLast = frameNo + 60; aheadPrimed = false; aheadPos = null; aheadMoved = frameNo; }   // a new run: let its first section spawn before adding more
+        // A paced section may need dozens of updates. Never interrupt its FSM by
+        // requesting another lap while SpawnPos is still advancing.
+        var pos = aheadLeft > 0 ? spawnPos() : null;
+        if (pos) {
+            if (!aheadPos || Math.abs(pos[0] - aheadPos[0]) + Math.abs(pos[1] - aheadPos[1]) + Math.abs(pos[2] - aheadPos[2]) > 0.01) aheadMoved = frameNo;
+            aheadPos = pos;
+        }
+        if (aheadLeft <= 0 || frameNo - aheadLast < 10 || frameNo - aheadMoved < 8) return;
         if (gravityMode !== "off") return;                                                                            // a shaped track (Curves / 90 degree twists) spawns block by block and moves the spawner itself: extra laps would fight it
         // test: the mod never sends "Offset Buildings to Match Spawner" for extra laps, so it does not touch the scenery at all
         if (setState(SPAWNER, "Check score")) { aheadLeft--; aheadLast = frameNo; }
@@ -1107,7 +1114,12 @@
             if (!on) return;
             frames++;
             if (!last) last = t;
-            if (t - last >= 500) { out.textContent = "| " + Math.round(frames * 1000 / (t - last)) + " FPS"; frames = 0; last = t; }
+            if (t - last >= 500) {
+                var pacing = window.SlopePerformance && SlopePerformance.stats();
+                out.textContent = paused ? "| Paused" : pacing && pacing.fps ? "| " + Math.round(pacing.fps) + " FPS · 1% low " + Math.round(pacing.low1Fps) : "| ... FPS";
+                out.title = "Frame pacing over the last 300 rendered frames";
+                frames = 0; last = t;
+            }
             requestAnimationFrame(loop);
         }
         function set(v) {
@@ -1278,7 +1290,7 @@
         courseBatches: function () { return lastCourseCount; },
         log: function () { return debugLog.slice(); },
         frame: function () { return frameNo; },
-        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, stuckRestarts: stuckRestarts, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, fps: perf.fps, frameMs: perf.frameMs, worstMs: perf.worstMs, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaders: window.SlopeShaders ? SlopeShaders.stats() : null }; },
+        stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, stuckRestarts: stuckRestarts, renderDistance: viewDist, aheadLeft: aheadLeft, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, fps: perf.fps, frameMs: perf.frameMs, worstMs: perf.worstMs, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaders: window.SlopeShaders ? SlopeShaders.stats() : null }; },
         setStack: setStackTarget,
         setLaps: function (n) { LAPS_PER_COURSE = n; },
         setMusic: setMusic,
@@ -1298,6 +1310,7 @@
         frameDt: function () { return frameDt; },
         pause: function (on) { setPaused(on === undefined ? !paused : on); return paused; },
         paused: function () { return paused; },
+        isPlaying: function () { return gameRunning && !build && !restartSeq; },
         speed: function () { return Math.sqrt(ballVel[0] * ballVel[0] + ballVel[1] * ballVel[1] + ballVel[2] * ballVel[2]); },
         score: function () { var u = heapU32(), objs = H.vars.Score || []; if (!u || !objs.length) return null; var best = 0; for (var i = 0; i < objs.length; i++) { var v = u[(objs[i] + 24) >> 2] | 0; if (v > best) best = v; } return best; },
         boost: startBoost,                     // boost(speedMul, upMul, maxMs, upMs): the super ramps' launch (TemplateData/ramps.js)

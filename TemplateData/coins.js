@@ -96,6 +96,7 @@
     var TUNNELS = { tunnelArc: 56.6, tunnelArcLong: 84.8, tunnelRoof: 41, deathTunnel: 42.5 };   // kinds whose span hides lane-block coins
     var tunnelGen = 0, hiddenGen = -1;
     var frame = 0, ballPos = null, ballPrev = null, camVP = null, vpLast = null, o2wLast = null;
+    var objectMatrix = new Float32Array(16), viewMatrix = new Float32Array(16);
     var count = 0, collectedTotal = 0, errors = 0, drawnLast = 0, seenKinds = {};
     function state(ctx) { var s = ctx.__slopeCoins; if (!s) { s = ctx.__slopeCoins = { ab: null, attribBuf: {}, vao: null, vaoAttribs: (bufKind ? new WeakMap() : null) }; } return s; }
     function attribTable(s) { if (s.vao && s.vaoAttribs) { var t = s.vaoAttribs.get(s.vao); if (!t) { t = {}; s.vaoAttribs.set(s.vao, t); } return t; } return s.attribBuf; }
@@ -133,10 +134,10 @@
             if (loc && typeof name === "string") { if (/ObjectToWorld/.test(name)) loc.__coinO2W = true; else if (/MatrixVP/.test(name)) loc.__coinVP = true; }
             return loc;
         };
-        var o2wScratch = new Float32Array(16);   // the object-to-world upload is consumed by the very next draw (sawDraw copies it into a piece), so one scratch array serves every draw: no 16-float allocation per draw call
         function note(loc, v, off) {
             if (!loc || !v || v.length - (off || 0) < 16) return;
-            var a = loc.__coinO2W ? o2wScratch : new Float32Array(16);   // the view-projection copy is kept (camVP), so it stays its own array
+            // Reuse transient uploads; pieces and the ball camera own snapshots.
+            var a = loc.__coinO2W ? objectMatrix : viewMatrix;
             for (var i = 0; i < 16; i++) a[i] = v[(off || 0) + i];
             if (loc.__coinO2W) o2wLast = a; else vpLast = a;
         }
@@ -151,7 +152,7 @@
             if (!kind) return;
             if (kind === "ball") {
                 ballPrev = ballPos; ballPos = [m[12], m[13], m[14]];
-                if (vpLast && Math.hypot(vpLast[3], vpLast[7], vpLast[11]) > 1e-6) camVP = vpLast;   // a perspective matrix: the camera that drew the ball
+                if (vpLast && Math.hypot(vpLast[3], vpLast[7], vpLast[11]) > 1e-6) { if (!camVP) camVP = new Float32Array(16); camVP.set(vpLast); }   // a perspective matrix: the camera that drew the ball
                 return;
             }
             var key = kind + "@" + m[12].toFixed(1) + "," + m[13].toFixed(1) + "," + m[14].toFixed(1);

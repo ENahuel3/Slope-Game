@@ -699,7 +699,7 @@
         if (typeof cb !== "function") return origRAF.call(window, cb);
         return origRAF.call(window, function (t) {
             try { return cb(t); }
-            finally { if (dirty) { dirty = false; try { runSceneHooks(); } catch (e) { stats.errors++; warn("scene hook failed: " + e); } try { present(); } catch (e) { stats.errors++; warn("present failed: " + e); } } }
+            finally { if (dirty) { dirty = false; var sceneState; try { sceneState = runSceneHooks(); } catch (e) { stats.errors++; warn("scene hook failed: " + e); } try { present(sceneState); } catch (e) { stats.errors++; warn("present failed: " + e); } } }
         });
     };
     // Scene hooks (SlopeShaders.onScene): other modules draw into the game's frame after the game's draws and before
@@ -720,6 +720,7 @@
             var info = { gl: gl, g: g, isGL2: isGL2, vaoMode: vaoMode, vaoExt: vaoExt, width: w, height: h, redirected: !!target, vp: vpMat };
             for (var i = 0; i < sceneHooks.length; i++) { try { sceneHooks[i](info); } catch (e) { stats.errors++; warn("scene hook: " + e); } }
         } finally { restoreState(state); }
+        return state;
     }
 
     // ======================================================================
@@ -1009,7 +1010,7 @@
         return chain;
     }
 
-    function present() {
+    function present(sceneState) {
         stats.frames++;
         var style = STYLES[styleId], light = LIGHTS[lightId];
         var wasRedirected = redirectActive && res && res.main && res.main.ok;
@@ -1019,9 +1020,15 @@
         if (!(w > 0 && h > 0)) return;
         if (!chain.length && !wasRedirected) { stats.passes = 0; redirectActive = false; return; }
         var tStart = now();
-        var state = saveState();   // before anything is allocated: allocation binds textures, buffers and framebuffers
+        // Scene hooks have just restored this exact state. Reuse their snapshot rather
+        // than synchronously querying the driver a second time in the same frame.
+        // The no-VAO path still needs saveState's attribute setup side effects.
+        var state = sceneState && vaoMode !== "none" ? sceneState : saveState();
         var drawn = 0;
         try {
+            if (sceneState && vaoMode !== "none" && isGL2) {
+                for (var unit = 0; unit < TEX_UNITS; unit++) g.bindSampler(unit, null);
+            }
             g.activeTexture(gl.TEXTURE0);
             if (isGL2) g.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
             if (!ensureResources(w, h)) { if (style) style.failed = true; redirectActive = false; return; }

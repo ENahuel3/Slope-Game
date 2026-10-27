@@ -9,7 +9,9 @@
     <link rel="stylesheet" href="TemplateData/style.css">
     <link rel="stylesheet" href="TemplateData/mod.css">
     <script>window.SLOPE_EDIT_API = "https://raspberrypi.tailbff9ef.ts.net";</script> <!-- dev-mode service on the owner's server (edit-server/README.md); empty = dev mode offline -->
+    <script src="TemplateData/gl-state.js"></script>
     <script src="TemplateData/shaders.js"></script>
+    <script src="TemplateData/performance.js"></script>
     <script src="TemplateData/coins.js"></script>
     <script src="TemplateData/ramps.js"></script>
     <script src="TemplateData/julien.js"></script>
@@ -54,6 +56,8 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
         <input id="hud-stack" class="hud-input" type="number" min="1" max="99" step="1" value="1" inputmode="numeric" title="Type a number: 1 = normal game">
         <label class="hud-label" for="hud-view" title="Render distance: how many speed-up sections of track are built ahead of you (1 = normal game). Applies from the next run or restart; raising it mid-run adds track right away.">Render distance <span id="hud-view-val">1</span></label>
         <input id="hud-view" class="hud-range" type="range" min="1" max="50" step="1" value="1" title="Render distance (speed-up sections ahead)">
+        <label class="hud-label" for="hud-quality" title="Automatic adjusts sharpness to keep motion smooth; Full resolution keeps every screen pixel">Render quality</label>
+        <select id="hud-quality" class="hud-input hud-select"><option value="auto">Automatic</option><option value="native">Full resolution</option></select>
         <label class="hud-label" for="hud-style" title="Visual style: post-processing shaders over the game's frame (V cycles)">Style</label>
         <select id="hud-style" class="hud-input hud-select" title="Visual style (V cycles, Shift+V backwards)"></select>
         <label class="hud-label" for="hud-fx">Style Intensity</label>
@@ -90,6 +94,7 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
                 }
             }
         });
+        SlopePerformance.attach(gameInstance.Module.canvas);
         SlopeMod.init(gameInstance);
     </script>
 </body>

@@ -21,6 +21,10 @@ html, body {
     margin: 0;
 }
 
+/* Keep the display size independent of Unity's adjustable drawing buffer. */
+#gameContainer > canvas { width: 100% !important; height: 100% !important; }
+
+
 .hud {
     position: fixed;
     top: 0;

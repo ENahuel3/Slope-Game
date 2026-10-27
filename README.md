@@ -38,6 +38,16 @@ The previous system rewrote every fragment shader of the game at compile time to
 
 `tools/shader_check.py` (needs `playwright`, like `bench_load.py`) serves the repository, starts a run in headless Chromium, switches through every style and checks for each that frames are presented, no GL error or shader failure is counted, the screenshot differs from *Classic* and the ball keeps advancing, then switches back to *Classic* and checks the game still runs; it writes a screenshot per style.
 
+## Frame pacing
+
+**Render quality → Automatic** is the default. During live play it caps the initial drawing buffer at about 1.2 million pixels and reduces it further when sustained slow rendered frames exceed the budget. It recovers slowly when the frame rate is stable. The canvas stays full-screen; only game sharpness changes, and title/game-over menus and the HTML settings stay at native resolution. Choose **Full resolution** to keep every screen pixel. **Show FPS** reports actual Unity scene draws and the 1% low over the last 300 rendered frames, rather than counting browser animation callbacks.
+
+Straight tracks now release one spawn step per frame instead of constructing an entire section in one burst. Extra render-distance sections wait for the spawner to stop moving before starting another section. Hidden stacked-course construction keeps its original burst behavior. The overlays mirror state written by both Unity and their own GL setters, avoiding synchronous state-query round trips during ordinary frames; object deletion and context restoration invalidate the affected cache. Ramp geometry is static and batched, with its own VAO where available.
+
+`tools/frame_bench.py` samples actual scene-hook intervals in Chromium or Firefox, reports mean FPS, 1% low (the reciprocal of the mean of the slowest 1% of intervals), p99 and worst frame time, and can load baseline scripts from a git revision. Use `--gpu --browser firefox --width 1920 --height 1200 --light night --view-distance 10` for the heavy test. Headless browser, random course, browser-version and thermal differences mean this does not guarantee a particular frame rate on every machine. Run only one browser test at a time, with `nice -n 19 taskset -c 0-5`, to avoid competing with live play.
+
+Deterministic checks: `node tools/performance_check.js`, `node tools/ramp_batch_check.js`. Browser checks: `tools/gl_state_check.py` compares the mirror against native WebGL 1/2 state, including deletion and context restoration; `tools/performance_browser_check.py` checks pointer input, steering, native/automatic switching, window resizing and restarts (`--webgl1` exercises the extension path).
+
 ## Hosting your own copy
 
 Fork this repository, open **Settings → Pages**, set the source to the `mod` branch (root), and the game will be served at `https://<your-user>.github.io/Slope-Game/` after a minute or two. If a network blocks the URL, renaming the repository changes it. There is no build step; it is static files.

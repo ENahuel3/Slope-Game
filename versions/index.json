@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Please optimize the whole thing; the 1% low frame rates are ",
-  "notes": "Made with the in-game dev mode (job b2608f293eb5).",
+  "title": "v90-framepacing \u2014 Smooth frame pacing",
+  "notes": "Automatic render quality during play, native menus, actual rendered-frame FPS and 1% low readout, cached WebGL state, paced track generation, batched ramps and smaller heap discovery slices. Firefox stress test: 1% low about 24 to 41 FPS; worst frame 50 to 27 ms. Full resolution remains selectable.",
   "date": "2026-10-26"
  },
  "versions": [
@@ -704,6 +704,15 @@
    "date": "2026-10-26",
    "commit": "2bb45ca",
    "status": "ok"
+  },
+  {
+   "tag": "v89-sandbox",
+   "title": "Playable dev-mode sandbox and shader optimizations",
+   "notes": "Outgoing release before the frame-pacing fix: working leaderboard, VSync setting, lit-mode early-outs, object-matrix scratch buffer and browser-tested dev-mode sandbox. Firefox can stutter under full-screen lighting and long render distance.",
+   "date": "2026-10-26",
+   "commit": "fe565a3",
+   "status": "issues",
+   "issues": "Frame-time spikes with heavy lighting and long render distance; addressed by Automatic render quality and state-query caching in v90."
   }
  ]
 }

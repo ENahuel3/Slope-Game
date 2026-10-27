@@ -20,7 +20,7 @@
     function lsSet(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) { /* storage blocked */ } }
     function warn(msg) { if (window.console) console.warn("[slope-ramps] " + msg); }
     var enabled = lsGet(KEY_ON) !== "false";
-    var ramps = {}, decided = {}, lastRampS = -1e9, launches = 0, errors = 0, drawnLast = 0, lastHash = 0;
+    var ramps = {}, decided = {}, lastRampS = -1e9, launches = 0, errors = 0, drawnLast = 0, geometryVersion = 0, uploads = 0, drawCalls = 0;
     function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
     function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
     function hash(key) { var h = 2166136261; for (var i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -30,7 +30,7 @@
     function laneCoords(fr, wp) { var d = sub(wp, fr.org); return [dot(d, fr.right), dot(d, fr.fwd), dot(d, fr.up)]; }
     function rolled(fr) { return Math.abs(fr.right[1]) > 0.08 || Math.abs(fr.right[2]) > 0.08; }   // the lane's "right" leaves the world x axis once the course rolls
     function consider(frames, ballS) {
-        var cands = frames.filter(function (f) { return f.lane && f.kind === "slope" && !f.hidden && !rolled(f); });
+        var cands = frames.filter(function (f) { return decided[f.key] === undefined && f.lane && f.kind === "slope" && !f.hidden && !rolled(f); });
         cands.sort(function (a, b) { return dot(a.org, FWD0) - dot(b.org, FWD0); });
         for (var i = 0; i < cands.length; i++) {
             var f = cands[i]; if (decided[f.key] !== undefined) continue;
@@ -41,7 +41,7 @@
             if (SlopeCoins.underTunnel && SlopeCoins.underTunnel(mid)) { decided[f.key] = false; continue; }   // no ramp under a roof
             var want = (hash(f.key) % P.every) === 0 && s0 - lastRampS >= P.minGap * BLOCK;
             decided[f.key] = want;
-            if (want) { lastRampS = s0; ramps[f.key] = makeRamp(f); if (window.SlopeCoins && SlopeCoins.muteBlock) SlopeCoins.muteBlock(f.key); }
+            if (want) { lastRampS = s0; ramps[f.key] = makeRamp(f); geometryVersion++; if (window.SlopeCoins && SlopeCoins.muteBlock) SlopeCoins.muteBlock(f.key); }
         }
     }
     function makeRamp(f) {
@@ -105,12 +105,21 @@
     function ensure(h) {
         var g = h.g, gl = h.gl;
         if (res && res.gl === gl && !res.failed) return res.ok;
-        res = { gl: gl, ok: false, failed: false };
+        res = { gl: gl, ok: false, failed: false, geometryVersion: -1, vertexCount: 0 };
         try {
             var vs = compile(g, gl, gl.VERTEX_SHADER, VS), fs = compile(g, gl, gl.FRAGMENT_SHADER, FS); if (!vs || !fs) { res.failed = true; return false; }
             var prog = g.createProgram(); g.attachShader(prog, vs); g.attachShader(prog, fs); g.bindAttribLocation(prog, 0, "aPos"); g.bindAttribLocation(prog, 1, "aCol"); g.linkProgram(prog);
             if (!g.getProgramParameter(prog, gl.LINK_STATUS)) { warn("program: " + g.getProgramInfoLog(prog)); res.failed = true; return false; }
-            res.prog = prog; res.uVP = g.getUniformLocation(prog, "uVP"); res.vbo = g.createBuffer(); res.ok = true;
+            res.prog = prog; res.uVP = g.getUniformLocation(prog, "uVP"); res.vbo = g.createBuffer();
+            res.vao = h.vaoMode === "gl2" ? g.createVertexArray() : h.vaoMode === "oes" ? h.vaoExt.createVertexArrayOES() : null;
+            if (res.vao) {
+                if (h.vaoMode === "gl2") g.bindVertexArray(res.vao); else h.vaoExt.bindVertexArrayOES(res.vao);
+                g.bindBuffer(gl.ARRAY_BUFFER, res.vbo);
+                g.enableVertexAttribArray(0); g.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+                g.enableVertexAttribArray(1); g.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+                if (h.vaoMode === "gl2") g.bindVertexArray(null); else h.vaoExt.bindVertexArrayOES(null);
+            }
+            res.ok = true;
         } catch (e) { warn("resources: " + e); res.failed = true; errors++; }
         return res.ok;
     }
@@ -119,34 +128,53 @@
         if (!enabled || !window.SlopeCoins || !SlopeCoins.frames) return;
         var frames = SlopeCoins.frames(), live = {};
         for (var i = 0; i < frames.length; i++) live[frames[i].key] = true;
-        for (var k in ramps) if (!live[k]) delete ramps[k];                       // the block was passed and despawned
+        for (var k in ramps) if (!live[k]) { delete ramps[k]; geometryVersion++; }                       // the block was passed and despawned
         for (var k2 in decided) if (!live[k2]) delete decided[k2];
         var ball = SlopeCoins.ballPos();
         var ballS = ball ? dot(ball, FWD0) : -1e9;
-        if (ball && lastHash !== frames.length) { lastHash = frames.length; }
         consider(frames, ballS);
         check(ball);
         var keys = Object.keys(ramps), vp = SlopeCoins.camera();
         if (!keys.length || !vp) return;
         if (!ensure(h)) return;
         var g = h.g, gl = h.gl;
-        var keep = { depthFunc: g.getParameter(gl.DEPTH_FUNC), depthMask: g.getParameter(gl.DEPTH_WRITEMASK), cull: g.isEnabled(gl.CULL_FACE), blend: g.isEnabled(gl.BLEND),
-            elementBuf: g.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING), a1: g.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_ENABLED), a1buf: g.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_BUFFER_BINDING),
+        var keep = { depthFunc: g.getParameter(gl.DEPTH_FUNC), depthMask: g.getParameter(gl.DEPTH_WRITEMASK), cull: g.isEnabled(gl.CULL_FACE), blend: g.isEnabled(gl.BLEND) };
+        if (!res.vao) keep.attribs = { elementBuf: g.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING), a1: g.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_ENABLED), a1buf: g.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_BUFFER_BINDING),
             a1size: g.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_SIZE), a1type: g.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_TYPE), a1norm: g.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_NORMALIZED), a1stride: g.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_STRIDE), a1off: g.getVertexAttribOffset(1, gl.VERTEX_ATTRIB_ARRAY_POINTER) };
         try {
-            if (h.vaoMode === "gl2") g.bindVertexArray(null); else if (h.vaoMode === "oes") h.vaoExt.bindVertexArrayOES(null);
+            if (res.vao) { if (h.vaoMode === "gl2") g.bindVertexArray(res.vao); else h.vaoExt.bindVertexArrayOES(res.vao); }
             g.useProgram(res.prog); g.uniformMatrix4fv(res.uVP, false, vp);
             g.enable(gl.DEPTH_TEST); g.depthFunc(gl.LESS); g.depthMask(true); g.disable(gl.CULL_FACE); g.disable(gl.BLEND); g.disable(gl.SCISSOR_TEST); g.colorMask(true, true, true, true);
             g.bindBuffer(gl.ARRAY_BUFFER, res.vbo);
-            g.enableVertexAttribArray(0); g.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
-            g.enableVertexAttribArray(1); g.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
-            for (var j = 0; j < keys.length; j++) { var r = ramps[keys[j]]; g.bufferData(gl.ARRAY_BUFFER, r.data, gl.DYNAMIC_DRAW); g.drawArrays(gl.TRIANGLES, 0, r.count); drawnLast++; }
+            if (!res.vao) {
+                g.enableVertexAttribArray(0); g.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+                g.enableVertexAttribArray(1); g.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+            }
+            // Ramp vertices are already in world space and do not animate. Rebuild only when
+            // the live set changes; all ramps share a shader and can use one draw on WebGL 1/2.
+            if (res.geometryVersion !== geometryVersion) {
+                var size = 0;
+                for (var j = 0; j < keys.length; j++) size += ramps[keys[j]].data.length;
+                var batch = new Float32Array(size), offset = 0;
+                for (var n = 0; n < keys.length; n++) { var data = ramps[keys[n]].data; batch.set(data, offset); offset += data.length; }
+                g.bufferData(gl.ARRAY_BUFFER, batch, gl.STATIC_DRAW);
+                res.vertexCount = size / 6;
+                res.geometryVersion = geometryVersion;
+                uploads++;
+            }
+            g.drawArrays(gl.TRIANGLES, 0, res.vertexCount);
+            drawCalls++;
+            drawnLast = keys.length;
         } catch (e) { errors++; }
         finally {
             g.depthFunc(keep.depthFunc); g.depthMask(keep.depthMask); if (keep.cull) g.enable(gl.CULL_FACE); if (keep.blend) g.enable(gl.BLEND);
-            if (keep.a1buf) { g.bindBuffer(gl.ARRAY_BUFFER, keep.a1buf); g.vertexAttribPointer(1, keep.a1size, keep.a1type, keep.a1norm, keep.a1stride, keep.a1off); }
-            if (!keep.a1) g.disableVertexAttribArray(1);
-            g.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, keep.elementBuf);
+            if (keep.attribs) {
+                var a = keep.attribs;
+                if (a.a1buf) { g.bindBuffer(gl.ARRAY_BUFFER, a.a1buf); g.vertexAttribPointer(1, a.a1size, a.a1type, a.a1norm, a.a1stride, a.a1off); }
+                if (!a.a1) g.disableVertexAttribArray(1);
+                g.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, a.elementBuf);
+            }
+            if (res.vao) { if (h.vaoMode === "gl2") g.bindVertexArray(null); else h.vaoExt.bindVertexArrayOES(null); }
         }
     }
     if (window.SlopeShaders && SlopeShaders.onScene) SlopeShaders.onScene(onScene); else warn("shaders.js is not loaded before ramps.js; ramps cannot draw");
@@ -155,7 +183,7 @@
     var menuBox = null;
     function setEnabled(on) {
         enabled = !!on; lsSet(KEY_ON, enabled);
-        if (!enabled) { ramps = {}; decided = {}; }
+        if (!enabled) { ramps = {}; decided = {}; geometryVersion++; }
         if (!menuBox) menuBox = document.getElementById("hud-ramps");
         if (menuBox && menuBox.checked !== enabled) menuBox.checked = enabled;
     }
@@ -169,6 +197,6 @@
         setEnabled: setEnabled,
         params: P,
         ramps: function () { var o = []; for (var k in ramps) o.push({ key: k, s0: +ramps[k].s0.toFixed(1), fired: !!ramps[k].fired }); return o; },
-        stats: function () { return { enabled: enabled, ramps: Object.keys(ramps).length, decided: Object.keys(decided).length, launches: launches, drawn: drawnLast, errors: errors, gl: !!(res && res.ok) }; }
+        stats: function () { return { enabled: enabled, ramps: Object.keys(ramps).length, decided: Object.keys(decided).length, launches: launches, drawn: drawnLast, uploads: uploads, drawCalls: drawCalls, errors: errors, gl: !!(res && res.ok) }; }
     };
 })();
