@@ -273,4 +273,8 @@ html, body {
 .lb-foot .lb-dim { opacity: 0.75; }
 .lb-name-input { display: inline-block; min-width: calc(var(--u) * 120); font: inherit; font-size: calc(var(--u) * 22); color: var(--lb-c); background: #000; border: none; border-bottom: 2px solid var(--lb-c); outline: none; padding: 0 calc(var(--u) * 4); text-transform: uppercase; }
 .lb-name-input::placeholder { color: var(--lb-c); opacity: 0.6; }
+.lb-over-cover { position: absolute; display: none; background: #000; }   /* game over: hides the dead id.net panel (sized in mod.js) */
+.lb-over-top { left: calc(50% - var(--u) * 158); top: 0; width: calc(var(--u) * 316); height: calc(var(--u) * 86); }   /* ...and the game's own Leaderboard button at the top */
+.lb-over-btn { width: calc(var(--u) * 314); height: calc(var(--u) * 74); left: calc(50% - var(--u) * 157); top: calc(50% - var(--u) * 37); display: none; }
+.lb-root.lb-hold .lb-panel { visibility: hidden; }
 .lb-status { font-size: calc(var(--u) * 16); opacity: 0.75; min-height: 1.4em; }

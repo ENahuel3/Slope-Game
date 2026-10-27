@@ -1364,20 +1364,55 @@
         }
     }, true);
 
-    // Leaderboard button after a run: leaderboard.js only shows its title-menu box before the
-    // first run, so after dying and going back to the menu it never came back. Once the game
-    // has been stopped for 1.5 s and the board is closed, show it again (a new run or opening
-    // the board hides it, as before).
-    var lbStoppedAt = 0;
+    // Leaderboard on the menus after a run. leaderboard.js shows its title-menu box only before the
+    // first run and opens the board over the id.net panel at game over. The two menus are told apart
+    // by their draw calls (UI text, 6 indices per glyph; both draw under 40 calls, only the title
+    // draws a 42 and a 48). After a run:
+    //  - title menu: the title box comes back.
+    //  - game-over screen (the AGAIN one): the id.net panel (a fixed 400x400 canvas-pixel box, centred)
+    //    and the game's own Leaderboard button at the top are covered in black, the board no longer
+    //    opens by itself, and a Leaderboard box in the centre of the screen opens it.
+    var lbOverBtn = null, lbCover = null, lbTopCover = null, lbDeathsSeen = 0, lbHoldUntil = 0;
+    function menuScreen() {
+        var d = lastDraws;
+        if (gameRunning || !deaths || !d.length || d.length >= 40) return null;
+        return d.indexOf(42) >= 0 && d.indexOf(48) >= 0 ? "title" : "over";
+    }
+    function lbOverlay(root) {
+        if (lbCover && lbCover.parentNode === root) return;
+        lbCover = document.createElement("div"); lbCover.className = "lb-over-cover";
+        lbTopCover = document.createElement("div"); lbTopCover.className = "lb-over-cover lb-over-top";
+        lbOverBtn = document.createElement("div"); lbOverBtn.className = "lb-box lb-btn lb-title-btn lb-over-btn"; lbOverBtn.textContent = "Leaderboard";
+        lbOverBtn.addEventListener("click", function () { lbHoldUntil = 0; root.classList.remove("lb-hold"); if (window.SlopeLeaderboard) SlopeLeaderboard.open(); });
+        root.insertBefore(lbOverBtn, root.firstChild); root.insertBefore(lbTopCover, lbOverBtn); root.insertBefore(lbCover, lbTopCover);   // under the board
+    }
     setInterval(function () {
-        if (gameRunning || !deaths) { lbStoppedAt = 0; return; }
-        if (!lbStoppedAt) { lbStoppedAt = Date.now(); return; }
-        if (Date.now() - lbStoppedAt < 1500) return;
-        var lb = window.SlopeLeaderboard, btn = document.querySelector(".lb-title-btn");
-        if (!lb || !btn || btn.style.display !== "none") return;
-        try { if (lb.stats().open) return; } catch (e) { return; }
-        btn.style.display = "flex";
-    }, 250);
+        var lb = window.SlopeLeaderboard, root = document.querySelector(".lb-root");
+        if (!lb || !root) return;
+        var open = false; try { open = !!lb.stats().open; } catch (e) { return; }
+        if (deaths > lbDeathsSeen) { lbDeathsSeen = deaths; lbHoldUntil = Date.now() + 1500; root.classList.add("lb-hold"); }   // keep the automatic game-over board hidden...
+        if (lbHoldUntil) {
+            if (open && !gameRunning) { lb.close(); open = false; lbHoldUntil = Date.now(); }                                // ...and close it as soon as it opens
+            if (Date.now() >= lbHoldUntil) { lbHoldUntil = 0; root.classList.remove("lb-hold"); }
+        }
+        lbOverlay(root);
+        var scr = menuScreen(), titleBtn = root.querySelector(".lb-title-btn:not(.lb-over-btn)");
+        var over = scr === "over";
+        lbCover.style.display = lbTopCover.style.display = over ? "block" : "none";
+        lbOverBtn.style.display = over && !open ? "flex" : "none";
+        if (over) {
+            var c = document.querySelector("#gameContainer canvas") || document.querySelector("canvas");
+            if (c && c.width) {
+                var r = c.getBoundingClientRect(), k = r.width / c.width, s = 410 * k;
+                lbCover.style.width = lbCover.style.height = s + "px";
+                lbCover.style.left = (r.width - s) / 2 + "px"; lbCover.style.top = (r.height - s) / 2 + 3 * k + "px";
+            }
+        }
+        if (titleBtn) {
+            if (over && titleBtn.style.display !== "none") titleBtn.style.display = "none";                         // it would sit on AGAIN
+            else if (scr === "title" && !open && titleBtn.style.display === "none") titleBtn.style.display = "flex";
+        }
+    }, 100);
 
     window.SlopeMod = {
         blockedCount: function () { return blockedCount; },

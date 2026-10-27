@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: If you are in a game and then die and then go back to the ma",
-  "notes": "Made with the in-game dev mode (job 7d9540b49a40).",
+  "title": "Dev edit: After you die, and are on the screen with the again button, ",
+  "notes": "Made with the in-game dev mode (job 609832232e9d).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -798,6 +798,13 @@
    "commit": "4049d07",
    "status": "issues",
    "issues": "the leaderboard's TYPE NAME field does not accept keystrokes (fixed in the next version)"
+  },
+  {
+   "tag": "v101-dev-609832",
+   "title": "Before dev edit 609832",
+   "notes": "The root as it was before the dev-mode edit 'After you die, and are on the screen with the again button, remove the id.net leaderboard and make t'. Last commit: Dev edit: If you are in a game and then die and then go back to the ma",
+   "date": "2026-10-27",
+   "commit": "df315f9"
   }
  ]
 }
