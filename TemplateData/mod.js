@@ -1367,7 +1367,8 @@
     // Leaderboard on the menus after a run. leaderboard.js shows its title-menu box only before the
     // first run and opens the board over the id.net panel at game over. The two menus are told apart
     // by their draw calls (UI text, 6 indices per glyph; both draw under 40 calls, only the title
-    // draws a 42 and a 48). After a run:
+    // draws a 42 and a 48). The ~3 s after a death still draw the 3D scene (the 5190-index city,
+    // 600/804 pieces) in under 40 calls, so a menu also needs every draw to be small UI text. After a run:
     //  - title menu: the title box comes back.
     //  - game-over screen (the AGAIN one): the id.net panel (a fixed 400x400 canvas-pixel box, centred)
     //    and the game's own Leaderboard button at the top are covered in black, the board no longer
@@ -1376,6 +1377,7 @@
     function menuScreen() {
         var d = lastDraws;
         if (gameRunning || !deaths || !d.length || d.length >= 40) return null;
+        for (var i = 0; i < d.length; i++) if (d[i] > 300) return null;   // the 3D scene is still up: not on a menu yet
         return d.indexOf(42) >= 0 && d.indexOf(48) >= 0 ? "title" : "over";
     }
     function lbOverlay(root) {
