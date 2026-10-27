@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Give super ramps a hitbox that corresponds to their shape.",
-  "notes": "Made with the in-game dev mode (job c75a9b6d9abf).",
+  "title": "Dev edit: Now the super ramps don't have a hitbox, and don't do anythi",
+  "notes": "Made with the in-game dev mode (job c66cbe0fb986).",
   "date": "2026-10-27"
  },
  "versions": [
@@ -854,6 +854,13 @@
    "notes": "The root as it was before the dev-mode edit 'Give super ramps a hitbox that corresponds to their shape.'. Last commit: Dev edit: Even with super ramps are enabled, I've only ever seen them",
    "date": "2026-10-27",
    "commit": "9fb8c3c"
+  },
+  {
+   "tag": "v109-dev-c66cbe",
+   "title": "Before dev edit c66cbe",
+   "notes": "The root as it was before the dev-mode edit 'Now the super ramps don't have a hitbox, and don't do anything in general. Revert the behavior of th'. Last commit: Dev edit: Give super ramps a hitbox that corresponds to their shape.",
+   "date": "2026-10-27",
+   "commit": "7fcfc14"
   }
  ]
 }

@@ -97,30 +97,12 @@
         if (!window.SlopeMod || !SlopeMod.boost || !SlopeMod.boost(P.speedMul, P.upMul, P.maxMs, P.upMs)) return;
         r.fired = performance.now(); launches++; whoosh(); showFlash();
     }
-    // hitbox: the wedge itself, a prism over x inset..10-inset whose (s, n) cross-section is the triangle
-    // (foot, 0) (top, 0) (top, rise); the ball (radius 0.5) fires it when its centre comes within BALL_R of the solid
-    var BALL_R = 0.55, prevBall = null;
-    function segDist(ps, pn, as, an, bs, bn) {
-        var ds = bs - as, dn = bn - an, t = ((ps - as) * ds + (pn - an) * dn) / (ds * ds + dn * dn);
-        t = Math.max(0, Math.min(1, t)); return Math.hypot(ps - (as + ds * t), pn - (an + dn * t));
-    }
-    function wedgeDist(c) {
-        var x0 = P.inset, x1 = 10 - P.inset, s = c[1], n = c[2];
-        var dx = c[0] < x0 ? x0 - c[0] : c[0] > x1 ? c[0] - x1 : 0;
-        var inside = s >= P.foot && s <= P.top && n >= 0 && n <= P.rise * (s - P.foot) / (P.top - P.foot);
-        var d2 = inside ? 0 : Math.min(segDist(s, n, P.foot, 0, P.top, 0), segDist(s, n, P.top, 0, P.top, P.rise), segDist(s, n, P.foot, 0, P.top, P.rise));
-        return Math.hypot(dx, d2);
-    }
     function check(ballPos) {
-        if (!ballPos) { prevBall = null; return; }
-        // also test the midpoint of this frame's move, so a fast ball cannot step over the thin top edge
-        var probes = [ballPos];
-        if (prevBall && Math.hypot(ballPos[0] - prevBall[0], ballPos[1] - prevBall[1], ballPos[2] - prevBall[2]) < 5)
-            probes.push([(ballPos[0] + prevBall[0]) / 2, (ballPos[1] + prevBall[1]) / 2, (ballPos[2] + prevBall[2]) / 2]);
-        prevBall = ballPos;
+        if (!ballPos) return;
         for (var k in ramps) {
             var r = ramps[k]; if (r.fired) continue;
-            for (var i = 0; i < probes.length; i++) if (wedgeDist(laneCoords(r.fr, probes[i])) <= BALL_R) { fire(r); break; }
+            var c = laneCoords(r.fr, ballPos);
+            if (c[1] >= P.foot - 0.4 && c[1] <= P.top + 0.6 && c[0] > P.inset - 0.6 && c[0] < 10 - P.inset + 0.6 && c[2] > -1 && c[2] < P.rise + 1.5) fire(r);
         }
     }
 
