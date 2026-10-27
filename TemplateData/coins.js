@@ -343,6 +343,7 @@
         updateBadge();
         drawnLast = 0;
         if (!list.length || !camVP) return;
+        if (window.SlopeMod && SlopeMod.overMenu && SlopeMod.overMenu()) return;   // the game-over screen stays empty
         loadMesh();
         if (!ensureResources(h)) return;
         var g = h.g, gl = h.gl;

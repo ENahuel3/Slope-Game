@@ -146,6 +146,7 @@
         check(ball);
         var keys = Object.keys(ramps), vp = SlopeCoins.camera();
         if (!keys.length || !vp) return;
+        if (window.SlopeMod && SlopeMod.overMenu && SlopeMod.overMenu()) return;   // the game-over screen stays empty
         if (!ensure(h)) return;
         var g = h.g, gl = h.gl;
         var keep = { depthFunc: g.getParameter(gl.DEPTH_FUNC), depthMask: g.getParameter(gl.DEPTH_WRITEMASK), cull: g.isEnabled(gl.CULL_FACE), blend: g.isEnabled(gl.BLEND) };

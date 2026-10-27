@@ -166,12 +166,23 @@
     // batched UI buffer, drawn as 54 indices at byte 108, 48 at 216 and 6 at 312; nothing else on the title menu uses
     // those offsets. titleMenu comes from the previous frame's draw list (frameLoop).
     var titleMenu = false, HIDDEN_TITLE_DRAWS = { "54@108": 1, "48@216": 1, "6@312": 1 };
+    // Game-over screen: its small UI draws (index count < 300) come in a fixed order: speaker icon (54, 6), the game's
+    // Leaderboard button (54 box, 66 label), AGAIN (54, 30), Menu (54, 24), then the id.net leaderboard panel (everything
+    // after). The Leaderboard button and the panel are not drawn, so that space is empty; the mod's own Leaderboard box
+    // sits there instead. overMenu comes from the previous frame's UI draw list (frameLoop).
+    var overMenu = false, frameUi = [], uiOrd = 0, OVER_UI_SIG = [54, 6, 54, 66, 54, 30, 54, 24];
+    function isOverMenu(ui) {
+        if (gameRunning || ui.length < OVER_UI_SIG.length) return false;
+        for (var i = 0; i < OVER_UI_SIG.length; i++) if (ui[i] !== OVER_UI_SIG[i]) return false;
+        return true;
+    }
     function hookContext(P) {
         var origDE = P.drawElements, origDA = P.drawArrays;
         var origDEI = P.drawElementsInstanced, origDAI = P.drawArraysInstanced;
         P.drawElements = function (mode, count, type, offset) {
             frameDraws.push(count);
             if (titleMenu && HIDDEN_TITLE_DRAWS[count + "@" + offset]) return;
+            if (count < 300) { var ord = uiOrd++; frameUi.push(count); if (overMenu && (ord === 2 || ord === 3 || ord >= 8)) return; }
             return origDE.apply(this, arguments);
         };
         P.drawArrays = function (mode, first, count) { frameDraws.push(count); return origDA.apply(this, arguments); };
@@ -525,6 +536,7 @@
         if (!sceneSeen && gameReadyAt && draws.length >= 12) sceneSeen = true;   // Unity's splash draws a few quads; the menu scene draws many
         lastDraws = draws;
         titleMenu = isTitleMenu(draws);
+        overMenu = isOverMenu(frameUi); frameUi = []; uiOrd = 0;
         try { examineFrame(draws); } catch (e) { /* never break the game loop */ }
         try { syncBuilding(); } catch (e) { /* diagnostics only */ }
         try { stepAhead(); } catch (e) { /* never break the game loop */ }
@@ -1393,11 +1405,12 @@
     // 600/804 pieces) in under 40 calls, so a menu also needs every draw to be small UI text. After a run:
     //  - title menu: the title box comes back.
     //  - game-over screen (the AGAIN one): the id.net panel (a fixed 400x400 canvas-pixel box, centred)
-    //    and the game's own Leaderboard button at the top are covered in black, the board no longer
+    //    and the game's own Leaderboard button at the top are not drawn (OVER_UI_SIG), the board no longer
     //    opens by itself, and a Leaderboard box in the centre of the screen opens it.
-    var lbOverBtn = null, lbCover = null, lbTopCover = null, lbDeathsSeen = 0, lbHoldUntil = 0;
+    var lbOverBtn = null, lbDeathsSeen = 0, lbHoldUntil = 0;
     function menuScreen() {
         var d = lastDraws;
+        if (overMenu && deaths) return "over";   // the game-over UI order (OVER_UI_SIG), even with a leftover 3D draw
         if (gameRunning || !deaths || !d.length || d.length >= 40) return null;
         for (var i = 0; i < d.length; i++) if (d[i] > 300) return null;   // the 3D scene is still up: not on a menu yet
         return d.indexOf(42) >= 0 && d.indexOf(48) >= 0 ? "title" : "over";
@@ -1408,12 +1421,10 @@
         return d.indexOf(42) >= 0 && d.indexOf(48) >= 0;
     }
     function lbOverlay(root) {
-        if (lbCover && lbCover.parentNode === root) return;
-        lbCover = document.createElement("div"); lbCover.className = "lb-over-cover";
-        lbTopCover = document.createElement("div"); lbTopCover.className = "lb-over-cover lb-over-top";
+        if (lbOverBtn && lbOverBtn.parentNode === root) return;
         lbOverBtn = document.createElement("div"); lbOverBtn.className = "lb-box lb-btn lb-title-btn lb-over-btn"; lbOverBtn.textContent = "Leaderboard";
         lbOverBtn.addEventListener("click", function () { lbHoldUntil = 0; root.classList.remove("lb-hold"); if (window.SlopeLeaderboard) SlopeLeaderboard.open(); });
-        root.insertBefore(lbOverBtn, root.firstChild); root.insertBefore(lbTopCover, lbOverBtn); root.insertBefore(lbCover, lbTopCover);   // under the board
+        root.insertBefore(lbOverBtn, root.firstChild);   // under the board
     }
     setInterval(function () {
         var lb = window.SlopeLeaderboard, root = document.querySelector(".lb-root");
@@ -1427,16 +1438,7 @@
         lbOverlay(root);
         var scr = menuScreen(), titleBtn = root.querySelector(".lb-title-btn:not(.lb-over-btn)");
         var over = scr === "over";
-        lbCover.style.display = lbTopCover.style.display = over ? "block" : "none";
         lbOverBtn.style.display = over && !open ? "flex" : "none";
-        if (over) {
-            var c = document.querySelector("#gameContainer canvas") || document.querySelector("canvas");
-            if (c && c.width) {
-                var r = c.getBoundingClientRect(), k = r.width / c.width, s = 410 * k;
-                lbCover.style.width = lbCover.style.height = s + "px";
-                lbCover.style.left = (r.width - s) / 2 + "px"; lbCover.style.top = (r.height - s) / 2 + 3 * k + "px";
-            }
-        }
         if (titleBtn) {
             if (over && titleBtn.style.display !== "none") titleBtn.style.display = "none";                         // it would sit on AGAIN
             else if (scr === "title" && !open && titleBtn.style.display === "none") titleBtn.style.display = "flex";
@@ -1449,6 +1451,7 @@
         courseBatches: function () { return lastCourseCount; },
         log: function () { return debugLog.slice(); },
         frame: function () { return frameNo; },
+        overMenu: function () { return overMenu; },   // on the game-over screen (OVER_UI_SIG)
         stats: function () { return { builds: builds, resetsSent: resetsSent, deaths: deaths, restarts: restarts, stuckRestarts: stuckRestarts, renderDistance: viewDist, aheadLeft: aheadLeft, building: !!build, restarting: !!restartSeq, running: gameRunning, phase: build ? build.phase : restartSeq ? restartSeq.phase : null, frame: frameNo, fps: perf.fps, frameMs: perf.frameMs, worstMs: perf.worstMs, worstGap: Math.round(worstGap), worstGapFrame: worstGapFrame, bigGaps: bigGaps.slice(), music: musicId, shaders: window.SlopeShaders ? SlopeShaders.stats() : null }; },
         setStack: setStackTarget,
         setLaps: function (n) { LAPS_PER_COURSE = n; },
