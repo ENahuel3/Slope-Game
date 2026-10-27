@@ -747,6 +747,14 @@
    "commit": "290756f"
   },
   {
+   "tag": "v95-continuousroll",
+   "title": "Continuous roll on every piece",
+   "notes": "ncasares-42's continuous roll (helicoid copies of every course piece, roll never pauses) on top of the leaderboard-button dev edit; still carries the stray sed temp file TemplateData/sedv7ElgT that the next commit removes.",
+   "date": "2026-10-26",
+   "commit": "eaee935",
+   "status": "ok"
+  },
+  {
    "tag": "v94-framecap",
    "title": "Frame cap slider, dev-mode publish fix",
    "notes": "The root as it was before the continuous roll: frame pacing and the frame cap slider, the leaderboard, the dev-mode publish fix, and the obstacle fix.",
