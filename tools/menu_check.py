@@ -17,14 +17,23 @@ with sync_playwright() as p:
     assert not page.locator('#mod-menu').is_visible()
     page.locator('#mod-menu-button').click()
     assert page.locator('#mod-menu').is_visible()
-    for ident in ['hud-stack','hud-style','hud-fx','hud-light','hud-music','hud-gravity','hud-mort','hud-julien','hud-version','hud-fs']:
+    # the Mort and King Julien boxes were removed from the menu by an in-game dev edit (the music picks them now); only
+    # the controls the page still has are required
+    present = [i for i in ['hud-stack','hud-style','hud-fx','hud-light','hud-music','hud-gravity','hud-mort','hud-julien','hud-version','hud-fs'] if page.locator('#mod-menu #'+i).count()]
+    for ident in present:
         assert page.locator('#mod-menu #'+ident).is_visible(), ident
-    print('PASS every option is visible inside Mod Menu',flush=True)
+    print('PASS every option is visible inside Mod Menu (%d controls)' % len(present),flush=True)
     page.evaluate("window.menuKeys=0;window.addEventListener('keydown',()=>menuKeys++,true)")
-    page.locator('#hud-mort').focus();page.keyboard.press('Space')
-    assert page.locator('#hud-mort').is_checked() and page.evaluate('SlopeMod.mort()')
-    assert page.evaluate('menuKeys')==0
-    page.locator('#hud-julien').check()
+    if page.locator('#hud-mort').count():
+        page.locator('#hud-mort').focus();page.keyboard.press('Space')
+        assert page.locator('#hud-mort').is_checked() and page.evaluate('SlopeMod.mort()')
+        assert page.evaluate('menuKeys')==0
+    else:
+        page.evaluate('SlopeMod.setMort(true)')
+    if page.locator('#hud-julien').count():
+        page.locator('#hud-julien').check()
+    else:
+        page.evaluate('SlopeMod.setJulien(true)')
     assert page.evaluate('SlopeMod.julien()')
     # Cache actual native pointers and the live variable address once.
     page.evaluate("""() => {

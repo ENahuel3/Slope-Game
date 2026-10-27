@@ -242,8 +242,19 @@ function changedFiles() {
 
 // ---------------------------------------------------------------- validation
 const URL_RE = /https?:\/\/([a-z0-9.-]+)/gi;
+const JUNK = /(^|\/)(sed[A-Za-z0-9]{6}|\.#.*|.*~|.*\.(swp|swo|orig|rej|bak|tmp))$/;
+const KEEP_EXT = /\.(js|css|html|json|md|py|txt|png|jpg|jpeg|gif|webp|mp3|ogg|wav|ttf|otf|woff2?|unityweb)$/i;
+function dropJunk(say) {        // editor and sed leftovers the sandbox may leave behind are not part of an edit
+    const untracked = git(["ls-files", "--others", "--exclude-standard"]).split("\n").filter(Boolean);
+    const junk = untracked.filter(f => JUNK.test(f));
+    for (const f of junk) { try { fs.unlinkSync(path.join(CFG.repoDir, f)); } catch (e) { /* gone already */ } }
+    if (junk.length && say) say("Dropped leftover files: " + junk.join(", "));
+}
 function validate(job) {
+    dropJunk();
     const files = changedFiles();
+    const odd = files.filter(f => !KEEP_EXT.test(f) && fs.existsSync(path.join(CFG.repoDir, f)));
+    if (odd.length) return "The edit left files of a kind the page does not use (" + odd.join(", ") + "); discarded.";
     if (!files.length) return "Claude made no changes to the game files.";
     const PROTECTED = ["versions/", "edit-server/", ".githooks/", ".git/", "TemplateData/versions.js", "tools/snapshot_version.py"];
     const editableOk = f => !PROTECTED.some(p => f === p || f.startsWith(p)) && CFG.editable.some(e => e.endsWith("/") ? f.startsWith(e) : f === e);

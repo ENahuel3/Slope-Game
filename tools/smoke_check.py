@@ -12,7 +12,8 @@ if srv.poll() is not None: print('FAIL could not serve the repository on port %d
 def fail(msg): print('FAIL ' + msg, flush=True); srv.terminate(); sys.exit(1)
 try:
     with sync_playwright() as p:
-        b = p.chromium.launch(headless=True, args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--disable-dev-shm-usage', '--autoplay-policy=no-user-gesture-required'])
+        extra = [a for a in os.environ.get('SLOPE_SMOKE_ARGS', '').split() if a]   # e.g. --in-process-gpu where a separate GPU process cannot be launched
+        b = p.chromium.launch(headless=True, args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--disable-dev-shm-usage', '--autoplay-policy=no-user-gesture-required'] + extra)
         pg = b.new_page(viewport={'width': 640, 'height': 400}); errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)[:300]))
         pg.on('console', lambda m: errs.append('console.error: ' + m.text[:300]) if m.type == 'error' and not any(k in m.text for k in ('IDNET', 'Tracker', 'favicon', 'id.net', 'y8.com')) else None)

@@ -52,13 +52,33 @@
         "1120/5acc1114": "thinNoJump",      // ThinNoJump: the 5-wide lane of the thin switch and the doglegs
         "3020/bc4080c1": "dogleg",          // ThinS: the weaving thin lane
         "560/76e3c522": "slope",            // Slope: the lane block
-        "720/9ad72440": "slopeTwistP",      // the mod's helicoid blocks (tools/patch_roll.py)
-        "720/2d1cf952": "slopeTwistN",
+        // twisted variants of the course pieces (tools/patch_roll.py / the peers' twist tools): a base kind plus P or N,
+        // the cross-section rotating +/-4.5 degrees per 14.1421 along the piece about the lane's centre line
+        "2400/4b0eeb65": "slopeP", "2400/85cb55e3": "slopeN",
+        "12460/f523fe8b": "thinP", "12460/e7a5eb4a": "thinN",
+        "11420/f523fe8b": "thinNoJumpP", "11420/e7a5eb4a": "thinNoJumpN",
+        "23600/15630fae": "doglegP", "23600/b94db466": "doglegN",
+        "3360/c27550a2": "jumpP", "3360/5e3a4a4f": "jumpN",
+        "5340/0c02c36f": "jumpGapMidP", "5340/78d55776": "jumpGapMidN",
+        "43880/5c7aa8f6": "tunnelArcP", "43880/c3e53f53": "tunnelArcN",
+        "64680/5c7aa8f6": "tunnelArcLongP", "64680/c3e53f53": "tunnelArcLongN",
+        "16260/b44246fe": "tunnelRoofP", "16300/a3a796c5": "tunnelRoofN",
+        "23940/f6580af1": "deathTunnelP", "24000/eaa16814": "deathTunnelN",
         "560/8c0596f5": "tiltLeft",         // slopeWideTiltLeft: the wide lane tilted up on the right
         "560/75ca3d9b": "tiltRight",        // slopeWideTiltRight: tilted up on the left
         "28840/9cb76e50": "ball"            // Sphere
     };
-    var LENGTH = { tunnelArc: 56.6, tunnelArcLong: 84.8, tunnelRoof: 41, deathTunnel: 42.5, jump: 42.4, jumpGapMid: 42.4, thin: 78, thinNoJump: 78, dogleg: 151, slope: 14.1, slopeTwistP: 14.1, slopeTwistN: 14.1, tiltLeft: 14.1, tiltRight: 14.1 };
+    var LENGTH = { tunnelArc: 56.6, tunnelArcLong: 84.8, tunnelRoof: 41, deathTunnel: 42.5, jump: 42.4, jumpGapMid: 42.4, thin: 78, thinNoJump: 78, dogleg: 151, slope: 14.1, tiltLeft: 14.1, tiltRight: 14.1 };
+    // a twisted piece: base kind and direction. Every piece twists about the spawn frame's x = 5 line in its own frame (the
+    // 5-wide pieces included: the mod keeps that line fixed as the roll changes, so consecutive pieces meet only that way)
+    var TWIST_RATE = 4.5 * Math.PI / 180 / 14.1421, TWIST_AXIS_X = 5;
+    function baseKind(kind) { var m = /^(.*)(P|N)$/.exec(kind); return m && (LENGTH[m[1]] !== undefined || LAYOUTS[m[1]]) ? m[1] : kind; }
+    function twistDir(kind) { var b = baseKind(kind); return b === kind ? 0 : (kind.slice(-1) === "P" ? 1 : -1); }
+    function twisted(c, dir, base) {            // a layout coin (x, s, n) on the cross-section at s, rotated right-handed about the forward axis
+        if (!dir) return c;
+        var ax = TWIST_AXIS_X, th = dir * TWIST_RATE * c[1], cs = Math.cos(th), sn = Math.sin(th), dx = c[0] - ax, n = c[2];
+        return [ax + dx * cs - n * sn, c[1], dx * sn + n * cs];
+    }
 
     // ------------------------------------------------------------------ layouts: [x, s, n] per piece, in its lane frame
     // x across the lane (the lane blocks span 0..10), s along the course from the piece's origin, n above its floor.
@@ -157,7 +177,7 @@
             }
             var key = kind + "@" + m[12].toFixed(1) + "," + m[13].toFixed(1) + "," + m[14].toFixed(1);
             var p = pieces[key];
-            if (!p) { p = pieces[key] = makePiece(kind, key, m); pieceCount++; seenKinds[kind] = (seenKinds[kind] || 0) + 1; if (TUNNELS[kind]) tunnelGen++; }
+            if (!p) { p = pieces[key] = makePiece(kind, key, m); pieceCount++; seenKinds[kind] = (seenKinds[kind] || 0) + 1; if (TUNNELS[baseKind(kind)]) tunnelGen++; }
             p.seen = frame;
         }
         P.drawElements = function () { try { sawDraw(this); } catch (e) { errors++; } return oDE.apply(this, arguments); };
@@ -167,18 +187,19 @@
     if (window.WebGL2RenderingContext) hookProto(WebGL2RenderingContext.prototype);
 
     function makePiece(kind, key, m) {
-        var M = new Float32Array(m), layout = LAYOUTS[kind] || ((kind === "slope" || kind === "slopeTwistP" || kind === "slopeTwistN") ? laneBlockLayout(key) : []);
+        var M = new Float32Array(m), base = baseKind(kind), dir = twistDir(kind);
+        var layout = (LAYOUTS[base] || (base === "slope" ? laneBlockLayout(key) : [])).map(function (c) { return twisted(c, dir, base); });
         var up = norm3(m4mulv(M, UP_LOCAL)), fwd = norm3(m4mulv(M, FWD_LOCAL)), right = norm3(cross(up, fwd));
         var coins = layout.map(function (c, i) {
             return { wp: m4mulp(M, toLocal(c[0], c[1], c[2])), up: up, fwd: fwd, right: right, phase: (c[1] * 0.37 + c[0] * 0.11 + i) % 6.283, done: 0, popAt: 0 };
         });
-        var piece = { kind: kind, key: key, m: M, coins: coins, seen: frame, org: [m[12], m[13], m[14]], up: up, fwd: fwd, right: right, lane: !LAYOUTS[kind] };
+        var piece = { kind: kind, key: key, m: M, coins: coins, seen: frame, org: [m[12], m[13], m[14]], up: up, fwd: fwd, right: right, lane: !LAYOUTS[base] };
         if (piece.lane) hiddenGen = -1;    // a new lane block: re-check which edge coins are under a tunnel
         return piece;
     }
     function underTunnel(wp) {             // inside the box of any tunnel piece seen: lane frame 0..length along, 0..10 across, below its roof
         for (var k in pieces) {
-            var t = pieces[k], len = TUNNELS[t.kind]; if (!len) continue;
+            var t = pieces[k], len = TUNNELS[baseKind(t.kind)]; if (!len) continue;
             var d = [wp[0] - t.org[0], wp[1] - t.org[1], wp[2] - t.org[2]];
             var s = d[0] * t.fwd[0] + d[1] * t.fwd[1] + d[2] * t.fwd[2], x = d[0] * t.right[0] + d[1] * t.right[1] + d[2] * t.right[2], n = d[0] * t.up[0] + d[1] * t.up[1] + d[2] * t.up[2];
             if (s >= -1 && s <= len + 1 && x >= -1 && x <= 11 && n < 5) return true;
@@ -309,7 +330,7 @@
         var now = performance.now();
         if (!enabled) { drawnLast = 0; return; }
         // expire the pieces the game stopped drawing (passed, or despawned); a teleporting ball is a restart
-        for (var k in pieces) if (frame - pieces[k].seen > EXPIRE_FRAMES) { if (TUNNELS[pieces[k].kind]) tunnelGen++; delete pieces[k]; pieceCount--; }
+        for (var k in pieces) if (frame - pieces[k].seen > EXPIRE_FRAMES) { if (TUNNELS[baseKind(pieces[k].kind)]) tunnelGen++; delete pieces[k]; pieceCount--; }
         if (ballPos && ballPrev && Math.hypot(ballPos[0] - ballPrev[0], ballPos[1] - ballPrev[1], ballPos[2] - ballPrev[2]) > 20) { var keep = ballPos; reset(); ballPos = keep; }
         var list = liveCoins(now);
         if (ballPos) {
