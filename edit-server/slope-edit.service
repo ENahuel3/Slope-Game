@@ -48,7 +48,10 @@ MemoryDenyWriteExecute=no
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @mount @reboot @swap @obsolete @cpu-emulation @debug
-# @resources stays allowed: Chromium sets thread priorities (setpriority), and the harness runs under nice/taskset
+SystemCallFilter=capset
+# @resources stays allowed: Chromium sets thread priorities (setpriority), and the harness runs under nice/taskset.
+# capset (from @privileged) is allowed back: Chromium's child launcher drops capabilities with it, and without it the
+# GPU process is killed at launch (SIGSYS) and no page can be loaded for the smoke test. The bounding set is empty anyway.
 CapabilityBoundingSet=
 AmbientCapabilities=
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
