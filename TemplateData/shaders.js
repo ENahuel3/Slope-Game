@@ -215,14 +215,14 @@
         "  return clamp(1.0 - occ / 10.0 * 1.4, 0.0, 1.0);",
         "}",
         // the concrete: soft blotches, a fine grain and dark/light speckle fixed in world space, under AO and the light
-        "vec3 concrete(vec2 uv, vec3 P, vec3 N, float lit, vec3 tint) {",
+        "vec3 concreteAo(vec3 P, float lit, vec3 tint, float ao) {",   // ao = 1: no ambient occlusion (lighting Off)
         "  vec3 W = uCamPos + uRot * P; float near = 1.0 - smoothstep(12.0, 45.0, -P.z);",
         "  float blot = noise3(W * 0.18) * 0.6 + noise3(W * 0.55) * 0.4;",
         "  float grain = noise3(W * 4.0) - 0.5; float sp = noise3(W * 26.0 + 7.3);",   // speckle: the peaks and troughs of a fine noise, so the flecks are small and round
         "  float a = 0.80 + 0.12 * (blot - 0.5) + near * (0.07 * grain - 0.12 * smoothstep(0.80, 0.88, sp) + 0.05 * smoothstep(0.2, 0.12, sp));",
-        "  float ao = ssao(uv, P, N);",
         "  return vec3(a) * vec3(1.0, 0.985, 0.955) * tint * (0.52 * ao + 0.48 * lit * (0.6 + 0.4 * ao));",
-        "}"
+        "}",
+        "vec3 concrete(vec2 uv, vec3 P, vec3 N, float lit, vec3 tint) { return concreteAo(P, lit, tint, ssao(uv, P, N)); }"
     ].join("\n");
 
     var FRAG = {
@@ -526,7 +526,7 @@
         ].join("\n"),
 
         // White track with lighting Off: the game's frame, with every non-emissive surface (track and
-        // background models) light grey under a fixed sun with screen-space shadows; neon and sky untouched.
+        // background models) white concrete under a fixed sun, with no shadows or ambient occlusion; neon and sky untouched.
         white: [
             "void main() {",
             "  vec3 c = texture2D(uTex, vUv).rgb; float d = depthAt(vUv);",
@@ -534,8 +534,7 @@
             "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
             "  float lz = linZ(d); vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P); vec3 L = uLight.xyz;",
             "  float ndl = max(dot(N, L), 0.0);",
-            "  float sh = (emis < 1.0 && ndl > 0.0) ? shadowRay(P, N, L, 3.0) : 1.0;",
-            "  vec3 surf = concrete(vUv, P, N, ndl * sh, vec3(1.0));",
+            "  vec3 surf = concreteAo(P, ndl, vec3(1.0), 1.0);",   // lighting Off: no shadows and no ambient occlusion, only the face shading
             "  surf = mix(surf, WHITE_BG, whiteFar(lz, emis));",
             "  gl_FragColor = vec4(mix(surf, c, emis), 0.0);",
             "}"

@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Remove the glint fully. Right now, you can only see the true",
-  "notes": "Made with the in-game dev mode (job dfcc639d1516).",
+  "title": "Dev edit: Remove all shadows when shaders are toggled off.",
+  "notes": "Made with the in-game dev mode (job 8da7db49a397).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -945,6 +945,13 @@
    "notes": "The root as it was before the dev-mode edit 'Remove the glint fully. Right now, you can only see the true concrete color when the track is near y'. Last commit: Dev edit: Now refine the lighting in white mode, because right now, th",
    "date": "2026-10-30",
    "commit": "9f490dc"
+  },
+  {
+   "tag": "v122-dev-8da7db",
+   "title": "Before dev edit 8da7db",
+   "notes": "The root as it was before the dev-mode edit 'Remove all shadows when shaders are toggled off.'. Last commit: Dev edit: Remove the glint fully. Right now, you can only see the true",
+   "date": "2026-10-30",
+   "commit": "949bc3d"
   }
  ]
 }
