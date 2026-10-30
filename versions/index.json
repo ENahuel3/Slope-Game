@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: For the grid lines, make the slider not make the green more ",
-  "notes": "Made with the in-game dev mode (job e69c209eb287).",
+  "title": "Dev edit: For the grid lines slider, make it also affect brightness, b",
+  "notes": "Made with the in-game dev mode (job f1fe9b24bfe6).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -973,6 +973,13 @@
    "notes": "The root as it was before the dev-mode edit 'For the grid lines, make the slider not make the green more grayscale, just make it reduce the contr'. Last commit: Dev edit: In settings, add a slider for the dullness of the grid lines",
    "date": "2026-10-30",
    "commit": "30844f9"
+  },
+  {
+   "tag": "v126-dev-f1fe9b",
+   "title": "Before dev edit f1fe9b",
+   "notes": "The root as it was before the dev-mode edit 'For the grid lines slider, make it also affect brightness, because right now it just makes the grid '. Last commit: Dev edit: For the grid lines, make the slider not make the green more",
+   "date": "2026-10-30",
+   "commit": "b6fd139"
   }
  ]
 }
