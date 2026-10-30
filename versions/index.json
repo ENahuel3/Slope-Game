@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Fix the super ramps by making them behave exactly as they di",
-  "notes": "Made with the in-game dev mode (job 1ce531ad378f).",
+  "title": "Dev edit: The super ramps keep working but only when you're editing th",
+  "notes": "Made with the in-game dev mode (job 1bbad0c63eb6).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -994,6 +994,13 @@
    "notes": "The root as it was before the dev-mode edit 'Fix the super ramps by making them behave exactly as they did in v75 of slope.'. Last commit: Dev edit: Right now the grid lines slider makes the colors lighter far",
    "date": "2026-10-30",
    "commit": "35ad978"
+  },
+  {
+   "tag": "v129-dev-1bbad0",
+   "title": "Before dev edit 1bbad0",
+   "notes": "The root as it was before the dev-mode edit 'The super ramps keep working but only when you're editing them, and the second you're done, they sto'. Last commit: Dev edit: Fix the super ramps by making them behave exactly as they di",
+   "date": "2026-10-30",
+   "commit": "a76d74b"
   }
  ]
 }

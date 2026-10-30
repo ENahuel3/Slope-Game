@@ -698,7 +698,7 @@
         var u = heapU32(), f = heap32(), u16 = heapU16(); if (!u) return;
         var t0 = performance.now(), N = u.length, STEP = 1 << 15;
         var B = { g: fbits(G0), b5: fbits(5), b105: fbits(10.5), bm4: fbits(-4), one: fbits(1), b10: fbits(10), bm10: fbits(-10), b300: fbits(300) };
-        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "Score", "SpeedUpCount", "ModSectionDelay", "ModQ1", "ModBuilding", "ModBuildingFlat", "ModBuildingZombie", "ModBuildingMort", "ModBuildingGandalf", "ModHold", "ModMark", "ModSpan", "ModCameraOffset", "ModQCamera", "ModCameraTick"].concat(PIECE_VARS.reduce(function (acc, v) { return acc.concat([v, v + "Flat", v + "P", v + "N"]); }, [])).filter(function (nm) { return !H.vars[nm]; });
+        var names = ["zforce", "yforce", "SteerForceLeft", "SteerForceRight", "Score", "SpeedUpCount", "ModSectionDelay", "ModQ1", "ModBuilding", "ModBuildingFlat", "ModBuildingZombie", "ModBuildingMort", "ModBuildingGandalf", "ModHold", "ModMark", "ModSpan", "ModCameraOffset", "ModQCamera", "ModCameraTick"].concat(PIECE_VARS.reduce(function (acc, v) { return acc.concat([v, v + "Flat", v + "P", v + "N"]); }, [])).filter(function (nm) { return !H.vars[nm] || !H.vars[nm].length; });
         var firsts = {}; names.forEach(function (nm) { firsts[nm.charCodeAt(0)] = (firsts[nm.charCodeAt(0)] || []).concat([nm]); });
         var strs = {}, owner = {}, flags = null, found = {};
         names.forEach(function (nm) { strs[nm] = []; found[nm] = []; });
@@ -745,7 +745,7 @@
                         if (f[a0 - 3] === 0 && f[a0 - 2] === 0 && f[a0 - 1] === 0 && Math.abs(f[a0 + 4] - 1) < 1e-3 && Math.abs(f[a0 + 5] - 1) < 1e-3 && Math.abs(f[a0 + 6] - 1) < 1e-3) H.spawn.push(a0);
                     }
                 }
-                if (!H.rigCands) H.rigCands = liveOnly(rigCands);
+                if (!H.rigCands || !H.rigCands.length) H.rigCands = liveOnly(rigCands);
                 if (H.chase < 0) { var c = liveOnly(chase); if (c.length) H.chase = c[c.length - 1]; }
                 if (H.kill < 0) { var ks = liveOnly(kill); for (var k = 0; k < ks.length; k++) { var a = ks[k] - 7; if (Math.abs(f[a] - 0.125) < 0.01 && Math.abs(f[a + 1] + 5.15) < 0.01 && Math.abs(f[a + 2] - 18.779) < 0.01) { H.kill = a; break; } } if (H.kill < 0) H.kill = -2; }
                 learnKlasses(found);
@@ -753,6 +753,7 @@
                 note("heap (" + Math.round(performance.now() - t0) + " ms, sliced): gravity x" + H.grav.length + ", spawn recs " + H.spawn.length + ", rig cands " + H.rigCands.length + ", chase " + (H.chase >= 0) + ", kill " + (H.kill >= 0) + ", vars z/L/R/delay/q " + [H.vars.zforce, H.vars.SteerForceLeft, H.vars.SteerForceRight, H.vars.ModSectionDelay, H.vars.ModQ1].map(function (v) { return v ? v.length : 0; }).join("/"));
             } catch (e) { note("heap scan failed: " + e); }
             discover = null;
+            rediscoverIfMissing();
         }
         function slice() {
             try {
@@ -766,6 +767,16 @@
             discover = setTimeout(slice, 0);
         }
         discover = setTimeout(slice, 0);
+    }
+    // The single scan 300 ms after load can miss what the game has not built yet (the push variables the super ramps
+    // write, the spawner, the rig); without a retry the ramps then never launch until a lucky reload. Scan again for
+    // whatever is still missing, every few seconds, until it is all there.
+    var rediscoverTries = 0;
+    function rediscoverIfMissing() {
+        var missing = !trackReady() || !(H.vars.zforce && H.vars.zforce.length) || !(H.vars.yforce && H.vars.yforce.length);
+        if (!missing || rediscoverTries >= 40) return;
+        rediscoverTries++;
+        setTimeout(discoverHeap, 3000);
     }
     function trackReady() { return H.grav.length > 0 && H.spawn.length > 0 && H.rigCands && H.rigCands.length > 0 && H.chase >= 0; }
     function resolveRig() {                   // the rig's rotation record is unique; its position is derived from the ball below
