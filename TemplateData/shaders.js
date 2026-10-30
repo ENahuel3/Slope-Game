@@ -151,9 +151,9 @@
         // white track: the colour of the background models, and how far (view distance) geometry fades into it
         "const vec3 WHITE_BG = vec3(0.92);",
         "float whiteFar(float lz, float emis) { return smoothstep(0.8 * uCam.w, 0.98 * uCam.w, lz) * (1.0 - emis); }",   // only at the very edge of the view distance, so the concrete keeps its colour all the way ahead
-        // white track: the green neon grid lines become dull joints cut into the concrete (no glow, a faint trace of colour)
+        // white track: the green neon grid lines become unlit green joints in the concrete (no glow; the Grid lines slider sets their contrast)
         "float whiteLine(vec3 c, float emis) { return uTrack > 0.5 ? greenness(c) * emis * (1.0 - smoothstep(0.5, 1.0, uLine)) : 0.0; }",   // above the middle of the slider the neon glow comes back
-        "vec3 dullLine(vec3 surf, vec3 c, float gl) { float k = min(uLine * 2.0, 1.0); return mix(surf, surf * mix(0.97, 0.62, k) + c * mix(0.01, 0.05, k), gl); }",   // below the middle the joints fade towards the bare concrete
+        "vec3 dullLine(vec3 surf, vec3 c, float gl) { float k = min(uLine * 2.0, 1.0); vec3 tint = c / max(max(c.r, c.g), max(c.b, 1e-3)); return mix(surf, surf * tint, gl * mix(0.08, 1.0, k)); }",   // the joints keep the neon's hue (concrete lit through it); below the middle only their contrast against the concrete drops
         "float linZ(float d) { float z = d * 2.0 - 1.0; float n = uCam.z, f = uCam.w; return 2.0 * n * f / (f + n - z * (f - n)); }",   // distance along the view axis
         "float depthAt(vec2 uv) { return texture2D(uDepth, uv).r; }",
         "bool isSky(float d) { return d > 0.99999; }",

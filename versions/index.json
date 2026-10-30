@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: In settings, add a slider for the dullness of the grid lines",
-  "notes": "Made with the in-game dev mode (job 6b329ff1c0ff).",
+  "title": "Dev edit: For the grid lines, make the slider not make the green more ",
+  "notes": "Made with the in-game dev mode (job e69c209eb287).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -966,6 +966,13 @@
    "notes": "The root as it was before the dev-mode edit 'In settings, add a slider for the dullness of the grid lines on the track. Make all the way to the l'. Last commit: Dev edit: On the white track setting, make the colored grid lines in t",
    "date": "2026-10-30",
    "commit": "2e31d74"
+  },
+  {
+   "tag": "v125-dev-e69c20",
+   "title": "Before dev edit e69c20",
+   "notes": "The root as it was before the dev-mode edit 'For the grid lines, make the slider not make the green more grayscale, just make it reduce the contr'. Last commit: Dev edit: In settings, add a slider for the dullness of the grid lines",
+   "date": "2026-10-30",
+   "commit": "30844f9"
   }
  ]
 }
