@@ -149,7 +149,7 @@
         "const vec3 SKY_UP = vec3(" + SKY_UP.join(", ") + ");",
         // white track: the colour of the background models, and how far (view distance) geometry fades into it
         "const vec3 WHITE_BG = vec3(0.92);",
-        "float whiteFar(float lz, float emis) { return smoothstep(40.0, 90.0, lz) * (1.0 - emis); }",
+        "float whiteFar(float lz, float emis) { return smoothstep(0.8 * uCam.w, 0.98 * uCam.w, lz) * (1.0 - emis); }",   // only at the very edge of the view distance, so the concrete keeps its colour all the way ahead
         "float linZ(float d) { float z = d * 2.0 - 1.0; float n = uCam.z, f = uCam.w; return 2.0 * n * f / (f + n - z * (f - n)); }",   // distance along the view axis
         "float depthAt(vec2 uv) { return texture2D(uDepth, uv).r; }",
         "bool isSky(float d) { return d > 0.99999; }",
@@ -408,7 +408,7 @@
             "    if (uTrack > 0.5) surf = concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.98, 0.95));",   // white track: white concrete with AO, shadowed, tinted by the light
             "    vec3 Hv = normalize(L - normalize(P)); float fr = 0.25 + 0.75 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0);",
             "    vec3 spec = sunCol * (0.3 * pow(max(dot(N, Hv), 0.0), 40.0) * fr + 0.06 * pow(max(dot(N, Hv), 0.0), 8.0)) * sh * ndl;",   // tight highlight plus a faint sheen that is lit outside shadows so they stay readable
-            "    if (uTrack > 0.5) spec = min(spec * 0.5, surf * 0.12);",   // white track: a soft glint, at most a little lighter than the concrete it sits on
+            "    if (uTrack > 0.5) spec = vec3(0.0);",   // white track: no glint, plain matte concrete
             "    float floorness = smoothstep(0.35, 0.8, upN); vec3 refl = vec3(0.0);",   // faint neon reflections, traced as in Night
             "    float upF = floorness; floorness = max(floorness, 1.0 - smoothstep(35.0, 60.0, lz));",
             "    if (uTrack < 0.5 && floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
@@ -418,7 +418,7 @@
             "  } else {",
             "    col = c + vec3(0.55) * mix(horizon, zenith, 0.5) * 0.5 * (1.0 - emis);",
             "  }",
-            "  float fog = 1.0 - exp(-dist * 0.008); col = mix(col, mix(hazeCol, WHITE_BG, uTrack), fog * 0.75 * (1.0 - 0.6 * emis));",
+            "  float fog = 1.0 - exp(-dist * 0.008); col = mix(col, hazeCol, fog * 0.75 * (1.0 - 0.6 * emis) * (1.0 - uTrack));",   // white track: no fog, the concrete keeps its colour all the way ahead
             "  col = mix(col, mix(vec3(0.0), WHITE_BG, uTrack), uTrack > 0.5 ? whiteFar(dist, emis) : bgBlack);",   // white track: background models flat white, no sky or fog through them
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
@@ -467,7 +467,7 @@
             "  } else {",
             "    col = c * (1.0 + 0.3 * emis) + vec3(0.03, 0.035, 0.06) * (1.0 - emis);",
             "  }",
-            "  float fog = 1.0 - exp(-dist * 0.016); col = mix(col, mix(skyCol, WHITE_BG, uTrack), fog * 0.9 * (1.0 - 0.6 * emis));",
+            "  float fog = 1.0 - exp(-dist * 0.016); col = mix(col, skyCol, fog * 0.9 * (1.0 - 0.6 * emis) * (1.0 - uTrack));",   // white track: no fog
             "  col = mix(col, mix(vec3(0.0), WHITE_BG, uTrack), uTrack > 0.5 ? whiteFar(dist, emis) : bgBlack);",   // white track: background models flat white, no sky or fog through them
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
@@ -508,7 +508,7 @@
             "    vec3 surf = vec3(0.26, 0.26, 0.29) * (amb + direct);",
             "    if (uTrack > 0.5) surf = concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.82, 0.72));",   // white track: white concrete with AO, shadowed, tinted by the light
             "    vec3 Hv = normalize(L - normalize(P));",
-            "    surf += sunCol * 0.05 * pow(max(dot(N, Hv), 0.0), 8.0) * sh * ndl;",
+            "    surf += sunCol * 0.05 * pow(max(dot(N, Hv), 0.0), 8.0) * sh * ndl * (1.0 - uTrack);",   // sheen: black track only (white is matte concrete)
             "    float floorness = smoothstep(0.35, 0.8, dot(uRot * N, SKY_UP));",
             "    vec3 refl = vec3(0.0);",
             "    float upF = floorness; floorness = max(floorness, 1.0 - smoothstep(35.0, 60.0, lz));",
@@ -519,7 +519,7 @@
             "  } else {",
             "    col = c * (1.0 + 0.3 * emis) + vec3(0.04, 0.03, 0.05) * (1.0 - emis);",
             "  }",
-            "  float fog = 1.0 - exp(-dist * 0.012); col = mix(col, mix(skyCol, WHITE_BG, uTrack), fog * 0.8 * (1.0 - 0.6 * emis));",
+            "  float fog = 1.0 - exp(-dist * 0.012); col = mix(col, skyCol, fog * 0.8 * (1.0 - 0.6 * emis) * (1.0 - uTrack));",   // white track: no fog
             "  col = mix(col, mix(vec3(0.0), WHITE_BG, uTrack), uTrack > 0.5 ? whiteFar(dist, emis) : bgBlack);",   // white track: background models flat white, no sky or fog through them
             "  gl_FragColor = vec4(col, 0.0);",
             "}"

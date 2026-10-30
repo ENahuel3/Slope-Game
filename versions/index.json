@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Now refine the lighting in white mode, because right now, th",
-  "notes": "Made with the in-game dev mode (job 5f43af6413e4).",
+  "title": "Dev edit: Remove the glint fully. Right now, you can only see the true",
+  "notes": "Made with the in-game dev mode (job dfcc639d1516).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -938,6 +938,13 @@
    "notes": "The root as it was before the dev-mode edit 'Now refine the lighting in white mode, because right now, the track far ahead looks bright white, an'. Last commit: Dev edit: The track colors are good but it just looks kind of plain. C",
    "date": "2026-10-30",
    "commit": "9e9d483"
+  },
+  {
+   "tag": "v121-dev-dfcc63",
+   "title": "Before dev edit dfcc63",
+   "notes": "The root as it was before the dev-mode edit 'Remove the glint fully. Right now, you can only see the true concrete color when the track is near y'. Last commit: Dev edit: Now refine the lighting in white mode, because right now, th",
+   "date": "2026-10-30",
+   "commit": "9f490dc"
   }
  ]
 }
