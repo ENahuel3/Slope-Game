@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Add a drop-down in settings labelled \"Track color\" with blac",
-  "notes": "Made with the in-game dev mode (job 50b3f70533f8).",
+  "title": "Dev edit: With white track selected, make it so that you can't see the",
+  "notes": "Made with the in-game dev mode (job 9a51e7584278).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -917,6 +917,13 @@
    "notes": "The root as it was before the dev-mode edit 'Add a drop-down in settings labelled \"Track color\" with black and white as the options. Black is the'. Last commit: Dev edit: In the versions drop-down in settings, label v115 as \"BROKEN",
    "date": "2026-10-27",
    "commit": "27e0035"
+  },
+  {
+   "tag": "v118-dev-9a51e7",
+   "title": "Before dev edit 9a51e7",
+   "notes": "The root as it was before the dev-mode edit 'With white track selected, make it so that you can't see the sky gradient through the background mod'. Last commit: Dev edit: Add a drop-down in settings labelled \"Track color\" with blac",
+   "date": "2026-10-30",
+   "commit": "725b732"
   }
  ]
 }

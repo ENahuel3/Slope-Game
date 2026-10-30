@@ -146,6 +146,9 @@
         "}",
         // ---- depth / camera helpers (lighting passes) ----
         "const vec3 SKY_UP = vec3(" + SKY_UP.join(", ") + ");",
+        // white track: the colour of the background models, and how far (view distance) geometry fades into it
+        "const vec3 WHITE_BG = vec3(0.92);",
+        "float whiteFar(float lz, float emis) { return smoothstep(40.0, 90.0, lz) * (1.0 - emis); }",
         "float linZ(float d) { float z = d * 2.0 - 1.0; float n = uCam.z, f = uCam.w; return 2.0 * n * f / (f + n - z * (f - n)); }",   // distance along the view axis
         "float depthAt(vec2 uv) { return texture2D(uDepth, uv).r; }",
         "bool isSky(float d) { return d > 0.99999; }",
@@ -386,8 +389,8 @@
             "  } else {",
             "    col = c + vec3(0.55) * mix(horizon, zenith, 0.5) * 0.5 * (1.0 - emis);",
             "  }",
-            "  float fog = 1.0 - exp(-dist * 0.008); col = mix(col, hazeCol, fog * 0.75 * (1.0 - 0.6 * emis));",
-            "  col = mix(col, vec3(0.0), bgBlack * (1.0 - uTrack));",
+            "  float fog = 1.0 - exp(-dist * 0.008); col = mix(col, mix(hazeCol, WHITE_BG, uTrack), fog * 0.75 * (1.0 - 0.6 * emis));",
+            "  col = mix(col, mix(vec3(0.0), WHITE_BG, uTrack), uTrack > 0.5 ? whiteFar(dist, emis) : bgBlack);",   // white track: background models flat white, no sky or fog through them
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
         ].join("\n"),
@@ -435,8 +438,8 @@
             "  } else {",
             "    col = c * (1.0 + 0.3 * emis) + vec3(0.03, 0.035, 0.06) * (1.0 - emis);",
             "  }",
-            "  float fog = 1.0 - exp(-dist * 0.016); col = mix(col, skyCol, fog * 0.9 * (1.0 - 0.6 * emis));",
-            "  col = mix(col, vec3(0.0), bgBlack * (1.0 - uTrack));",
+            "  float fog = 1.0 - exp(-dist * 0.016); col = mix(col, mix(skyCol, WHITE_BG, uTrack), fog * 0.9 * (1.0 - 0.6 * emis));",
+            "  col = mix(col, mix(vec3(0.0), WHITE_BG, uTrack), uTrack > 0.5 ? whiteFar(dist, emis) : bgBlack);",   // white track: background models flat white, no sky or fog through them
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
         ].join("\n"),
@@ -487,8 +490,8 @@
             "  } else {",
             "    col = c * (1.0 + 0.3 * emis) + vec3(0.04, 0.03, 0.05) * (1.0 - emis);",
             "  }",
-            "  float fog = 1.0 - exp(-dist * 0.012); col = mix(col, skyCol, fog * 0.8 * (1.0 - 0.6 * emis));",
-            "  col = mix(col, vec3(0.0), bgBlack * (1.0 - uTrack));",
+            "  float fog = 1.0 - exp(-dist * 0.012); col = mix(col, mix(skyCol, WHITE_BG, uTrack), fog * 0.8 * (1.0 - 0.6 * emis));",
+            "  col = mix(col, mix(vec3(0.0), WHITE_BG, uTrack), uTrack > 0.5 ? whiteFar(dist, emis) : bgBlack);",   // white track: background models flat white, no sky or fog through them
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
         ].join("\n"),
@@ -504,6 +507,7 @@
             "  float ndl = max(dot(N, L), 0.0);",
             "  float sh = (emis < 1.0 && ndl > 0.0) ? shadowRay(P, N, L, 3.0) : 1.0;",
             "  vec3 surf = vec3(0.80) * (0.5 + 0.45 * ndl * sh);",
+            "  surf = mix(surf, WHITE_BG, whiteFar(lz, emis));",
             "  gl_FragColor = vec4(mix(surf, c, emis), 0.0);",
             "}"
         ].join("\n"),
