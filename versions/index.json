@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Right now the grid lines slider makes the colors lighter far",
-  "notes": "Made with the in-game dev mode (job bc12b5e0f870).",
+  "title": "Dev edit: Fix the super ramps by making them behave exactly as they di",
+  "notes": "Made with the in-game dev mode (job 1ce531ad378f).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -987,6 +987,13 @@
    "notes": "The root as it was before the dev-mode edit 'Right now the grid lines slider makes the colors lighter farther left, but instead, make the left ma'. Last commit: Dev edit: For the grid lines slider, make it also affect brightness, b",
    "date": "2026-10-30",
    "commit": "bd692ac"
+  },
+  {
+   "tag": "v128-dev-1ce531",
+   "title": "Before dev edit 1ce531",
+   "notes": "The root as it was before the dev-mode edit 'Fix the super ramps by making them behave exactly as they did in v75 of slope.'. Last commit: Dev edit: Right now the grid lines slider makes the colors lighter far",
+   "date": "2026-10-30",
+   "commit": "35ad978"
   }
  ]
 }

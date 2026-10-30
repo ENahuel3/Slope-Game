@@ -30,7 +30,7 @@
     function laneCoords(fr, wp) { var d = sub(wp, fr.org); return [dot(d, fr.right), dot(d, fr.fwd), dot(d, fr.up)]; }
     function rolled(fr) { return Math.abs(fr.right[1]) > 0.08 || Math.abs(fr.right[2]) > 0.08; }   // the lane's "right" leaves the world x axis once the course rolls
     function consider(frames, ballS) {
-        var cands = frames.filter(function (f) { return decided[f.key] === undefined && f.lane && f.kind === "slope" && !f.hidden && !rolled(f); });
+        var cands = frames.filter(function (f) { return f.lane && f.kind === "slope" && !f.hidden && !rolled(f); });
         cands.sort(function (a, b) { return dot(a.org, FWD0) - dot(b.org, FWD0); });
         for (var i = 0; i < cands.length; i++) {
             var f = cands[i]; if (decided[f.key] !== undefined) continue;
@@ -39,8 +39,7 @@
             if (s0 < P.minS) { decided[f.key] = false; continue; }                             // not in or right after the start tunnel
             var mid = [f.org[0] + f.fwd[0] * 7 + f.up[0], f.org[1] + f.fwd[1] * 7 + f.up[1], f.org[2] + f.fwd[2] * 7 + f.up[2]];
             if (SlopeCoins.underTunnel && SlopeCoins.underTunnel(mid)) { decided[f.key] = false; continue; }   // no ramp under a roof
-            var gap = s0 - lastRampS;
-            var want = gap >= P.minGap * BLOCK && ((hash(f.key) % P.every) === 0 || gap >= 2 * P.every * BLOCK);   // a long dry spell forces one
+            var want = (hash(f.key) % P.every) === 0 && s0 - lastRampS >= P.minGap * BLOCK;   // the v75 rule: hashed choice, min gap
             decided[f.key] = want;
             if (want) { lastRampS = s0; ramps[f.key] = makeRamp(f); geometryVersion++; if (window.SlopeCoins && SlopeCoins.muteBlock) SlopeCoins.muteBlock(f.key); }
         }
