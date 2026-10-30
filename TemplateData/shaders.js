@@ -112,6 +112,7 @@
         "uniform float uSpeed;",       // 0..1, ball speed
         "uniform float uReflSteps;",   // reflection ray-march steps (Night)
         "uniform float uAmount;",      // style intensity 0..1
+        "uniform float uTrack;",       // track colour: 0 black (the game's own), 1 white (light grey surfaces, no reflections)
         "uniform vec4 uP;",            // pass parameters
         "uniform vec4 uQ;",            // more pass parameters
         "uniform vec4 uCam;",          // projection: x = 1/(tan(fov/2)*aspect), y = 1/tan(fov/2), z = near, w = far
@@ -349,7 +350,7 @@
             "  bool sky = hasDepth ? isSky(d) : (lum(c) < 0.02);",
             // At this distance bgBlack is exactly 1 for non-emissive geometry.
             // Its final RGB/alpha are zero regardless of sky, shadows or reflections.
-            "  if (hasDepth && !sky && linZ(d) >= 22.0 && max(c.r, max(c.g, c.b)) <= 0.12) { gl_FragColor = vec4(0.0); return; }",
+            "  if (uTrack < 0.5 && hasDepth && !sky && linZ(d) >= 22.0 && max(c.r, max(c.g, c.b)) <= 0.12) { gl_FragColor = vec4(0.0); return; }",
             "  vec3 L = uLight.xyz;",
             "  vec3 rdW = uRot * viewRay(vUv); float up = dot(rdW, SKY_UP);",
             "  vec3 sunW = uRot * L;",
@@ -373,11 +374,12 @@
             "    vec3 amb = mix(horizon, zenith, 0.5 + 0.5 * upN) * 0.36;",
             "    vec3 direct = sunCol * 1.35 * ndl * sh;",
             "    vec3 surf = vec3(0.15, 0.15, 0.16) * (amb + direct);",   // matte dark albedo so the black track reads as black
+            "    if (uTrack > 0.5) surf = vec3(0.80) * (0.5 + 0.45 * ndl * sh) * vec3(1.0, 0.98, 0.95);",   // white track: light grey, shadowed, tinted by the light
             "    vec3 Hv = normalize(L - normalize(P)); float fr = 0.25 + 0.75 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0);",
             "    vec3 spec = sunCol * (0.3 * pow(max(dot(N, Hv), 0.0), 40.0) * fr + 0.06 * pow(max(dot(N, Hv), 0.0), 8.0)) * sh * ndl;",   // tight highlight plus a faint sheen that is lit outside shadows so they stay readable
             "    float floorness = smoothstep(0.35, 0.8, upN); vec3 refl = vec3(0.0);",   // faint neon reflections, traced as in Night
             "    float upF = floorness; floorness = max(floorness, 1.0 - smoothstep(35.0, 60.0, lz));",
-            "    if (floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
+            "    if (uTrack < 0.5 && floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
             "      float fres = 0.3 + 0.7 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0); refl *= fres * floorness * 0.22; }",
             "    col = c * (1.0 + 0.15 * emis) + (surf + spec) * (1.0 - emis) + refl * (1.0 - emis);",
             "    bgBlack = smoothstep(10.0, 22.0, lz) * (1.0 - emis);",   // background buildings/towers: plain black, no lighting, spec, blue ambient or fog
@@ -385,7 +387,7 @@
             "    col = c + vec3(0.55) * mix(horizon, zenith, 0.5) * 0.5 * (1.0 - emis);",
             "  }",
             "  float fog = 1.0 - exp(-dist * 0.008); col = mix(col, hazeCol, fog * 0.75 * (1.0 - 0.6 * emis));",
-            "  col = mix(col, vec3(0.0), bgBlack);",
+            "  col = mix(col, vec3(0.0), bgBlack * (1.0 - uTrack));",
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
         ].join("\n"),
@@ -423,17 +425,18 @@
             "    vec3 amb = vec3(0.05, 0.065, 0.13);",
             "    vec3 direct = moonCol * 0.55 * ndl * sh;",
             "    vec3 surf = vec3(0.32, 0.33, 0.38) * (amb + direct);",
+            "    if (uTrack > 0.5) surf = vec3(0.80) * (0.5 + 0.45 * ndl * sh) * vec3(0.55, 0.6, 0.78);",   // white track: light grey, shadowed, tinted by the light
             "    float floorness = smoothstep(0.35, 0.8, dot(uRot * N, SKY_UP));",
             "    vec3 refl = vec3(0.0);",
             "    float upF = floorness; floorness = max(floorness, 1.0 - smoothstep(35.0, 60.0, lz));",   // the course rolls, so reflect on nearby surfaces at any angle, not only ones facing world up
-            "    if (floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
+            "    if (uTrack < 0.5 && floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
             "      float fres = 0.3 + 0.7 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0); refl *= fres * floorness * 0.8; }",
             "    col = c * (1.0 + 0.3 * emis) + surf * (1.0 - emis) + refl * (1.0 - emis);",
             "  } else {",
             "    col = c * (1.0 + 0.3 * emis) + vec3(0.03, 0.035, 0.06) * (1.0 - emis);",
             "  }",
             "  float fog = 1.0 - exp(-dist * 0.016); col = mix(col, skyCol, fog * 0.9 * (1.0 - 0.6 * emis));",
-            "  col = mix(col, vec3(0.0), bgBlack);",
+            "  col = mix(col, vec3(0.0), bgBlack * (1.0 - uTrack));",
             "  gl_FragColor = vec4(col, 0.0);",
             "}"
         ].join("\n"),
@@ -446,7 +449,7 @@
             "  bool sky = hasDepth ? isSky(d) : (lum(c) < 0.02);",
             // At this distance bgBlack is exactly 1 for non-emissive geometry.
             // Its final RGB/alpha are zero regardless of sky, shadows or reflections.
-            "  if (hasDepth && !sky && linZ(d) >= 22.0 && max(c.r, max(c.g, c.b)) <= 0.12) { gl_FragColor = vec4(0.0); return; }",
+            "  if (uTrack < 0.5 && hasDepth && !sky && linZ(d) >= 22.0 && max(c.r, max(c.g, c.b)) <= 0.12) { gl_FragColor = vec4(0.0); return; }",
             "  vec3 L = uLight.xyz;",
             "  vec3 rdW = uRot * viewRay(vUv); float up = dot(rdW, SKY_UP);",
             "  vec3 zenith = vec3(0.01, 0.014, 0.065), horizon = vec3(0.95, 0.24, 0.07), sunCol = vec3(1.0, 0.36, 0.12);",
@@ -471,12 +474,13 @@
             "    vec3 amb = vec3(0.07, 0.06, 0.12);",
             "    vec3 direct = sunCol * 2.6 * ndl * sh;",
             "    vec3 surf = vec3(0.26, 0.26, 0.29) * (amb + direct);",
+            "    if (uTrack > 0.5) surf = vec3(0.80) * (0.5 + 0.45 * ndl * sh) * vec3(1.0, 0.82, 0.72);",   // white track: light grey, shadowed, tinted by the light
             "    vec3 Hv = normalize(L - normalize(P));",
             "    surf += sunCol * 0.05 * pow(max(dot(N, Hv), 0.0), 8.0) * sh * ndl;",
             "    float floorness = smoothstep(0.35, 0.8, dot(uRot * N, SKY_UP));",
             "    vec3 refl = vec3(0.0);",
             "    float upF = floorness; floorness = max(floorness, 1.0 - smoothstep(35.0, 60.0, lz));",
-            "    if (floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
+            "    if (uTrack < 0.5 && floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
             "      float fres = 0.3 + 0.7 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0); refl *= fres * floorness * 0.8; }",
             "    col = c * (1.0 + 0.3 * emis) + surf * (1.0 - emis) + refl * (1.0 - emis);",
             "    bgBlack = smoothstep(10.0, 22.0, lz) * (1.0 - emis);",   // background buildings/towers: plain black, as in Sunny
@@ -484,8 +488,23 @@
             "    col = c * (1.0 + 0.3 * emis) + vec3(0.04, 0.03, 0.05) * (1.0 - emis);",
             "  }",
             "  float fog = 1.0 - exp(-dist * 0.012); col = mix(col, skyCol, fog * 0.8 * (1.0 - 0.6 * emis));",
-            "  col = mix(col, vec3(0.0), bgBlack);",
+            "  col = mix(col, vec3(0.0), bgBlack * (1.0 - uTrack));",
             "  gl_FragColor = vec4(col, 0.0);",
+            "}"
+        ].join("\n"),
+
+        // White track with lighting Off: the game's frame, with every non-emissive surface (track and
+        // background models) light grey under a fixed sun with screen-space shadows; neon and sky untouched.
+        white: [
+            "void main() {",
+            "  vec3 c = texture2D(uTex, vUv).rgb; float d = depthAt(vUv);",
+            "  if (uLight.w < 0.5 || isSky(d)) { gl_FragColor = vec4(c, 0.0); return; }",
+            "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
+            "  float lz = linZ(d); vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P); vec3 L = uLight.xyz;",
+            "  float ndl = max(dot(N, L), 0.0);",
+            "  float sh = (emis < 1.0 && ndl > 0.0) ? shadowRay(P, N, L, 3.0) : 1.0;",
+            "  vec3 surf = vec3(0.80) * (0.5 + 0.45 * ndl * sh);",
+            "  gl_FragColor = vec4(mix(surf, c, emis), 0.0);",
             "}"
         ].join("\n"),
 
@@ -612,6 +631,8 @@
         { fs: "lcompSky", in: "a", in2: "h1", in3: "h2", out: "lit", p: [1.0, 0.4, 0.15], q: [0.6] }
     ] };
     var LIGHT_ORDER = ["normal", "sunny", "sunset", "night"];
+    // White track with lighting Off: not in the menu, used in place of "normal" (it needs the depth for shadows)
+    var WHITE_OFF = { id: "normal", name: "Off", dir: SUN_DIR, failed: false, passes: [{ fs: "white", in: "scene", out: "lit" }] };
 
     // ======================================================================
     // Settings
@@ -624,6 +645,7 @@
     var lightId = (function () { var s = lsGet(KEY_LIGHT); return s && LIGHTS[s] ? s : "normal"; })();
     var intensity = (function () { var v = parseFloat(lsGet(KEY_FX)); return v >= 0 && v <= 1 ? v : 1; })();
     var reflSteps = (function () { var v = parseInt(lsGet("slope.reflSteps"), 10); return v >= 8 && v <= 96 ? v : 96; })();
+    var trackColor = lsGet("slope.trackColor") === "white" ? "white" : "black";
     var enabled = true;
 
     // ======================================================================
@@ -771,7 +793,7 @@
         if (!g.getShaderParameter(sh, gl.COMPILE_STATUS)) { var log = g.getShaderInfoLog(sh); g.deleteShader(sh); throw new Error(log); }
         return sh;
     }
-    var UNIFORMS = ["uTex", "uTex2", "uTex3", "uDepth", "uRes", "uTexel", "uTime", "uHue", "uSpeed", "uAmount", "uReflSteps", "uP", "uQ", "uCam", "uRot", "uLight", "uLightUV"];
+    var UNIFORMS = ["uTex", "uTex2", "uTex3", "uDepth", "uRes", "uTexel", "uTime", "uHue", "uSpeed", "uAmount", "uReflSteps", "uTrack", "uP", "uQ", "uCam", "uRot", "uLight", "uLightUV"];
     function program(fsName) {
         var p = res.programs[fsName];
         if (p !== undefined) return p;
@@ -1012,7 +1034,7 @@
 
     function present(sceneState) {
         stats.frames++;
-        var style = STYLES[styleId], light = LIGHTS[lightId];
+        var style = STYLES[styleId], light = (lightId === "normal" && trackColor === "white") ? WHITE_OFF : LIGHTS[lightId];
         var wasRedirected = redirectActive && res && res.main && res.main.ok;
         var chain = enabled && gl ? buildChain(light, style) : [];
         if (!gl || (gl.isContextLost && gl.isContextLost())) { stats.passes = 0; return; }
@@ -1076,7 +1098,7 @@
                 g.activeTexture(gl.TEXTURE3); g.bindTexture(gl.TEXTURE_2D, sceneBuf.depth || src.tex);
                 if (p.u.uTex) g.uniform1i(p.u.uTex, 0); if (p.u.uTex2) g.uniform1i(p.u.uTex2, 1); if (p.u.uTex3) g.uniform1i(p.u.uTex3, 2); if (p.u.uDepth) g.uniform1i(p.u.uDepth, 3);
                 if (p.u.uRes) g.uniform2f(p.u.uRes, ow, oh); if (p.u.uTexel) g.uniform2f(p.u.uTexel, 1 / src.w, 1 / src.h);
-                if (p.u.uTime) g.uniform1f(p.u.uTime, t); if (p.u.uHue) g.uniform1f(p.u.uHue, hue); if (p.u.uSpeed) g.uniform1f(p.u.uSpeed, speed); if (p.u.uAmount) g.uniform1f(p.u.uAmount, intensity); if (p.u.uReflSteps) g.uniform1f(p.u.uReflSteps, reflSteps);
+                if (p.u.uTime) g.uniform1f(p.u.uTime, t); if (p.u.uHue) g.uniform1f(p.u.uHue, hue); if (p.u.uSpeed) g.uniform1f(p.u.uSpeed, speed); if (p.u.uAmount) g.uniform1f(p.u.uAmount, intensity); if (p.u.uReflSteps) g.uniform1f(p.u.uReflSteps, reflSteps); if (p.u.uTrack) g.uniform1f(p.u.uTrack, trackColor === "white" ? 1 : 0);
                 var P = pass.p || [], Q = pass.q || [];
                 if (p.u.uP) g.uniform4f(p.u.uP, P[0] || 0, P[1] || 0, P[2] || 0, P[3] || 0);
                 if (p.u.uQ) g.uniform4f(p.u.uQ, Q[0] || 0, Q[1] || 0, Q[2] || 0, Q[3] || 0);
@@ -1119,6 +1141,12 @@
         intensity = v; lsSet(KEY_FX, v);
         if (fxRange && Math.round(parseFloat(fxRange.value)) !== Math.round(v * 100)) fxRange.value = Math.round(v * 100);
     }
+    function setTrackColor(c) {
+        if (c !== "white" && c !== "black") return false;
+        trackColor = c; lsSet("slope.trackColor", c);
+        var sel = document.getElementById("hud-track"); if (sel && sel.value !== c) sel.value = c;
+        return true;
+    }
     function nextStyle(step) {
         var i = ORDER.indexOf(styleId); if (i < 0) i = 0;
         setStyle(ORDER[(i + (step || 1) + ORDER.length) % ORDER.length]);
@@ -1153,6 +1181,11 @@
             fxRange.addEventListener("input", function () { setIntensity(parseFloat(fxRange.value) / 100); });
             fxRange.addEventListener("change", function () { fxRange.blur(); });
         }
+        var trackSel = document.getElementById("hud-track");
+        if (trackSel) {
+            trackSel.value = trackColor;
+            trackSel.addEventListener("change", function () { setTrackColor(trackSel.value); trackSel.blur(); });
+        }
         var stepsRange = document.getElementById("hud-refl-steps"), stepsVal = document.getElementById("hud-refl-steps-val");
         if (stepsRange) {
             stepsRange.value = reflSteps; if (stepsVal) stepsVal.textContent = reflSteps;
@@ -1178,6 +1211,8 @@
         style: function () { return styleId; },
         setStyle: setStyle,
         next: nextStyle,
+        trackColor: function () { return trackColor; },
+        setTrackColor: setTrackColor,
         lights: function () { return LIGHT_ORDER.map(function (id) { return { id: id, name: LIGHTS[id].name, failed: !!LIGHTS[id].failed }; }); },
         light: function () { return lightId; },
         setLight: setLight,

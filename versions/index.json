@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Dev edit: In the versions drop-down in settings, label v115 as \"BROKEN",
-  "notes": "Made with the in-game dev mode (job 3cc29ae24163).",
-  "date": "2026-10-27"
+  "title": "Dev edit: Add a drop-down in settings labelled \"Track color\" with blac",
+  "notes": "Made with the in-game dev mode (job 50b3f70533f8).",
+  "date": "2026-10-30"
  },
  "versions": [
   {
@@ -910,6 +910,13 @@
    "notes": "The root as it was before the dev-mode edit 'In the versions drop-down in settings, label v115 as \"BROKEN\".'. Last commit: Dev edit: Undo the click blocker thing.",
    "date": "2026-10-27",
    "commit": "e788a87"
+  },
+  {
+   "tag": "v117-dev-50b3f7",
+   "title": "Before dev edit 50b3f7",
+   "notes": "The root as it was before the dev-mode edit 'Add a drop-down in settings labelled \"Track color\" with black and white as the options. Black is the'. Last commit: Dev edit: In the versions drop-down in settings, label v115 as \"BROKEN",
+   "date": "2026-10-27",
+   "commit": "27e0035"
   }
  ]
 }
