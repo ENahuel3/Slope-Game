@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: The track colors are good but it just looks kind of plain. C",
-  "notes": "Made with the in-game dev mode (job c625a73f5c9e).",
+  "title": "Dev edit: Now refine the lighting in white mode, because right now, th",
+  "notes": "Made with the in-game dev mode (job 5f43af6413e4).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -931,6 +931,13 @@
    "notes": "The root as it was before the dev-mode edit 'The track colors are good but it just looks kind of plain. Can you add ambient occlusion that is ena'. Last commit: Dev edit: With white track selected, make it so that you can't see the",
    "date": "2026-10-30",
    "commit": "d05da56"
+  },
+  {
+   "tag": "v120-dev-5f43af",
+   "title": "Before dev edit 5f43af",
+   "notes": "The root as it was before the dev-mode edit 'Now refine the lighting in white mode, because right now, the track far ahead looks bright white, an'. Last commit: Dev edit: The track colors are good but it just looks kind of plain. C",
+   "date": "2026-10-30",
+   "commit": "9e9d483"
   }
  ]
 }

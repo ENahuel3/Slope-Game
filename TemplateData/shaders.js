@@ -408,6 +408,7 @@
             "    if (uTrack > 0.5) surf = concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.98, 0.95));",   // white track: white concrete with AO, shadowed, tinted by the light
             "    vec3 Hv = normalize(L - normalize(P)); float fr = 0.25 + 0.75 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0);",
             "    vec3 spec = sunCol * (0.3 * pow(max(dot(N, Hv), 0.0), 40.0) * fr + 0.06 * pow(max(dot(N, Hv), 0.0), 8.0)) * sh * ndl;",   // tight highlight plus a faint sheen that is lit outside shadows so they stay readable
+            "    if (uTrack > 0.5) spec = min(spec * 0.5, surf * 0.12);",   // white track: a soft glint, at most a little lighter than the concrete it sits on
             "    float floorness = smoothstep(0.35, 0.8, upN); vec3 refl = vec3(0.0);",   // faint neon reflections, traced as in Night
             "    float upF = floorness; floorness = max(floorness, 1.0 - smoothstep(35.0, 60.0, lz));",
             "    if (uTrack < 0.5 && floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = reflectRay(P, Nr, fade); refl = rc * smoothstep(0.06, 0.3, lum(rc)) * fade;",
