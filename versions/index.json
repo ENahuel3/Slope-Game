@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: For the grid lines slider, make it also affect brightness, b",
-  "notes": "Made with the in-game dev mode (job f1fe9b24bfe6).",
+  "title": "Dev edit: Right now the grid lines slider makes the colors lighter far",
+  "notes": "Made with the in-game dev mode (job bc12b5e0f870).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -980,6 +980,13 @@
    "notes": "The root as it was before the dev-mode edit 'For the grid lines slider, make it also affect brightness, because right now it just makes the grid '. Last commit: Dev edit: For the grid lines, make the slider not make the green more",
    "date": "2026-10-30",
    "commit": "b6fd139"
+  },
+  {
+   "tag": "v127-dev-bc12b5",
+   "title": "Before dev edit bc12b5",
+   "notes": "The root as it was before the dev-mode edit 'Right now the grid lines slider makes the colors lighter farther left, but instead, make the left ma'. Last commit: Dev edit: For the grid lines slider, make it also affect brightness, b",
+   "date": "2026-10-30",
+   "commit": "bd692ac"
   }
  ]
 }
