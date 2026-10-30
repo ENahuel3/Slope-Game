@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Remove all shadows when shaders are toggled off.",
-  "notes": "Made with the in-game dev mode (job 8da7db49a397).",
+  "title": "Dev edit: On the white track setting, make the colored grid lines in t",
+  "notes": "Made with the in-game dev mode (job 473292016354).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -952,6 +952,13 @@
    "notes": "The root as it was before the dev-mode edit 'Remove all shadows when shaders are toggled off.'. Last commit: Dev edit: Remove the glint fully. Right now, you can only see the true",
    "date": "2026-10-30",
    "commit": "949bc3d"
+  },
+  {
+   "tag": "v123-dev-473292",
+   "title": "Before dev edit 473292",
+   "notes": "The root as it was before the dev-mode edit 'On the white track setting, make the colored grid lines in the track and background models dull so t'. Last commit: Dev edit: Remove all shadows when shaders are toggled off.",
+   "date": "2026-10-30",
+   "commit": "51ced53"
   }
  ]
 }

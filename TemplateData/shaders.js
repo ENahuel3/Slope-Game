@@ -150,6 +150,9 @@
         // white track: the colour of the background models, and how far (view distance) geometry fades into it
         "const vec3 WHITE_BG = vec3(0.92);",
         "float whiteFar(float lz, float emis) { return smoothstep(0.8 * uCam.w, 0.98 * uCam.w, lz) * (1.0 - emis); }",   // only at the very edge of the view distance, so the concrete keeps its colour all the way ahead
+        // white track: the green neon grid lines become dull joints cut into the concrete (no glow, a faint trace of colour)
+        "float whiteLine(vec3 c, float emis) { return uTrack > 0.5 ? greenness(c) * emis : 0.0; }",
+        "vec3 dullLine(vec3 surf, vec3 c, float gl) { return mix(surf, surf * 0.62 + c * 0.05, gl); }",
         "float linZ(float d) { float z = d * 2.0 - 1.0; float n = uCam.z, f = uCam.w; return 2.0 * n * f / (f + n - z * (f - n)); }",   // distance along the view axis
         "float depthAt(vec2 uv) { return texture2D(uDepth, uv).r; }",
         "bool isSky(float d) { return d > 0.99999; }",
@@ -400,12 +403,13 @@
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
+            "    float gl = whiteLine(c, emis); emis -= gl;",   // white track: grid lines are dull joints, not neon
             "    float sh = (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
             "    float upN = dot(uRot * N, SKY_UP);",
             "    vec3 amb = mix(horizon, zenith, 0.5 + 0.5 * upN) * 0.36;",
             "    vec3 direct = sunCol * 1.35 * ndl * sh;",
             "    vec3 surf = vec3(0.15, 0.15, 0.16) * (amb + direct);",   // matte dark albedo so the black track reads as black
-            "    if (uTrack > 0.5) surf = concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.98, 0.95));",   // white track: white concrete with AO, shadowed, tinted by the light
+            "    if (uTrack > 0.5) surf = dullLine(concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.98, 0.95)), c, gl);",   // white track: white concrete with AO, shadowed, tinted by the light
             "    vec3 Hv = normalize(L - normalize(P)); float fr = 0.25 + 0.75 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0);",
             "    vec3 spec = sunCol * (0.3 * pow(max(dot(N, Hv), 0.0), 40.0) * fr + 0.06 * pow(max(dot(N, Hv), 0.0), 8.0)) * sh * ndl;",   // tight highlight plus a faint sheen that is lit outside shadows so they stay readable
             "    if (uTrack > 0.5) spec = vec3(0.0);",   // white track: no glint, plain matte concrete
@@ -452,12 +456,13 @@
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
+            "    float gl = whiteLine(c, emis); emis -= gl;",   // white track: grid lines are dull joints, not neon
             "    float sh = (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 2.0) : 1.0;",
             "    bgBlack = smoothstep(10.0, 22.0, lz) * (1.0 - emis);",   // background buildings/towers: plain black, as in Sunny
             "    vec3 amb = vec3(0.05, 0.065, 0.13);",
             "    vec3 direct = moonCol * 0.55 * ndl * sh;",
             "    vec3 surf = vec3(0.32, 0.33, 0.38) * (amb + direct);",
-            "    if (uTrack > 0.5) surf = concrete(vUv, P, N, ndl * sh, vec3(0.55, 0.6, 0.78));",   // white track: white concrete with AO, shadowed, tinted by the light
+            "    if (uTrack > 0.5) surf = dullLine(concrete(vUv, P, N, ndl * sh, vec3(0.55, 0.6, 0.78)), c, gl);",   // white track: white concrete with AO, shadowed, tinted by the light
             "    float floorness = smoothstep(0.35, 0.8, dot(uRot * N, SKY_UP));",
             "    vec3 refl = vec3(0.0);",
             "    float upF = floorness; floorness = max(floorness, 1.0 - smoothstep(35.0, 60.0, lz));",   // the course rolls, so reflect on nearby surfaces at any angle, not only ones facing world up
@@ -503,10 +508,11 @@
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
             "    float sh = (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
+            "    float gl = whiteLine(c, emis); emis -= gl;",   // white track: grid lines are dull joints, not neon
             "    vec3 amb = vec3(0.07, 0.06, 0.12);",
             "    vec3 direct = sunCol * 2.6 * ndl * sh;",
             "    vec3 surf = vec3(0.26, 0.26, 0.29) * (amb + direct);",
-            "    if (uTrack > 0.5) surf = concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.82, 0.72));",   // white track: white concrete with AO, shadowed, tinted by the light
+            "    if (uTrack > 0.5) surf = dullLine(concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.82, 0.72)), c, gl);",   // white track: white concrete with AO, shadowed, tinted by the light
             "    vec3 Hv = normalize(L - normalize(P));",
             "    surf += sunCol * 0.05 * pow(max(dot(N, Hv), 0.0), 8.0) * sh * ndl * (1.0 - uTrack);",   // sheen: black track only (white is matte concrete)
             "    float floorness = smoothstep(0.35, 0.8, dot(uRot * N, SKY_UP));",
@@ -534,7 +540,8 @@
             "  float mx = max(c.r, max(c.g, c.b)); float emis = smoothstep(0.12, 0.35, mx);",
             "  float lz = linZ(d); vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P); vec3 L = uLight.xyz;",
             "  float ndl = max(dot(N, L), 0.0);",
-            "  vec3 surf = concreteAo(P, ndl, vec3(1.0), 1.0);",   // lighting Off: no shadows and no ambient occlusion, only the face shading
+            "  float gl = whiteLine(c, emis); emis -= gl;",   // grid lines are dull joints, not neon
+            "  vec3 surf = dullLine(concreteAo(P, ndl, vec3(1.0), 1.0), c, gl);",   // lighting Off: no shadows and no ambient occlusion, only the face shading
             "  surf = mix(surf, WHITE_BG, whiteFar(lz, emis));",
             "  gl_FragColor = vec4(mix(surf, c, emis), 0.0);",
             "}"
