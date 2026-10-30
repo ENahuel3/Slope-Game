@@ -113,6 +113,7 @@
         "uniform float uReflSteps;",   // reflection ray-march steps (Night)
         "uniform float uAmount;",      // style intensity 0..1
         "uniform float uTrack;",
+        "uniform float uLine;",        // white track grid lines: 0 = barely visible joints, 0.5 = dull joints, 1 = the original neon
         "uniform vec3 uCamPos;",       // camera position in world space (white track: the concrete texture sticks to the world)       // track colour: 0 black (the game's own), 1 white (light grey surfaces, no reflections)
         "uniform vec4 uP;",            // pass parameters
         "uniform vec4 uQ;",            // more pass parameters
@@ -151,8 +152,8 @@
         "const vec3 WHITE_BG = vec3(0.92);",
         "float whiteFar(float lz, float emis) { return smoothstep(0.8 * uCam.w, 0.98 * uCam.w, lz) * (1.0 - emis); }",   // only at the very edge of the view distance, so the concrete keeps its colour all the way ahead
         // white track: the green neon grid lines become dull joints cut into the concrete (no glow, a faint trace of colour)
-        "float whiteLine(vec3 c, float emis) { return uTrack > 0.5 ? greenness(c) * emis : 0.0; }",
-        "vec3 dullLine(vec3 surf, vec3 c, float gl) { return mix(surf, surf * 0.62 + c * 0.05, gl); }",
+        "float whiteLine(vec3 c, float emis) { return uTrack > 0.5 ? greenness(c) * emis * (1.0 - smoothstep(0.5, 1.0, uLine)) : 0.0; }",   // above the middle of the slider the neon glow comes back
+        "vec3 dullLine(vec3 surf, vec3 c, float gl) { float k = min(uLine * 2.0, 1.0); return mix(surf, surf * mix(0.97, 0.62, k) + c * mix(0.01, 0.05, k), gl); }",   // below the middle the joints fade towards the bare concrete
         "float linZ(float d) { float z = d * 2.0 - 1.0; float n = uCam.z, f = uCam.w; return 2.0 * n * f / (f + n - z * (f - n)); }",   // distance along the view axis
         "float depthAt(vec2 uv) { return texture2D(uDepth, uv).r; }",
         "bool isSky(float d) { return d > 0.99999; }",
@@ -683,6 +684,7 @@
     })();
     var lightId = (function () { var s = lsGet(KEY_LIGHT); return s && LIGHTS[s] ? s : "normal"; })();
     var intensity = (function () { var v = parseFloat(lsGet(KEY_FX)); return v >= 0 && v <= 1 ? v : 1; })();
+    var lineDull = (function () { var v = parseFloat(lsGet("slope.lineDull")); return v >= 0 && v <= 1 ? v : 0.5; })();   // white track grid lines (Grid lines slider)
     var reflSteps = (function () { var v = parseInt(lsGet("slope.reflSteps"), 10); return v >= 8 && v <= 96 ? v : 96; })();
     var trackColor = lsGet("slope.trackColor") === "white" ? "white" : "black";
     var enabled = true;
@@ -835,7 +837,7 @@
         if (!g.getShaderParameter(sh, gl.COMPILE_STATUS)) { var log = g.getShaderInfoLog(sh); g.deleteShader(sh); throw new Error(log); }
         return sh;
     }
-    var UNIFORMS = ["uTex", "uTex2", "uTex3", "uDepth", "uRes", "uTexel", "uTime", "uHue", "uSpeed", "uAmount", "uReflSteps", "uTrack", "uCamPos", "uP", "uQ", "uCam", "uRot", "uLight", "uLightUV"];
+    var UNIFORMS = ["uTex", "uTex2", "uTex3", "uDepth", "uRes", "uTexel", "uTime", "uHue", "uSpeed", "uAmount", "uReflSteps", "uTrack", "uLine", "uCamPos", "uP", "uQ", "uCam", "uRot", "uLight", "uLightUV"];
     function program(fsName) {
         var p = res.programs[fsName];
         if (p !== undefined) return p;
@@ -1140,7 +1142,7 @@
                 g.activeTexture(gl.TEXTURE3); g.bindTexture(gl.TEXTURE_2D, sceneBuf.depth || src.tex);
                 if (p.u.uTex) g.uniform1i(p.u.uTex, 0); if (p.u.uTex2) g.uniform1i(p.u.uTex2, 1); if (p.u.uTex3) g.uniform1i(p.u.uTex3, 2); if (p.u.uDepth) g.uniform1i(p.u.uDepth, 3);
                 if (p.u.uRes) g.uniform2f(p.u.uRes, ow, oh); if (p.u.uTexel) g.uniform2f(p.u.uTexel, 1 / src.w, 1 / src.h);
-                if (p.u.uTime) g.uniform1f(p.u.uTime, t); if (p.u.uHue) g.uniform1f(p.u.uHue, hue); if (p.u.uSpeed) g.uniform1f(p.u.uSpeed, speed); if (p.u.uAmount) g.uniform1f(p.u.uAmount, intensity); if (p.u.uReflSteps) g.uniform1f(p.u.uReflSteps, reflSteps); if (p.u.uTrack) g.uniform1f(p.u.uTrack, trackColor === "white" ? 1 : 0); if (p.u.uCamPos) g.uniform3f(p.u.uCamPos, cam.pos[0], cam.pos[1], cam.pos[2]);
+                if (p.u.uTime) g.uniform1f(p.u.uTime, t); if (p.u.uHue) g.uniform1f(p.u.uHue, hue); if (p.u.uSpeed) g.uniform1f(p.u.uSpeed, speed); if (p.u.uAmount) g.uniform1f(p.u.uAmount, intensity); if (p.u.uReflSteps) g.uniform1f(p.u.uReflSteps, reflSteps); if (p.u.uTrack) g.uniform1f(p.u.uTrack, trackColor === "white" ? 1 : 0); if (p.u.uLine) g.uniform1f(p.u.uLine, lineDull); if (p.u.uCamPos) g.uniform3f(p.u.uCamPos, cam.pos[0], cam.pos[1], cam.pos[2]);
                 var P = pass.p || [], Q = pass.q || [];
                 if (p.u.uP) g.uniform4f(p.u.uP, P[0] || 0, P[1] || 0, P[2] || 0, P[3] || 0);
                 if (p.u.uQ) g.uniform4f(p.u.uQ, Q[0] || 0, Q[1] || 0, Q[2] || 0, Q[3] || 0);
@@ -1227,6 +1229,15 @@
         if (trackSel) {
             trackSel.value = trackColor;
             trackSel.addEventListener("change", function () { setTrackColor(trackSel.value); trackSel.blur(); });
+        }
+        var lineRange = document.getElementById("hud-lines");
+        if (lineRange) {
+            lineRange.value = Math.round(lineDull * 100);
+            lineRange.addEventListener("input", function () {
+                var v = parseFloat(lineRange.value) / 100; if (!(v >= 0)) v = 0; if (v > 1) v = 1;
+                lineDull = v; lsSet("slope.lineDull", v);
+            });
+            lineRange.addEventListener("change", function () { lineRange.blur(); });
         }
         var stepsRange = document.getElementById("hud-refl-steps"), stepsVal = document.getElementById("hud-refl-steps-val");
         if (stepsRange) {

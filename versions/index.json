@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: On the white track setting, make the colored grid lines in t",
-  "notes": "Made with the in-game dev mode (job 473292016354).",
+  "title": "Dev edit: In settings, add a slider for the dullness of the grid lines",
+  "notes": "Made with the in-game dev mode (job 6b329ff1c0ff).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -959,6 +959,13 @@
    "notes": "The root as it was before the dev-mode edit 'On the white track setting, make the colored grid lines in the track and background models dull so t'. Last commit: Dev edit: Remove all shadows when shaders are toggled off.",
    "date": "2026-10-30",
    "commit": "51ced53"
+  },
+  {
+   "tag": "v124-dev-6b329f",
+   "title": "Before dev edit 6b329f",
+   "notes": "The root as it was before the dev-mode edit 'In settings, add a slider for the dullness of the grid lines on the track. Make all the way to the l'. Last commit: Dev edit: On the white track setting, make the colored grid lines in t",
+   "date": "2026-10-30",
+   "commit": "2e31d74"
   }
  ]
 }
