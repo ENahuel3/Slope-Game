@@ -112,7 +112,8 @@
         "uniform float uSpeed;",       // 0..1, ball speed
         "uniform float uReflSteps;",   // reflection ray-march steps (Night)
         "uniform float uAmount;",      // style intensity 0..1
-        "uniform float uTrack;",       // track colour: 0 black (the game's own), 1 white (light grey surfaces, no reflections)
+        "uniform float uTrack;",
+        "uniform vec3 uCamPos;",       // camera position in world space (white track: the concrete texture sticks to the world)       // track colour: 0 black (the game's own), 1 white (light grey surfaces, no reflections)
         "uniform vec4 uP;",            // pass parameters
         "uniform vec4 uQ;",            // more pass parameters
         "uniform vec4 uCam;",          // projection: x = 1/(tan(fov/2)*aspect), y = 1/tan(fov/2), z = near, w = far
@@ -194,6 +195,33 @@
         "    p += R * stp; stp *= 1.05;",
         "  }",
         "  return vec3(0.0);",
+        "}",
+        // ---- white track: white concrete ----
+        "float noise3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);",
+        "  float a = mix(mix(hash3(i), hash3(i + vec3(1.0, 0.0, 0.0)), f.x), mix(hash3(i + vec3(0.0, 1.0, 0.0)), hash3(i + vec3(1.0, 1.0, 0.0)), f.x), f.y);",
+        "  float b = mix(mix(hash3(i + vec3(0.0, 0.0, 1.0)), hash3(i + vec3(1.0, 0.0, 1.0)), f.x), mix(hash3(i + vec3(0.0, 1.0, 1.0)), hash3(i + vec3(1.0, 1.0, 1.0)), f.x), f.y);",
+        "  return mix(a, b, f.z); }",
+        // screen-space ambient occlusion: 10 samples in the normal's hemisphere, occluded where the depth buffer is in front of them
+        "float ssao(vec2 uv, vec3 P, vec3 N) {",
+        "  float r = clamp(0.035 * -P.z, 0.35, 2.5); float occ = 0.0; float ang = hash(floor(uv * uRes)) * 6.2832;",
+        "  vec3 t = normalize(cross(N, abs(N.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0))); vec3 b = cross(N, t);",
+        "  for (int i = 0; i < 10; i++) {",
+        "    float h = (float(i) + 0.5) / 10.0; float a = ang + float(i) * 2.39996; float s = sqrt(h);",
+        "    vec3 sp = P + normalize(t * cos(a) * s + b * sin(a) * s + N * sqrt(1.0 - h + 0.05)) * r * (0.25 + 0.75 * h * h);",
+        "    vec3 q = proj(sp); if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) continue;",
+        "    float sz = linZ(depthAt(q.xy)); float diff = q.z - sz;",
+        "    if (diff > 0.02 + 0.002 * q.z) occ += smoothstep(0.0, 1.0, r / diff);",   // range check: far-away occluders (a silhouette edge) count less
+        "  }",
+        "  return clamp(1.0 - occ / 10.0 * 1.4, 0.0, 1.0);",
+        "}",
+        // the concrete: soft blotches, a fine grain and dark/light speckle fixed in world space, under AO and the light
+        "vec3 concrete(vec2 uv, vec3 P, vec3 N, float lit, vec3 tint) {",
+        "  vec3 W = uCamPos + uRot * P; float near = 1.0 - smoothstep(12.0, 45.0, -P.z);",
+        "  float blot = noise3(W * 0.18) * 0.6 + noise3(W * 0.55) * 0.4;",
+        "  float grain = noise3(W * 4.0) - 0.5; float sp = noise3(W * 26.0 + 7.3);",   // speckle: the peaks and troughs of a fine noise, so the flecks are small and round
+        "  float a = 0.80 + 0.12 * (blot - 0.5) + near * (0.07 * grain - 0.12 * smoothstep(0.80, 0.88, sp) + 0.05 * smoothstep(0.2, 0.12, sp));",
+        "  float ao = ssao(uv, P, N);",
+        "  return vec3(a) * vec3(1.0, 0.985, 0.955) * tint * (0.52 * ao + 0.48 * lit * (0.6 + 0.4 * ao));",
         "}"
     ].join("\n");
 
@@ -377,7 +405,7 @@
             "    vec3 amb = mix(horizon, zenith, 0.5 + 0.5 * upN) * 0.36;",
             "    vec3 direct = sunCol * 1.35 * ndl * sh;",
             "    vec3 surf = vec3(0.15, 0.15, 0.16) * (amb + direct);",   // matte dark albedo so the black track reads as black
-            "    if (uTrack > 0.5) surf = vec3(0.80) * (0.5 + 0.45 * ndl * sh) * vec3(1.0, 0.98, 0.95);",   // white track: light grey, shadowed, tinted by the light
+            "    if (uTrack > 0.5) surf = concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.98, 0.95));",   // white track: white concrete with AO, shadowed, tinted by the light
             "    vec3 Hv = normalize(L - normalize(P)); float fr = 0.25 + 0.75 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0);",
             "    vec3 spec = sunCol * (0.3 * pow(max(dot(N, Hv), 0.0), 40.0) * fr + 0.06 * pow(max(dot(N, Hv), 0.0), 8.0)) * sh * ndl;",   // tight highlight plus a faint sheen that is lit outside shadows so they stay readable
             "    float floorness = smoothstep(0.35, 0.8, upN); vec3 refl = vec3(0.0);",   // faint neon reflections, traced as in Night
@@ -428,7 +456,7 @@
             "    vec3 amb = vec3(0.05, 0.065, 0.13);",
             "    vec3 direct = moonCol * 0.55 * ndl * sh;",
             "    vec3 surf = vec3(0.32, 0.33, 0.38) * (amb + direct);",
-            "    if (uTrack > 0.5) surf = vec3(0.80) * (0.5 + 0.45 * ndl * sh) * vec3(0.55, 0.6, 0.78);",   // white track: light grey, shadowed, tinted by the light
+            "    if (uTrack > 0.5) surf = concrete(vUv, P, N, ndl * sh, vec3(0.55, 0.6, 0.78));",   // white track: white concrete with AO, shadowed, tinted by the light
             "    float floorness = smoothstep(0.35, 0.8, dot(uRot * N, SKY_UP));",
             "    vec3 refl = vec3(0.0);",
             "    float upF = floorness; floorness = max(floorness, 1.0 - smoothstep(35.0, 60.0, lz));",   // the course rolls, so reflect on nearby surfaces at any angle, not only ones facing world up
@@ -477,7 +505,7 @@
             "    vec3 amb = vec3(0.07, 0.06, 0.12);",
             "    vec3 direct = sunCol * 2.6 * ndl * sh;",
             "    vec3 surf = vec3(0.26, 0.26, 0.29) * (amb + direct);",
-            "    if (uTrack > 0.5) surf = vec3(0.80) * (0.5 + 0.45 * ndl * sh) * vec3(1.0, 0.82, 0.72);",   // white track: light grey, shadowed, tinted by the light
+            "    if (uTrack > 0.5) surf = concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.82, 0.72));",   // white track: white concrete with AO, shadowed, tinted by the light
             "    vec3 Hv = normalize(L - normalize(P));",
             "    surf += sunCol * 0.05 * pow(max(dot(N, Hv), 0.0), 8.0) * sh * ndl;",
             "    float floorness = smoothstep(0.35, 0.8, dot(uRot * N, SKY_UP));",
@@ -506,7 +534,7 @@
             "  float lz = linZ(d); vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P); vec3 L = uLight.xyz;",
             "  float ndl = max(dot(N, L), 0.0);",
             "  float sh = (emis < 1.0 && ndl > 0.0) ? shadowRay(P, N, L, 3.0) : 1.0;",
-            "  vec3 surf = vec3(0.80) * (0.5 + 0.45 * ndl * sh);",
+            "  vec3 surf = concrete(vUv, P, N, ndl * sh, vec3(1.0));",
             "  surf = mix(surf, WHITE_BG, whiteFar(lz, emis));",
             "  gl_FragColor = vec4(mix(surf, c, emis), 0.0);",
             "}"
@@ -752,7 +780,7 @@
     // ======================================================================
     // Camera: near, far, field of view and orientation from unity_MatrixVP
     // ======================================================================
-    var CAMERA = { near: 0.3, far: 1000, a: 0, b: 1.7320508, right: [1, 0, 0], up: [0, 1, 0], back: [0, 0, 1], live: false };
+    var CAMERA = { near: 0.3, far: 1000, a: 0, b: 1.7320508, right: [1, 0, 0], up: [0, 1, 0], back: [0, 0, 1], pos: [0, 0, 0], live: false };
     function updateCamera(w, h) {
         var aspect = w / Math.max(1, h);
         var v = vpMat;
@@ -772,6 +800,9 @@
                     CAMERA.right = [v[0] / na, v[4] / na, v[8] / na];
                     CAMERA.up = [v[1] / nb, v[5] / nb, v[9] / nb];
                     CAMERA.back = [-r3[0] / n3, -r3[1] / n3, -r3[2] / n3];
+                    // camera position: V * (pos, 1) = 0, with V's translation column (v[12] / na, v[13] / nb, -r3[3] / n3)
+                    var tx = v[12] / na, ty = v[13] / nb, tz = -r3[3] / n3, R = CAMERA.right, U = CAMERA.up, B = CAMERA.back;
+                    CAMERA.pos = [-(tx * R[0] + ty * U[0] + tz * B[0]), -(tx * R[1] + ty * U[1] + tz * B[1]), -(tx * R[2] + ty * U[2] + tz * B[2])];
                     CAMERA.live = true;
                 }
             }
@@ -797,7 +828,7 @@
         if (!g.getShaderParameter(sh, gl.COMPILE_STATUS)) { var log = g.getShaderInfoLog(sh); g.deleteShader(sh); throw new Error(log); }
         return sh;
     }
-    var UNIFORMS = ["uTex", "uTex2", "uTex3", "uDepth", "uRes", "uTexel", "uTime", "uHue", "uSpeed", "uAmount", "uReflSteps", "uTrack", "uP", "uQ", "uCam", "uRot", "uLight", "uLightUV"];
+    var UNIFORMS = ["uTex", "uTex2", "uTex3", "uDepth", "uRes", "uTexel", "uTime", "uHue", "uSpeed", "uAmount", "uReflSteps", "uTrack", "uCamPos", "uP", "uQ", "uCam", "uRot", "uLight", "uLightUV"];
     function program(fsName) {
         var p = res.programs[fsName];
         if (p !== undefined) return p;
@@ -1102,7 +1133,7 @@
                 g.activeTexture(gl.TEXTURE3); g.bindTexture(gl.TEXTURE_2D, sceneBuf.depth || src.tex);
                 if (p.u.uTex) g.uniform1i(p.u.uTex, 0); if (p.u.uTex2) g.uniform1i(p.u.uTex2, 1); if (p.u.uTex3) g.uniform1i(p.u.uTex3, 2); if (p.u.uDepth) g.uniform1i(p.u.uDepth, 3);
                 if (p.u.uRes) g.uniform2f(p.u.uRes, ow, oh); if (p.u.uTexel) g.uniform2f(p.u.uTexel, 1 / src.w, 1 / src.h);
-                if (p.u.uTime) g.uniform1f(p.u.uTime, t); if (p.u.uHue) g.uniform1f(p.u.uHue, hue); if (p.u.uSpeed) g.uniform1f(p.u.uSpeed, speed); if (p.u.uAmount) g.uniform1f(p.u.uAmount, intensity); if (p.u.uReflSteps) g.uniform1f(p.u.uReflSteps, reflSteps); if (p.u.uTrack) g.uniform1f(p.u.uTrack, trackColor === "white" ? 1 : 0);
+                if (p.u.uTime) g.uniform1f(p.u.uTime, t); if (p.u.uHue) g.uniform1f(p.u.uHue, hue); if (p.u.uSpeed) g.uniform1f(p.u.uSpeed, speed); if (p.u.uAmount) g.uniform1f(p.u.uAmount, intensity); if (p.u.uReflSteps) g.uniform1f(p.u.uReflSteps, reflSteps); if (p.u.uTrack) g.uniform1f(p.u.uTrack, trackColor === "white" ? 1 : 0); if (p.u.uCamPos) g.uniform3f(p.u.uCamPos, cam.pos[0], cam.pos[1], cam.pos[2]);
                 var P = pass.p || [], Q = pass.q || [];
                 if (p.u.uP) g.uniform4f(p.u.uP, P[0] || 0, P[1] || 0, P[2] || 0, P[3] || 0);
                 if (p.u.uQ) g.uniform4f(p.u.uQ, Q[0] || 0, Q[1] || 0, Q[2] || 0, Q[3] || 0);

@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: With white track selected, make it so that you can't see the",
-  "notes": "Made with the in-game dev mode (job 9a51e7584278).",
+  "title": "Dev edit: The track colors are good but it just looks kind of plain. C",
+  "notes": "Made with the in-game dev mode (job c625a73f5c9e).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -924,6 +924,13 @@
    "notes": "The root as it was before the dev-mode edit 'With white track selected, make it so that you can't see the sky gradient through the background mod'. Last commit: Dev edit: Add a drop-down in settings labelled \"Track color\" with blac",
    "date": "2026-10-30",
    "commit": "725b732"
+  },
+  {
+   "tag": "v119-dev-c625a7",
+   "title": "Before dev edit c625a7",
+   "notes": "The root as it was before the dev-mode edit 'The track colors are good but it just looks kind of plain. Can you add ambient occlusion that is ena'. Last commit: Dev edit: With white track selected, make it so that you can't see the",
+   "date": "2026-10-30",
+   "commit": "d05da56"
   }
  ]
 }
