@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: The super ramps keep working but only when you're editing th",
-  "notes": "Made with the in-game dev mode (job 1bbad0c63eb6).",
+  "title": "Dev edit: The super ramps worked the first time playing the updated ve",
+  "notes": "Made with the in-game dev mode (job 2937eaa5476c).",
   "date": "2026-10-30"
  },
  "versions": [
@@ -1001,6 +1001,13 @@
    "notes": "The root as it was before the dev-mode edit 'The super ramps keep working but only when you're editing them, and the second you're done, they sto'. Last commit: Dev edit: Fix the super ramps by making them behave exactly as they di",
    "date": "2026-10-30",
    "commit": "a76d74b"
+  },
+  {
+   "tag": "v130-dev-2937ea",
+   "title": "Before dev edit 2937ea",
+   "notes": "The root as it was before the dev-mode edit 'The super ramps worked the first time playing the updated version, but now they don't do anything, e'. Last commit: Dev edit: The super ramps keep working but only when you're editing th",
+   "date": "2026-10-30",
+   "commit": "895eecf"
   }
  ]
 }

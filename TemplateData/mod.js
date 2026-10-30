@@ -996,9 +996,24 @@
     // zforce) to the ball every physics step from these variables, so writing them is an impulse the game itself applies:
     // forward until the speed reaches the target, upward for the launch, then the game's values come back.
     var boost = null;
+    // The push variables found by the heap scan can be empty (an empty list passed the old truthiness check, so the
+    // launch "fired" into nothing) or stale objects that no longer hold the game's values. Check them before every
+    // launch and rescan when they are gone, instead of silently pushing nothing.
+    function livePushVars(name) { var u = heapU32(), k = varKlass.float; if (!u) return []; return (H.vars[name] || []).filter(function (a) { return headerOk(a) && (!k || u[a >> 2] === k); }); }
+    var lastPushRescan = -1e9;
+    function lostPushVars(why) {
+        var now = performance.now(); if (now - lastPushRescan < 3000) return; lastPushRescan = now;
+        H.vars.zforce = []; H.vars.yforce = []; varKlass.float = 0; rediscoverTries = 0;
+        note("super ramp: push variables " + why + ", rescanning");
+        if (!discover) discoverHeap();
+    }
     function startBoost(speedMul, upMul, maxMs, upMs) {
-        if (!gameRunning || boost || !H.vars.zforce || !H.vars.yforce) return false;
+        if (!gameRunning || boost) return false;
+        var zs = livePushVars("zforce"), ys = livePushVars("yforce");
+        if (!zs.length || !ys.length) { lostPushVars("missing"); return false; }
+        H.vars.zforce = zs; H.vars.yforce = ys;
         var z0 = fsmFloat("zforce"), y0 = fsmFloat("yforce"), v0 = Math.max(6, SlopeModSpeed());
+        if (!(z0 > 0 && z0 < 1000) || !y0 || Math.abs(y0) > 20000) { lostPushVars("stale (z " + z0 + ", y " + y0 + ")"); return false; }
         // yforce is the game's downward hold (ten times zforce, 24..110 -> 240..1100 N on 30 kg); the launch turns it
         // upward and multiplies it: upMul 4 is about 90 u/s^2 net upward, 25 u/s after a quarter second
         boost = { z0: z0, y0: y0, target: v0 * speedMul, up: Math.max(Math.abs(y0), 600) * upMul, t0: performance.now(), maxMs: maxMs || 350, upMs: upMs || 250, frames: 0 };
@@ -1038,9 +1053,9 @@
         sectionDelayWritten = v;
     }
     function stepTrack(playing) {
+        stepBoost();                       // always: a boost left running while the track was not ready blocked every later launch
         if (!trackReady()) return;
         if (playing) trackBall();
-        stepBoost();
         var nowT = performance.now(); if (lastFrameT) frameDt = frameDt * 0.9 + Math.min(0.1, (nowT - lastFrameT) / 1000) * 0.1; lastFrameT = nowT;
         // Release one spawn step per frame during live play, including straight
         // tracks. Hidden stack construction still uses the original burst path.
