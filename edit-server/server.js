@@ -64,7 +64,7 @@ const CFG = {
     maxQueue: +env("SLOPE_EDIT_MAX_QUEUE", 12),
     maxPrompt: +env("SLOPE_EDIT_MAX_PROMPT", 1200),
     allowOrigins: env("SLOPE_EDIT_ORIGINS", "https://enahuel3.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",").map(s => s.trim()).filter(Boolean),
-    editable: env("SLOPE_EDIT_FILES", "index.html,README.md,TemplateData/,tools/,Build/slope_data.unityweb").split(",").map(s => s.trim()).filter(Boolean),   // files, or folders with a trailing slash
+    editable: env("SLOPE_EDIT_FILES", "index.html,README.md,TemplateData/,Build/,tools/").split(",").map(s => s.trim()).filter(Boolean),   // files, or folders with a trailing slash
     smokePython: env("SLOPE_EDIT_SMOKE_PYTHON", ""),                         // a Python with Playwright + Chromium: the page is loaded and played before every publish
     smokeSeconds: +env("SLOPE_EDIT_SMOKE_SECONDS", 8),
     urlAllow: env("SLOPE_EDIT_URL_ALLOW", "github.io,githubusercontent.com,cdnjs.cloudflare.com,fonts.googleapis.com,fonts.gstatic.com,unpkg.com,cdn.jsdelivr.net,id.net,y8.com,unity3d.com,doubleclick.net,googlesyndication.com,google-analytics.com,googletagmanager.com,tailscale.com,ts.net,w3.org").split(",").map(s => s.trim().toLowerCase()).filter(Boolean),
@@ -245,7 +245,21 @@ function changedFiles() {
 // ---------------------------------------------------------------- validation
 const URL_RE = /https?:\/\/([a-z0-9.-]+)/gi;
 const JUNK = /(^|\/)(sed[A-Za-z0-9]{6}|\.#.*|.*~|.*\.(swp|swo|orig|rej|bak|tmp))$/;
-const KEEP_EXT = /\.(js|css|html|json|md|py|txt|png|jpg|jpeg|gif|webp|mp3|ogg|wav|ttf|otf|woff2?|unityweb)$/i;
+const KEEP_EXT = /\.(js|css|html|json|md|py|txt|png|jpg|jpeg|gif|webp|svg|ico|mp3|ogg|wav|ttf|otf|woff2?|unityweb|gltf|glb|obj|bin)$/i;
+// Root files the frozen versions load through ../../ paths (engine files, loader, music): changing one in place would
+// change every older version, so they are immutable. A new engine file or track goes in under a new name instead.
+function sharedWithVersions() {
+    const shared = new Set(), vdir = path.join(CFG.repoDir, "versions");
+    let tags = []; try { tags = fs.readdirSync(vdir).filter(t => fs.statSync(path.join(vdir, t)).isDirectory()); } catch (e) { return shared; }
+    for (const t of tags) for (const [rel, base] of [["Build/slope.json", "Build"], ["index.html", ""], ["TemplateData/mod.js", ""]]) {
+        let text; try { text = fs.readFileSync(path.join(vdir, t, rel), "utf8"); } catch (e) { continue; }
+        for (const m of text.matchAll(/["']((?:\.\.\/)+[^"'?#]+)["']/g)) {
+            const target = path.posix.normalize(path.posix.join("versions", t, base, m[1]));
+            if (!target.startsWith("versions/") && !target.startsWith("..")) shared.add(target);
+        }
+    }
+    return shared;
+}
 function dropJunk(say) {        // editor and sed leftovers the sandbox may leave behind are not part of an edit
     const untracked = git(["ls-files", "--others", "--exclude-standard"]).split("\n").filter(Boolean);
     const junk = untracked.filter(f => JUNK.test(f));
@@ -258,17 +272,19 @@ function validate(job) {
     const odd = files.filter(f => !KEEP_EXT.test(f) && fs.existsSync(path.join(CFG.repoDir, f)));
     if (odd.length) return "The edit left files of a kind the page does not use (" + odd.join(", ") + "); discarded.";
     if (!files.length) return "Claude made no changes to the game files.";
-    const PROTECTED = ["versions/", "edit-server/", ".githooks/", ".git/", "TemplateData/versions.js", "tools/snapshot_version.py"];
+    const PROTECTED = ["versions/", "edit-server/", ".githooks/", ".git/", ".gitignore", "tools/snapshot_version.py"];
     const editableOk = f => !PROTECTED.some(p => f === p || f.startsWith(p)) && CFG.editable.some(e => e.endsWith("/") ? f.startsWith(e) : f === e);
     const bad = files.filter(f => !editableOk(f));
-    if (bad.length) return "The edit touched files outside the allowed set (" + bad.join(", ") + "), so it was discarded. Existing versions, the version list and the dev-mode server are off limits.";
+    if (bad.length) return "The edit touched files outside the allowed set (" + bad.join(", ") + "), so it was discarded. Older versions and the dev-mode server are off limits.";
+    const shared = sharedWithVersions(), sharedHit = files.filter(f => shared.has(f));
+    if (sharedHit.length) return "The edit changed " + sharedHit.join(", ") + ", which older versions also load, so it would have changed them too; discarded. Add a new file under a new name and point the page at it instead.";
     for (const f of files) {
         const p = path.join(CFG.repoDir, f);
         if (!fs.existsSync(p)) return f + " was deleted; discarded.";
         const size = fs.statSync(p).size;
-        if (size > (f.startsWith("Build/") ? 24 : 2) * 1024 * 1024) return f + " is too large; discarded.";
-        if (f.startsWith("Build/") && !f.endsWith(".unityweb")) return f + ": only the scene bundle may change under Build/; discarded.";
-        if (f.startsWith("TemplateData/fonts/") || /\.(png|jpg|mp3|ogg|ttf|otf|json)$/i.test(f)) continue;   // assets: size-checked only
+        if (size > (/\.(unityweb|mp3|ogg|wav|glb|bin)$/i.test(f) ? 32 : 4) * 1024 * 1024) return f + " is too large; discarded.";
+        if (f.endsWith(".json")) { try { JSON.parse(fs.readFileSync(p, "utf8")); } catch (e) { return "The new " + f + " is not valid JSON: " + e.message; } continue; }
+        if (!/\.(js|html|css)$/i.test(f)) continue;   // assets and tools: size-checked only
         if (f.endsWith(".js")) {
             const r = spawnSync(process.execPath, ["--check", p], { encoding: "utf8" });
             if (r.status !== 0) return "The new " + f + " does not parse:\n" + (r.stderr || "").split("\n").slice(0, 6).join("\n");
@@ -321,11 +337,11 @@ function freezeOutgoing(job, say) {
 
 // ---------------------------------------------------------------- claude runner
 const SYSTEM_RULES = `You are editing a small browser game mod (a Unity WebGL page) on behalf of a trusted developer who typed a request into the game's dev-mode panel. Rules:
-- You may only change index.html, TemplateData/mod.js, TemplateData/mod.css and TemplateData/shaders.js. Read README.md and other files for context if useful, but never modify anything else: not versions/ (frozen older releases), not Build/ (the game data), not tools/ or edit-server/.
 - In index.html never touch the line that sets window.SLOPE_EDIT_API, and never add script tags that load from other sites.
 - Keep the game working: the page must still load and play. Do not remove the network shim, the HUD basics, the version picker, or the SlopeMod init/onGameReady entry points. Prefer small, well-contained changes; add new features as new functions and keep existing behaviour unless asked to change it.
 - Do not add external scripts, iframes, fetches to other sites, tracking, cookies, or anything that reads or sends visitor data. Do not add offensive, hateful, sexual or deceptive content. If the request asks for any of that, make no changes and say why.
-- You may change the page code (index.html, TemplateData/*.js and *.css), add assets under TemplateData/, change or add tools under tools/, and rebuild the scene bundle Build/slope_data.unityweb with the tools (tools/unpack_webdata.py, the patch_*.py scripts, tools/pack_webdata.py; UnityPy and Pillow are installed). Never touch versions/, TemplateData/versions.js, edit-server/ or git itself: the server commits and publishes for you, and the version it replaces is frozen automatically.
+- You may change any game file: index.html, everything under TemplateData/ (page code, styles, the version picker versions.js, assets, music) and Build/ (the scene bundle slope_data.unityweb, rebuilt with tools/unpack_webdata.py, the patch_*.py scripts and tools/pack_webdata.py; the engine files; Build/slope.json), and the tools under tools/. UnityPy and Pillow are installed. Never touch versions/ (frozen older releases), tools/snapshot_version.py, edit-server/ or git itself: the server commits and publishes for you, and the version it replaces is frozen automatically.
+- Older versions load some root files directly: Build/slope_wasmcode.unityweb, slope_wasmframework.unityweb, slope_memory.unityweb, slope_framework.unityweb, TemplateData/unityloader41.js and the existing tracks in TemplateData/music/. Never modify or delete those in place (the server discards such an edit): to change one, add the new file under a new name (e.g. Build/slope_wasmcode-2.unityweb) and point the page at it (Build/slope.json, index.html, the TRACKS list in mod.js).
 - You can run the game. A restricted shell runs the repository's tools: 'python3 tools/smoke_check.py .' loads the page headless, starts a run and reports whether it still works; 'python3 tools/shader_check.py .', 'tools/coin_check.py', 'tools/menu_check.py', 'tools/runtime_check.py' and 'node tools/restart_check.js' are the deeper harnesses (read their usage lines first). This server is a Raspberry Pi: a headless run of the game takes two to five minutes, so run a check once after your edits, not after every change. 'node --check' validates syntax instantly. The server runs smoke_check itself before publishing and discards an edit that breaks the page, so test what you change.
 - No network from the shell (no curl, wget, pip, npm), no git commands beyond status/diff/log/show, no sudo, nothing outside the repository.
 - When done, reply with one to three plain sentences describing what you changed (shown to the developer and used as the version note).
@@ -346,7 +362,7 @@ function fileMap() {
         const p = path.join(CFG.repoDir, f);
         if (!fs.existsSync(p)) continue;
         const lines = fs.readFileSync(p, "utf8").split("\n");
-        const ro = CFG.editable.includes(f) ? "" : " ~";
+        const ro = CFG.editable.some(e => e.endsWith("/") ? f.startsWith(e) : f === e) && f !== "TemplateData/unityloader41.js" ? "" : " ~";
         out.push(f + ro + " (" + lines.length + " lines)");
         const picks = [];
         lines.forEach((l, i) => {

@@ -63,9 +63,13 @@ design. Every other endpoint requires the token.
    Playwright, Chromium, UnityPy and Pillow (`/srv/slope-edit/home/venv`), so Claude
    can load and play the page headless (`tools/smoke_check.py`), run the deeper
    harnesses, and rebuild the scene bundle with the patch tools. It may change
-   `index.html`, `README.md`, anything under `TemplateData/` and `tools/`, and
-   `Build/slope_data.unityweb`; never `versions/`, `TemplateData/versions.js`,
-   `edit-server/` or git itself (`SLOPE_EDIT_FILES`). Before every publish the
+   every game file: `index.html`, `README.md`, anything under `TemplateData/`
+   (including the version picker), `Build/` and `tools/` (`SLOPE_EDIT_FILES`);
+   never `versions/`, `tools/snapshot_version.py`, `edit-server/` or git itself.
+   Root files that frozen versions load through `../../` paths (the engine files,
+   the loader, the music tracks; found by scanning `versions/`) are immutable: a
+   change to the engine goes in as a new file under a new name, so no older version
+   changes underneath its players. Before every publish the
    server itself runs `tools/smoke_check.py` (`SLOPE_EDIT_SMOKE_PYTHON`): the page
    must load, scan the heap, render, start a run and play a few seconds without a
    page error, or the edit is discarded with the reason in the job log. A headless

@@ -2,12 +2,12 @@
 (TemplateData/versions.js) if a newer version breaks or they prefer it. The snapshot is a complete page
 (index.html, TemplateData, Build/slope.json, Build/slope_data.unityweb); the engine files, the loader and the
 music tracks are referenced from the site root when they are byte-identical to the root's current copies
-(those files never change), and copied into the snapshot otherwise. The copied versions.js is the current one.
+(the dev-mode server keeps them immutable: a new engine file is added under a new name), and copied into the
+snapshot otherwise. The copied versions.js is the current one.
 usage: snapshot_version.py <tag> --from <commit> --title "..." [--notes "..."] [--force]
        snapshot_version.py --latest --title "..." [--notes "..."]        (describe the root version in the manifest)"""
 import sys, os, json, subprocess, shutil, re, argparse, tempfile
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SHARED_ENGINE = ['slope_wasmcode.unityweb', 'slope_wasmframework.unityweb', 'slope_memory.unityweb', 'slope_framework.unityweb', 'slope_code.unityweb']
 ap = argparse.ArgumentParser(); ap.add_argument('tag', nargs='?'); ap.add_argument('--from', dest='src'); ap.add_argument('--title', required=True); ap.add_argument('--notes', default='')
 ap.add_argument('--force', action='store_true'); ap.add_argument('--latest', action='store_true')
 ap.add_argument('--status', choices=['ok', 'issues', 'broken'], default=None, help="playability: ok, issues (playable with known problems) or broken"); ap.add_argument('--issues', default=None, help="what is wrong, shown in the picker")
@@ -30,23 +30,25 @@ dst = os.path.join(REPO, 'versions', A.tag)
 if os.path.exists(dst) and not A.force: sys.exit(dst + ' exists (--force to replace)')
 commit = git('rev-parse', '--short', A.src); date = git('show', '-s', '--format=%cs', A.src)
 tmp = tempfile.mkdtemp()
-subprocess.check_call('git -C %s archive %s index.html TemplateData Build/slope.json Build/slope_data.unityweb | tar -x -C %s' % (REPO, A.src, tmp), shell=True)
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import unitygz
-dp = os.path.join(tmp, 'Build', 'slope_data.unityweb'); db = open(dp, 'rb').read()
-if not unitygz.is_gzip(db): open(dp, 'wb').write(unitygz.compress(db)); print('data bundle compressed (%d -> %d bytes)' % (len(db), os.path.getsize(dp)))   # older commits shipped it raw
+subprocess.check_call('git -C %s archive %s index.html TemplateData Build/slope.json | tar -x -C %s' % (REPO, A.src, tmp), shell=True)
+def in_commit(rel): return bool(git('ls-tree', '--name-only', A.src, '--', rel))
 def same_as_root(rel):
     """the file at <commit>:rel is byte-identical to the root's current copy"""
     try: return git('rev-parse', '%s:%s' % (A.src, rel)) == git('rev-parse', 'HEAD:%s' % rel) and os.path.exists(os.path.join(REPO, rel))
     except subprocess.CalledProcessError: return False
 shared = []
-# engine files: slope.json urls -> ../../../Build/<file> for the shared ones
+# every file slope.json points at: the engine files (under any name: dev mode replaces one by adding a new file) become
+# ../../../Build/<file> when the root still has the identical file, everything else (always the data bundle) is copied
 cfg = json.load(open(os.path.join(tmp, 'Build', 'slope.json')))
 for k, v in list(cfg.items()):
-    if isinstance(v, str) and v in SHARED_ENGINE:
-        rel = 'Build/' + v
-        if same_as_root(rel): cfg[k] = '../../../' + rel; shared.append(rel)
-        elif os.path.exists(os.path.join(REPO, rel)) or git('ls-tree', A.src, rel): subprocess.check_call('git -C %s archive %s %s | tar -x -C %s' % (REPO, A.src, rel, tmp), shell=True)
+    if not (isinstance(v, str) and k.endswith('Url') and v.endswith('.unityweb') and '/' not in v): continue
+    rel = 'Build/' + v
+    if k != 'dataUrl' and same_as_root(rel): cfg[k] = '../../../' + rel; shared.append(rel)
+    elif in_commit(rel): subprocess.check_call('git -C %s archive %s %s | tar -x -C %s' % (REPO, A.src, rel, tmp), shell=True)
 json.dump(cfg, open(os.path.join(tmp, 'Build', 'slope.json'), 'w'), indent=0)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import unitygz
+dp = os.path.join(tmp, 'Build', cfg.get('dataUrl', 'slope_data.unityweb')); db = open(dp, 'rb').read()
+if not unitygz.is_gzip(db): open(dp, 'wb').write(unitygz.compress(db)); print('data bundle compressed (%d -> %d bytes)' % (len(db), os.path.getsize(dp)))   # older commits shipped it raw
 # the loader
 html = open(os.path.join(tmp, 'index.html')).read()
 if same_as_root('TemplateData/unityloader41.js'):
