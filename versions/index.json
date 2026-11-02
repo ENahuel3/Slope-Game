@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: There is a bug where the toggle for super ramps works, but e",
-  "notes": "Made with the in-game dev mode (job 330e78252e88).",
+  "title": "Dev edit: Double the horizontal velocity gained from super ramps and m",
+  "notes": "Made with the in-game dev mode (job fcc93b75b3fc).",
   "date": "2026-11-02"
  },
  "versions": [
@@ -1029,6 +1029,13 @@
    "notes": "The root as it was before the dev-mode edit 'There is a bug where the toggle for super ramps works, but even if the toggle is on, the super ramps'. Last commit: Dev mode rules: list the files older versions load from the same scan the server",
    "date": "2026-11-02",
    "commit": "b6985d9"
+  },
+  {
+   "tag": "v134-dev-fcc93b",
+   "title": "Before dev edit fcc93b",
+   "notes": "The root as it was before the dev-mode edit 'Double the horizontal velocity gained from super ramps and multiply the vertical velocity by 1.25.'. Last commit: Dev edit: There is a bug where the toggle for super ramps works, but e",
+   "date": "2026-11-02",
+   "commit": "676b557"
   }
  ]
 }

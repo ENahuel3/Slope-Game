@@ -14,7 +14,7 @@
 (function () {
     "use strict";
     var KEY_ON = "slope-mod.ramps";
-    var P = { every: 11, speedMul: 5, upMul: 4.0, maxMs: 350, upMs: 250, foot: 7.5, top: 14.0, rise: 2.8, inset: 0.6, minGap: 9, minAhead: 25, minS: 120 };
+    var P = { every: 11, speedMul: 9, upMul: 5.0, maxMs: 350, upMs: 250, foot: 7.5, top: 14.0, rise: 2.8, inset: 0.6, minGap: 9, minAhead: 25, minS: 120 };
     var BLOCK = 14.1421;
     function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
     function lsSet(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) { /* storage blocked */ } }

@@ -1029,7 +1029,7 @@
         // the shove closes the remaining speed gap in about a tenth of a second (F = m dv / dt), so a slow headless frame
         // with many physics steps inside it overshoots no more than a fast one
         var need = Math.max(0, boost.target - SlopeModSpeed()) * BALL_MASS / 0.1;
-        writeFloatVar("zforce", fwdDone ? boost.z0 : Math.max(boost.z0, Math.min(2400, need)));
+        writeFloatVar("zforce", fwdDone ? boost.z0 : Math.max(boost.z0, Math.min(4800, need)));
         writeFloatVar("yforce", upDone ? boost.y0 : boost.up);                           // and up for a fixed quarter second: the launch
     }
     var piecePtr = null;                   // per piece variable: its flat / P / N prefab pointers, read once from <var>Flat / <var>P / <var>N
