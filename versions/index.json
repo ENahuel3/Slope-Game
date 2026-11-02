@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Instead of 200, make the number 2000",
-  "notes": "Made with the in-game dev mode (job fc871b5929e1).",
+  "title": "Dev edit: There is a bug where the toggle for super ramps works, but e",
+  "notes": "Made with the in-game dev mode (job 330e78252e88).",
   "date": "2026-11-02"
  },
  "versions": [
@@ -1022,6 +1022,13 @@
    "notes": "The root as it was before the dev-mode edit 'Instead of 200, make the number 2000'. Last commit: Dev edit: Now try to make points and speed ups count when the player i",
    "date": "2026-11-02",
    "commit": "bbfa5c7"
+  },
+  {
+   "tag": "v133-dev-330e78",
+   "title": "Before dev edit 330e78",
+   "notes": "The root as it was before the dev-mode edit 'There is a bug where the toggle for super ramps works, but even if the toggle is on, the super ramps'. Last commit: Dev mode rules: list the files older versions load from the same scan the server",
+   "date": "2026-11-02",
+   "commit": "b6985d9"
   }
  ]
 }

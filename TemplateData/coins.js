@@ -165,7 +165,7 @@
         P.uniformMatrix4fv = function (loc, transpose, v, srcOffset) { if (loc && !transpose && (loc.__coinO2W || loc.__coinVP)) note(loc, v, srcOffset); return oM4.apply(this, arguments); };
         function sawDraw(ctx) {
             var m = o2wLast; o2wLast = null;                  // the matrix uploaded for this draw, whatever it draws
-            if (!enabled || !bufKind || !m) return;
+            if (!tracking() || !bufKind || !m) return;
             var s = state(ctx), tab = attribTable(s), kind = null, buf;
             for (var a in tab) { buf = tab[a]; if (buf && (kind = bufKind.get(buf))) break; }   // the mesh is whichever attribute reads a known vertex buffer (position is not always attribute 0)
             if (!kind && s.ab) kind = bufKind.get(s.ab);
@@ -186,6 +186,8 @@
     if (window.WebGLRenderingContext) hookProto(WebGLRenderingContext.prototype);
     if (window.WebGL2RenderingContext) hookProto(WebGL2RenderingContext.prototype);
 
+    // the pieces are watched while the coins or the super ramps (TemplateData/ramps.js reads frames()) are on
+    function tracking() { return enabled || !!(window.SlopeRamps && SlopeRamps.enabled && SlopeRamps.enabled()); }
     function makePiece(kind, key, m) {
         var M = new Float32Array(m), base = baseKind(kind), dir = twistDir(kind);
         var layout = (LAYOUTS[base] || (base === "slope" ? laneBlockLayout(key) : [])).map(function (c) { return twisted(c, dir, base); });
@@ -328,10 +330,11 @@
     function onScene(h) {
         frame++;
         var now = performance.now();
-        if (!enabled) { drawnLast = 0; return; }
+        if (!tracking()) { drawnLast = 0; return; }
         // expire the pieces the game stopped drawing (passed, or despawned); a teleporting ball is a restart
         for (var k in pieces) if (frame - pieces[k].seen > EXPIRE_FRAMES) { if (TUNNELS[baseKind(pieces[k].kind)]) tunnelGen++; delete pieces[k]; pieceCount--; }
         if (ballPos && ballPrev && Math.hypot(ballPos[0] - ballPrev[0], ballPos[1] - ballPrev[1], ballPos[2] - ballPrev[2]) > 20) { var keep = ballPos; reset(); ballPos = keep; }
+        if (!enabled) { drawnLast = 0; return; }   // coins off: the pieces are still tracked for the super ramps
         var list = liveCoins(now);
         if (ballPos) {
             for (var i = 0; i < list.length; i++) {
@@ -413,7 +416,7 @@
     // ------------------------------------------------------------------ settings and API
     function setEnabled(on) {
         enabled = !!on; lsSet(KEY_ON, enabled);
-        if (!enabled) { pieces = {}; pieceCount = 0; loose = []; count = 0; }
+        if (!enabled) { loose = []; count = 0; if (!tracking()) { pieces = {}; pieceCount = 0; } }
         if (!menuBox) menuBox = document.getElementById("hud-coins");
         if (menuBox && menuBox.checked !== enabled) menuBox.checked = enabled;
         updateBadge();
