@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Dev edit: The super ramps worked the first time playing the updated ve",
-  "notes": "Made with the in-game dev mode (job 2937eaa5476c).",
-  "date": "2026-10-30"
+  "title": "Dev edit: Now try to make points and speed ups count when the player i",
+  "notes": "Made with the in-game dev mode (job 465070fd6321).",
+  "date": "2026-11-02"
  },
  "versions": [
   {
@@ -1008,6 +1008,13 @@
    "notes": "The root as it was before the dev-mode edit 'The super ramps worked the first time playing the updated version, but now they don't do anything, e'. Last commit: Dev edit: The super ramps keep working but only when you're editing th",
    "date": "2026-10-30",
    "commit": "895eecf"
+  },
+  {
+   "tag": "v131-dev-465070",
+   "title": "Before dev edit 465070",
+   "notes": "The root as it was before the dev-mode edit 'Now try to make points and speed ups count when the player is far from the track with full access to'. Last commit: Dev mode: every game file is editable; files older versions load stay immutable",
+   "date": "2026-11-02",
+   "commit": "6f5e795"
   }
  ]
 }

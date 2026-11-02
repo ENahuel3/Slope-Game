@@ -17,6 +17,8 @@
     "use strict";
     var KEY_NAME = "slope-mod.player";
     var API = (window.SLOPE_EDIT_API || "").replace(/\/+$/, "");
+    // a local test page (smoke checks on 127.0.0.1) is a different origin the scores server does not allow: no board there
+    if (/^(localhost|127\.|\[::1\])/.test(location.hostname) && API.indexOf(location.origin) !== 0) API = "";
     function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
     function lsSet(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, String(v)); } catch (e) { /* storage blocked */ } }
     var playerName = (lsGet(KEY_NAME) || "").slice(0, 14);
