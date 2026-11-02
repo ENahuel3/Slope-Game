@@ -215,10 +215,12 @@ function loginAllowed(ip) {
 }
 
 // ---------------------------------------------------------------- git helpers
-function git(args, opts) {
-    const r = spawnSync("git", args, { cwd: CFG.repoDir, encoding: "utf8", timeout: 180000, ...opts });
-    if (r.status !== 0) throw new Error("git " + args.join(" ") + " failed: " + (r.stderr || r.stdout || r.error));
-    return r.stdout.trim();
+function git(args, opts, raw) {   // raw: return stdout untrimmed (a binary patch is corrupt without its trailing newlines)
+    // maxBuffer: a rebuilt Build/slope_data.unityweb makes a binary diff of several MB (the 1 MB default cut it off)
+    const r = spawnSync("git", args, { cwd: CFG.repoDir, encoding: "utf8", timeout: 180000, maxBuffer: 512 * 1024 * 1024, ...opts });
+    if (r.error) throw new Error("git " + args.join(" ") + " failed: " + r.error.message);
+    if (r.status !== 0) throw new Error("git " + args.join(" ") + " failed: " + (r.stderr || String(r.stdout).slice(0, 300)));
+    return raw ? r.stdout : r.stdout.trim();
 }
 function syncRepo() {
     git(["fetch", "--quiet", CFG.remote, CFG.branch]);
@@ -409,9 +411,18 @@ function runClaude(job, onEvent, resume) {
         const usage = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0, turns: 0, lastCtx: 0 };
         const stop = why => { if (killed) return; killed = why; onEvent(why); try { child.kill("SIGKILL"); } catch (e) {} };
         const timer = setTimeout(() => stop("Time limit reached, stopping."), CFG.jobTimeoutMs);
-        const addUsage = u => {
+        // stream-json emits one assistant event per content block (text, each tool call), and every one of them repeats the
+        // whole API call's usage: count each message id once, replacing its earlier figure if a later event reports more.
+        const seen = new Map();   // message id -> usage already counted
+        const addUsage = (u, id) => {
             if (!u) return;
-            usage.input += u.input_tokens || 0; usage.cacheWrite += u.cache_creation_input_tokens || 0; usage.cacheRead += u.cache_read_input_tokens || 0; usage.output += u.output_tokens || 0; usage.turns++;
+            const prev = id ? seen.get(id) : null;
+            if (prev) {
+                usage.input -= prev.input_tokens || 0; usage.cacheWrite -= prev.cache_creation_input_tokens || 0; usage.cacheRead -= prev.cache_read_input_tokens || 0; usage.output -= prev.output_tokens || 0;
+                tokens -= weighTokens(prev);
+            } else usage.turns++;
+            if (id) seen.set(id, u);
+            usage.input += u.input_tokens || 0; usage.cacheWrite += u.cache_creation_input_tokens || 0; usage.cacheRead += u.cache_read_input_tokens || 0; usage.output += u.output_tokens || 0;
             usage.lastCtx = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);   // what one more turn would re-read
             tokens += weighTokens(u);
             if (tokens > CFG.perJobTokens) stop("This edit passed its token limit (" + CFG.perJobTokens.toLocaleString() + "), stopping.");
@@ -424,7 +435,7 @@ function runClaude(job, onEvent, resume) {
                 if (!line) continue;
                 let ev; try { ev = JSON.parse(line); } catch (e) { continue; }
                 if (ev.type === "assistant" && ev.message && Array.isArray(ev.message.content)) {
-                    addUsage(ev.message.usage);
+                    addUsage(ev.message.usage, ev.message.id);
                     for (const c of ev.message.content) {
                         if (c.type === "text" && c.text.trim()) onEvent(c.text.trim().slice(0, 600));
                         else if (c.type === "tool_use") {
@@ -506,7 +517,7 @@ async function pump() {
         }
         // Publish on top of whatever the branch is now: another dev job or a developer may have pushed since the sync at
         // the start of this job. The edit is kept as a patch and re-applied to a fresh checkout, up to three times.
-        const patch = git(["diff", "--binary", "HEAD", "--", ...files]);
+        const patch = git(["diff", "--binary", "HEAD", "--", ...files], null, true);
         const untracked = git(["ls-files", "--others", "--exclude-standard", "--", ...files]).split("\n").filter(Boolean);
         const keep = {}; for (const f of untracked) keep[f] = fs.readFileSync(path.join(CFG.repoDir, f));
         const title = job.prompt.replace(/\s+/g, " ").slice(0, 60);
@@ -515,7 +526,7 @@ async function pump() {
             try {
                 if (attempt > 1) { say("The branch moved while this edit was made; re-applying the edit on the new version (try " + attempt + ")…"); syncRepo();
                     for (const f in keep) { fs.mkdirSync(path.dirname(path.join(CFG.repoDir, f)), { recursive: true }); fs.writeFileSync(path.join(CFG.repoDir, f), keep[f]); }
-                    if (patch.trim()) { const r = spawnSync("git", ["apply", "--3way", "--whitespace=nowarn"], { cwd: CFG.repoDir, input: patch + "\n", encoding: "utf8" }); if (r.status !== 0) throw new Error("the edit no longer applies to the current version: " + (r.stderr || "").trim().split("\n").slice(-2).join(" ")); }
+                    if (patch.trim()) { const r = spawnSync("git", ["apply", "--3way", "--whitespace=nowarn"], { cwd: CFG.repoDir, input: patch, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }); if (r.status !== 0) throw new Error("the edit no longer applies to the current version: " + (r.stderr || "").trim().split("\n").slice(-2).join(" ")); }
                     const again = validate(job); if (again) throw new Error(again);
                 }
                 job.frozen = null;
