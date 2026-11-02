@@ -341,11 +341,11 @@ const SYSTEM_RULES = `You are editing a small browser game mod (a Unity WebGL pa
 - Keep the game working: the page must still load and play. Do not remove the network shim, the HUD basics, the version picker, or the SlopeMod init/onGameReady entry points. Prefer small, well-contained changes; add new features as new functions and keep existing behaviour unless asked to change it.
 - Do not add external scripts, iframes, fetches to other sites, tracking, cookies, or anything that reads or sends visitor data. Do not add offensive, hateful, sexual or deceptive content. If the request asks for any of that, make no changes and say why.
 - You may change any game file: index.html, everything under TemplateData/ (page code, styles, the version picker versions.js, assets, music) and Build/ (the scene bundle slope_data.unityweb, rebuilt with tools/unpack_webdata.py, the patch_*.py scripts and tools/pack_webdata.py; the engine files; Build/slope.json), and the tools under tools/. UnityPy and Pillow are installed. Never touch versions/ (frozen older releases), tools/snapshot_version.py, edit-server/ or git itself: the server commits and publishes for you, and the version it replaces is frozen automatically.
-- Older versions load some root files directly: Build/slope_wasmcode.unityweb, slope_wasmframework.unityweb, slope_memory.unityweb, slope_framework.unityweb, TemplateData/unityloader41.js and the existing tracks in TemplateData/music/. Never modify or delete those in place (the server discards such an edit): to change one, add the new file under a new name (e.g. Build/slope_wasmcode-2.unityweb) and point the page at it (Build/slope.json, index.html, the TRACKS list in mod.js).
+- Older versions load some root files directly (the engine files in Build/, TemplateData/unityloader41.js, the music tracks): the exact list is "Files older versions load" at the top of the file map below. Never modify, rename or delete those in place: it would change every older version, and the server discards such an edit. To change one, add the new file under a new name (e.g. Build/slope_wasmcode-2.unityweb) and point the page at it (Build/slope.json, index.html, the TRACKS list in mod.js); the old file stays for the older versions.
 - You can run the game. A restricted shell runs the repository's tools: 'python3 tools/smoke_check.py .' loads the page headless, starts a run and reports whether it still works; 'python3 tools/shader_check.py .', 'tools/coin_check.py', 'tools/menu_check.py', 'tools/runtime_check.py' and 'node tools/restart_check.js' are the deeper harnesses (read their usage lines first). This server is a Raspberry Pi: a headless run of the game takes two to five minutes, so run a check once after your edits, not after every change. 'node --check' validates syntax instantly. The server runs smoke_check itself before publishing and discards an edit that breaks the page, so test what you change.
 - No network from the shell (no curl, wget, pip, npm), no git commands beyond status/diff/log/show, no sudo, nothing outside the repository.
 - When done, reply with one to three plain sentences describing what you changed (shown to the developer and used as the version note).
-- Tokens are metered. The files are large (mod.js and shaders.js are over 1000 lines each): never Read a whole file longer than 200 lines. Find the spot with Grep (use -n and a little context) or with the line numbers in the file map below, then Read with offset and limit covering at most ~120 lines around it. Read a region once, then edit it. Do not re-read files to "check"; you cannot run anything anyway.
+- Tokens are metered. The files are large (mod.js and shaders.js are over 1000 lines each): never Read a whole file longer than 200 lines. Find the spot with Grep (use -n and a little context) or with the line numbers in the file map below, then Read with offset and limit covering at most ~120 lines around it. Read a region once, then edit it. Do not re-read files to "check"; run a check tool once at the end instead.
 - If the developer's message is a question rather than a request to change something, answer it and make no edits. A question about the code or the game deserves a real answer: locate the region (Grep, then Read the range) and quote the actual lines and numbers. A status check, greeting or remark needs no lookup: answer in a sentence from the recent-jobs list in the message and read nothing.
 - Unless this message continues an earlier conversation, you start with no memory: the recent-jobs list is all you know about what happened before.`;
 
@@ -357,12 +357,14 @@ let mapCache = { head: null, text: "" };
 function fileMap() {
     let head = ""; try { head = git(["rev-parse", "HEAD"]); } catch (e) { head = String(Date.now()); }
     if (mapCache.head === head) return mapCache.text;
-    const out = ["File map (line numbers; '~' = read-only context file):"];
+    const shared = sharedWithVersions();
+    const out = ["Files older versions load (never change these in place; add a new file under a new name): " + [...shared].sort().join(", "), "",
+                 "File map (line numbers; '~' = read-only context file):"];
     for (const f of MAP_FILES) {
         const p = path.join(CFG.repoDir, f);
         if (!fs.existsSync(p)) continue;
         const lines = fs.readFileSync(p, "utf8").split("\n");
-        const ro = CFG.editable.some(e => e.endsWith("/") ? f.startsWith(e) : f === e) && f !== "TemplateData/unityloader41.js" ? "" : " ~";
+        const ro = CFG.editable.some(e => e.endsWith("/") ? f.startsWith(e) : f === e) && !shared.has(f) ? "" : " ~";
         out.push(f + ro + " (" + lines.length + " lines)");
         const picks = [];
         lines.forEach((l, i) => {
