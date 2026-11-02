@@ -3,11 +3,11 @@ In the spawn frame (tools/twist_mesh.py) the course runs along f = (0, -1, -1)/s
 n = (0, -1, 1)/sqrt2, so a trigger's box, square in scaled (y, z), is a diamond in (f, n): half-diagonal W
 about (f_c, n_c). Its bottom tip stays where it is and its top is raised to REACH units above the lane;
 the diamond's width at the lane (n = 0) is W - |n_c| before and after, so on the lane nothing changes.
-SpeedUp boxes are also widened sideways (the lane is x 0..10) by SIDE units each way.
+SpeedUp boxes are also widened sideways (the lane is x 0..10) by SIDE units each way. The bottom tip is kept, so the tool can be re-run on an already patched bundle.
 usage: patch_trigger_reach.py <in data.unity3d> <out data.unity3d>"""
 import UnityPy, sys, math
 src, dst = sys.argv[1:3]
-TRIGGERS = ('ScorePoint', 'SpeedUp', 'SpeedUpNoSpawning'); REACH = 200.0; SIDE = 15.0; R2 = math.sqrt(2)
+TRIGGERS = ('ScorePoint', 'SpeedUp', 'SpeedUpNoSpawning'); REACH = 2000.0; SIDE = 15.0; R2 = math.sqrt(2)
 env = UnityPy.load(src)
 for o in env.objects:
     if o.type.name != 'GameObject' or not o.assets_file.name.endswith('sharedassets0.assets'): continue
@@ -28,7 +28,7 @@ for o in env.objects:
     y2, z2, a2 = -(f_c + n2) / R2, (n2 - f_c) / R2, w2 * R2
     b.m_Center.y, b.m_Center.z = y2 / scale[1], z2 / scale[2]
     b.m_Size.y, b.m_Size.z = a2 / abs(scale[1]), a2 / abs(scale[2])
-    if go.m_Name != 'ScorePoint': b.m_Size.x += 2 * SIDE / abs(scale[0])
+    if go.m_Name != 'ScorePoint': b.m_Size.x = (10 + 2 * SIDE) / abs(scale[0])   # x -SIDE..10+SIDE (centre 5), so re-running is safe
     b.save()
     print('%s: lane up %.1f..%.1f -> %.1f..%.1f, ahead %.1f, width at lane %.1f (unchanged), x size %.1f' % (
         go.m_Name, lo, n_c + w, lo, REACH, f_c, w - abs(n_c), b.m_Size.x * abs(scale[0])))

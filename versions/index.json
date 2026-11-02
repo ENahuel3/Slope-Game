@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Now try to make points and speed ups count when the player i",
-  "notes": "Made with the in-game dev mode (job 465070fd6321).",
+  "title": "Dev edit: Instead of 200, make the number 2000",
+  "notes": "Made with the in-game dev mode (job fc871b5929e1).",
   "date": "2026-11-02"
  },
  "versions": [
@@ -1015,6 +1015,13 @@
    "notes": "The root as it was before the dev-mode edit 'Now try to make points and speed ups count when the player is far from the track with full access to'. Last commit: Dev mode: every game file is editable; files older versions load stay immutable",
    "date": "2026-11-02",
    "commit": "6f5e795"
+  },
+  {
+   "tag": "v132-dev-fc871b",
+   "title": "Before dev edit fc871b",
+   "notes": "The root as it was before the dev-mode edit 'Instead of 200, make the number 2000'. Last commit: Dev edit: Now try to make points and speed ups count when the player i",
+   "date": "2026-11-02",
+   "commit": "bbfa5c7"
   }
  ]
 }
