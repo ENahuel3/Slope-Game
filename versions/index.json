@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: In game, if you mash left and right buttons, usually one get",
-  "notes": "Made with the in-game dev mode (job 1c703b04fc66).",
+  "title": "Dev edit: When the player uses high render distances, the background m",
+  "notes": "Made with the in-game dev mode (job 48aa42e7cc8e).",
   "date": "2026-11-03"
  },
  "versions": [
@@ -1043,6 +1043,13 @@
    "notes": "The root as it was before the dev-mode edit 'In game, if you mash left and right buttons, usually one gets stuck. Please fix this.'. Last commit: Dev edit: Double the horizontal velocity gained from super ramps and m",
    "date": "2026-11-02",
    "commit": "519fcf0"
+  },
+  {
+   "tag": "v136-dev-48aa42",
+   "title": "Before dev edit 48aa42",
+   "notes": "The root as it was before the dev-mode edit 'When the player uses high render distances, the background models stick to the position of the botto'. Last commit: Dev edit: In game, if you mash left and right buttons, usually one get",
+   "date": "2026-11-03",
+   "commit": "a44032a"
   }
  ]
 }
