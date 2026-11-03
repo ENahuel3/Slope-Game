@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Dev edit: Double the horizontal velocity gained from super ramps and m",
-  "notes": "Made with the in-game dev mode (job fcc93b75b3fc).",
-  "date": "2026-11-02"
+  "title": "Dev edit: In game, if you mash left and right buttons, usually one get",
+  "notes": "Made with the in-game dev mode (job 1c703b04fc66).",
+  "date": "2026-11-03"
  },
  "versions": [
   {
@@ -1036,6 +1036,13 @@
    "notes": "The root as it was before the dev-mode edit 'Double the horizontal velocity gained from super ramps and multiply the vertical velocity by 1.25.'. Last commit: Dev edit: There is a bug where the toggle for super ramps works, but e",
    "date": "2026-11-02",
    "commit": "676b557"
+  },
+  {
+   "tag": "v135-dev-1c703b",
+   "title": "Before dev edit 1c703b",
+   "notes": "The root as it was before the dev-mode edit 'In game, if you mash left and right buttons, usually one gets stuck. Please fix this.'. Last commit: Dev edit: Double the horizontal velocity gained from super ramps and m",
+   "date": "2026-11-02",
+   "commit": "519fcf0"
   }
  ]
 }

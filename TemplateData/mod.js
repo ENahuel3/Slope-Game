@@ -1116,6 +1116,26 @@
         }, true);
     });
     window.addEventListener("blur", function () { keysHeld.left = keysHeld.right = false; });
+    // stuck steering keys: when left/right are mashed, a key's down and up can land in the same Unity frame and the
+    // engine keeps the key held. After every real release, repeat the keyup a few frames later while it is still up.
+    var STEER_CODES = { ArrowLeft: 37, ArrowRight: 39, KeyA: 65, KeyD: 68, KeyQ: 81 }, steerDown = {};
+    function resendKeyup(code, key) {
+        if (steerDown[code] || autopilot) return;
+        var e = new KeyboardEvent("keyup", { key: key, code: code, bubbles: true, cancelable: true }), kc = STEER_CODES[code];
+        try { Object.defineProperty(e, "keyCode", { get: function () { return kc; } }); Object.defineProperty(e, "which", { get: function () { return kc; } }); } catch (x) {}
+        document.dispatchEvent(e);
+    }
+    ["keydown", "keyup"].forEach(function (type) {
+        window.addEventListener(type, function (e) {
+            if (!e.isTrusted || !STEER_CODES[e.code]) return;
+            var t = e.target; if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+            if (type === "keydown") { steerDown[e.code] = true; return; }
+            steerDown[e.code] = false;
+            var code = e.code, key = e.key;
+            [50, 150, 400].forEach(function (ms) { setTimeout(function () { resendKeyup(code, key); }, ms); });
+        }, true);
+    });
+    window.addEventListener("blur", function () { steerDown = {}; });
 
     // ======================================================================
     // 4. HUD
