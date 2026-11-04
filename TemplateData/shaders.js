@@ -230,6 +230,51 @@
     ].join("\n");
 
     var FRAG = {
+        // Ray Tracing (Experimental): screen-space ray-traced ambient occlusion and one-bounce diffuse light.
+        // rtTrace (half size) casts 6 cosine-weighted rays per pixel through the depth buffer: r = occlusion,
+        // gba = the colour the rays hit. rtMix blurs that with depth-aware weights and lights the frame with it.
+        rtTrace: [
+            "vec3 cosDir(vec3 N, vec2 r) {",
+            "  vec3 T = normalize(abs(N.y) < 0.9 ? cross(N, vec3(0.0, 1.0, 0.0)) : cross(N, vec3(1.0, 0.0, 0.0))); vec3 B = cross(N, T);",
+            "  float a = 6.2831853 * r.x, s = sqrt(r.y); return normalize(T * cos(a) * s + B * sin(a) * s + N * sqrt(1.0 - r.y));",
+            "}",
+            "void main() {",
+            "  float d = depthAt(vUv);",
+            "  if (uLight.w < 0.5 || isSky(d)) { gl_FragColor = vec4(0.0); return; }",
+            "  float lz = linZ(d); vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
+            "  float occ = 0.0; vec3 bounce = vec3(0.0);",
+            "  float jit = hash(floor(gl_FragCoord.xy));",
+            "  for (int r = 0; r < 6; r++) {",
+            "    vec2 rr = vec2(fract(jit + float(r) * 0.618034), fract(hash(gl_FragCoord.yx + float(r) * 7.13)));",
+            "    vec3 D = cosDir(N, rr); float stp = max(0.05, 0.012 * lz); vec3 p = P + N * stp;",
+            "    for (int i = 0; i < 10; i++) {",
+            "      p += D * stp; if (p.z > -uCam.z) break;",
+            "      vec3 q = proj(p); if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) break;",
+            "      float diff = q.z - linZ(depthAt(q.xy));",
+            "      if (diff > 0.002 * q.z && diff < stp * 4.0) { float f = 1.0 - float(i) / 10.0; occ += f; bounce += texture2D(uTex, q.xy).rgb * f; break; }",
+            "      stp *= 1.35;",
+            "    }",
+            "  }",
+            "  float fade = 1.0 - smoothstep(0.6 * uCam.w, 0.95 * uCam.w, lz);",
+            "  gl_FragColor = vec4(occ / 6.0 * fade, min(bounce / 6.0, vec3(1.0)) * fade);",
+            "}"
+        ].join("\n"),
+        rtMix: [
+            "void main() {",
+            "  vec3 c = texture2D(uTex, vUv).rgb; float d = depthAt(vUv);",
+            "  if (uLight.w < 0.5 || isSky(d)) { gl_FragColor = vec4(c, 1.0); return; }",
+            "  float lz = linZ(d); vec4 acc = vec4(0.0); float wsum = 0.0;",
+            "  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {",
+            "    vec2 uv = vUv + vec2(float(x), float(y)) * 2.0 * uTexel;",
+            "    float w = 1.0 / (1.0 + abs(linZ(depthAt(uv)) - lz) / max(0.02 * lz, 0.02));",
+            "    acc += texture2D(uTex2, uv) * w; wsum += w;",
+            "  }",
+            "  acc /= wsum;",
+            "  float glow = smoothstep(0.55, 0.95, max(c.r, max(c.g, c.b)));",   // emissive neon is not darkened
+            "  vec3 o = c * mix(1.0 - 0.75 * acc.r, 1.0, glow) + acc.gba * (0.35 + 0.6 * c);",
+            "  gl_FragColor = vec4(o, 1.0);",
+            "}"
+        ].join("\n"),
         // The original rainbow: green-hued pixels get their hue replaced by a diagonal rainbow
         // that scrolls with time and ripples with a travelling wave. Everything else keeps its colour.
         rainbow: [
@@ -688,6 +733,24 @@
     var reflSteps = (function () { var v = parseInt(lsGet("slope.reflSteps"), 10); return v >= 8 && v <= 96 ? v : 96; })();
     var trackColor = lsGet("slope.trackColor") === "white" ? "white" : "black";
     var enabled = true;
+    var rtOn = lsGet("slope.rt") === "1";   // Ray Tracing (Experimental)
+    var rtCache = {};
+    // The light with the ray-traced passes appended: its last pass writes "b", rtTrace fills "h1", rtMix writes "lit".
+    function rtLight(base) {
+        var key = (base === WHITE_OFF ? "white-" : "") + base.id;
+        var c = rtCache[key];
+        if (c && c.base === base) return c;
+        var lp = base.passes.map(function (p, i) { return i === base.passes.length - 1 ? Object.assign({}, p, { out: "b" }) : p; });
+        var src = lp.length ? "b" : "scene";
+        c = { id: base.id, name: base.name, dir: base.dir || SUN_DIR, fixedUV: base.fixedUV, failed: false, base: base,
+            passes: lp.concat([{ fs: "rtTrace", in: src, out: "h1" }, { fs: "rtMix", in: src, in2: "h1", out: "lit" }]) };
+        rtCache[key] = c;
+        return c;
+    }
+    function setRayTracing(on) {
+        rtOn = !!on; lsSet("slope.rt", rtOn ? "1" : "0");
+        var cb = document.getElementById("hud-rt"); if (cb && cb.checked !== rtOn) cb.checked = rtOn;
+    }
 
     // ======================================================================
     // Context adoption and frame hooks
@@ -1079,6 +1142,7 @@
     function present(sceneState) {
         stats.frames++;
         var style = STYLES[styleId], light = (lightId === "normal" && trackColor === "white") ? WHITE_OFF : LIGHTS[lightId];
+        if (rtOn && light && !light.failed) { var rl = rtLight(light); if (!rl.failed) light = rl; }
         var wasRedirected = redirectActive && res && res.main && res.main.ok;
         var chain = enabled && gl ? buildChain(light, style) : [];
         if (!gl || (gl.isContextLost && gl.isContextLost())) { stats.passes = 0; return; }
@@ -1239,6 +1303,11 @@
             });
             lineRange.addEventListener("change", function () { lineRange.blur(); });
         }
+        var rtBox = document.getElementById("hud-rt");
+        if (rtBox) {
+            rtBox.checked = rtOn;
+            rtBox.addEventListener("change", function () { setRayTracing(rtBox.checked); rtBox.blur(); });
+        }
         var stepsRange = document.getElementById("hud-refl-steps"), stepsVal = document.getElementById("hud-refl-steps-val");
         if (stepsRange) {
             stepsRange.value = reflSteps; if (stepsVal) stepsVal.textContent = reflSteps;
@@ -1279,12 +1348,15 @@
         camera: function () { return { live: CAMERA.live, near: +CAMERA.near.toFixed(4), far: +CAMERA.far.toFixed(1), fovY: +(2 * Math.atan(1 / CAMERA.b) * 180 / Math.PI).toFixed(2), aspect: +(CAMERA.b / CAMERA.a).toFixed(4), right: CAMERA.right.map(function (v) { return +v.toFixed(3); }), up: CAMERA.up.map(function (v) { return +v.toFixed(3); }), back: CAMERA.back.map(function (v) { return +v.toFixed(3); }) }; },
         onScene: function (fn) { if (typeof fn === "function" && sceneHooks.indexOf(fn) < 0) sceneHooks.push(fn); },
         offScene: function (fn) { var i = sceneHooks.indexOf(fn); if (i >= 0) sceneHooks.splice(i, 1); },
-        reset: function () { dropResources(); Object.keys(STYLES).forEach(function (k) { STYLES[k].failed = false; }); Object.keys(LIGHTS).forEach(function (k) { LIGHTS[k].failed = false; }); },
+        rayTracing: function () { return rtOn; },
+        setRayTracing: function (on) { setRayTracing(on); return rtOn; },
+        reset: function () { dropResources(); rtCache = {}; Object.keys(STYLES).forEach(function (k) { STYLES[k].failed = false; }); Object.keys(LIGHTS).forEach(function (k) { LIGHTS[k].failed = false; }); },
         stats: function () {
             return { enabled: enabled, style: styleId, light: lightId, intensity: intensity, glVersion: gl ? (isGL2 ? 2 : 1) : 0, width: res ? res.w : 0, height: res ? res.h : 0,
                 frames: stats.frames, presented: stats.presented, passes: stats.passes, errors: stats.errors, failed: stats.failed, lastPassMs: +stats.lastPassMs.toFixed(2), vao: stats.vao,
                 redirect: redirectActive, depth: stats.depth, cameraLive: CAMERA.live,
-                styleFailed: !!(STYLES[styleId] && STYLES[styleId].failed), lightFailed: !!(LIGHTS[lightId] && LIGHTS[lightId].failed) };
+                styleFailed: !!(STYLES[styleId] && STYLES[styleId].failed), lightFailed: !!(LIGHTS[lightId] && LIGHTS[lightId].failed),
+                rayTracing: rtOn, rtFailed: Object.keys(rtCache).some(function (k) { return rtCache[k].failed; }) };
         }
     };
 })();

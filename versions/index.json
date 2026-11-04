@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Dev edit: When the player uses high render distances, the background m",
-  "notes": "Made with the in-game dev mode (job 48aa42e7cc8e).",
-  "date": "2026-11-03"
+  "title": "Dev edit: Make it, and add it as a toggle in settings that is labelled",
+  "notes": "Made with the in-game dev mode (job ee0b88546bdd).",
+  "date": "2026-11-04"
  },
  "versions": [
   {
@@ -1057,6 +1057,13 @@
    "notes": "The root as it was before the dev-mode service moved from the Raspberry Pi to the Mac mini. Last commit: f48cdad (dev edit: background models at high render distance).",
    "date": "2026-11-03",
    "commit": "f48cdad"
+  },
+  {
+   "tag": "v138-dev-ee0b88",
+   "title": "Before dev edit ee0b88",
+   "notes": "The root as it was before the dev-mode edit 'Make it, and add it as a toggle in settings that is labelled \"Ray Tracing (Experimental)\".'. Last commit: Harnesses serve without reverse DNS; launchd job runs at interactive QoS",
+   "date": "2026-11-03",
+   "commit": "0510244"
   }
  ]
 }
