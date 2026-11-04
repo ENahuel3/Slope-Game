@@ -104,6 +104,7 @@
         "uniform sampler2D uTex;",     // the pass's input
         "uniform sampler2D uTex2;",    // optional second input
         "uniform sampler2D uTex3;",    // optional third input
+        "uniform sampler2D uTex4;",    // optional fourth input (ray-traced reflections: the raw scene)
         "uniform sampler2D uDepth;",   // the scene's depth (lighting passes)
         "uniform vec2 uRes;",          // output size in pixels
         "uniform vec2 uTexel;",        // 1 / input size
@@ -183,10 +184,12 @@
         "  return 1.0 - min(1.0, hits / softness);",
         "}",
         // screen-space reflection: march the reflected ray, return the colour it hits (black when it leaves the screen)
-        "vec3 reflectRay(vec3 P, vec3 N, out float hitFade) {",
+        // marchRefl traces the mirror ray through the depth buffer and returns the colour of frame t where it lands.
+        // reflectRay is the lighting passes' version (raw scene, Reflection Steps slider); with Ray Tracing on it
+        // returns nothing and rtMix traces the reflection instead, through each bounce's ray-traced lit frame.
+        "vec3 marchRefl(sampler2D t, vec3 P, vec3 N, float nSteps, out float hitFade) {",
         "  hitFade = 0.0; vec3 R = reflect(normalize(P), N);",
         "  float stp = max(0.08, 0.03 * -P.z); vec3 p = P + N * stp * 0.5 + R * stp;",
-        "  float nSteps = (uQ.w > 0.5 && uLight.w > 0.5) ? 96.0 : uReflSteps;",   // Ray Tracing on: the track stays as reflective as without it, but the mirror ray always marches the full 96 steps, so the Reflection Steps slider has no effect (bounces are set by Ray Traced Steps only)
         "  for (int i = 0; i < 96; i++) {",   // finer, longer march (was 24 steps growing 10%) so thin gaps do not show up as slits; nSteps sets the actual count
         "    if (float(i) >= nSteps || p.z > -uCam.z) break;",
         "    vec3 q = proj(p); if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) break;",
@@ -196,10 +199,14 @@
         "      for (int k = 0; k < 8; k++) { vec3 m = 0.5 * (lo + hi); vec3 qm = proj(m); if (qm.z - linZ(depthAt(qm.xy)) > 0.0) hi = m; else lo = m; }",
         "      vec3 qh = proj(hi); if (qh.x < 0.0 || qh.x > 1.0 || qh.y < 0.0 || qh.y > 1.0) qh = q;",
         "      float res = qh.z - linZ(depthAt(qh.xy));",   // a real surface leaves almost no depth gap after refinement; a big gap is a silhouette edge, which is what smeared (stretched) the ball
-        "      if (res < stp * 0.4) return texture2D(uTex, qh.xy).rgb; }",
+        "      if (res < stp * 0.4) return texture2D(t, qh.xy).rgb; }",
         "    p += R * stp; stp *= 1.05;",
         "  }",
         "  return vec3(0.0);",
+        "}",
+        "vec3 reflectRay(vec3 P, vec3 N, out float hitFade) {",
+        "  hitFade = 0.0; if (uQ.w > 0.5 && uLight.w > 0.5) return vec3(0.0);",   // Ray Tracing on: reflections are ray traced in rtMix
+        "  return marchRefl(uTex, P, N, uReflSteps, hitFade);",
         "}",
         // ---- white track: white concrete ----
         "float noise3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);",
@@ -321,6 +328,15 @@
             "  acc /= max(wsum, 1e-4);",
             "  float glow = smoothstep(0.55, 0.95, max(c.r, max(c.g, c.b)));",   // emissive neon is not darkened
             "  vec3 o = c * mix(1.0 - uP.x * acc.r, 1.0, glow) + acc.gba * (0.3 + 0.55 * c);",   // uP.x: AO strength (0 when the lighting pass already took the ray-traced AO)
+            // uP.y = 1: ray-traced track reflection (black track, same mask and strength as the lighting passes' own),
+            // traced through the previous bounce's lit frame (uTex3); uTex4 = raw scene, for the neon (emissive) mask
+            "  if (uP.y > 0.5 && uTrack < 0.5) {",
+            "    vec3 sc = texture2D(uTex4, vUv).rgb; float emis = smoothstep(0.12, 0.35, max(sc.r, max(sc.g, sc.b)));",
+            "    float upF = smoothstep(0.35, 0.8, dot(uRot * N, SKY_UP)); float floorness = max(upF, 1.0 - smoothstep(35.0, 60.0, lz));",
+            "    if (floorness > 0.01 && emis < 0.9) { float fade; vec3 Nr = normalize(mix(N, SKY_UP * uRot, upF)); vec3 rc = marchRefl(uTex3, P, Nr, 96.0, fade);",
+            "      float fres = 0.3 + 0.7 * pow(1.0 - max(dot(-normalize(P), N), 0.0), 3.0);",
+            "      o += rc * smoothstep(0.06, 0.3, lum(rc)) * fade * fres * floorness * 0.8 * (1.0 - emis); }",
+            "  }",
             "  gl_FragColor = vec4(o, 1.0);",
             "}"
         ].join("\n"),
@@ -703,7 +719,8 @@
             if (p.in2 && BUFFERS.indexOf(p.in2) < 0) return "unknown input '" + p.in2 + "'";
             if (p.in3 && BUFFERS.indexOf(p.in3) < 0) return "unknown input '" + p.in3 + "'";
             if (p.out !== "screen" && (BUFFERS.indexOf(p.out) < 0 || p.out === "scene")) return "bad output '" + p.out + "'";
-            if (p.out === p.in || p.out === p.in2 || p.out === p.in3) return "pass " + i + " reads and writes '" + p.out + "'";
+            if (p.in4 && BUFFERS.indexOf(p.in4) < 0) return "unknown input '" + p.in4 + "'";
+            if (p.out === p.in || p.out === p.in2 || p.out === p.in3 || p.out === p.in4) return "pass " + i + " reads and writes '" + p.out + "'";
         }
         return null;
     }
@@ -817,7 +834,7 @@
         for (var i = 0; i < rtSteps; i++) {
             var out = (rtSteps - 1 - i) % 2 === 0 ? "lit" : mid;
             bounces.push({ fs: "rtTrace", in: prev, out: "h1", p: [i >= 3 ? i + 1 : i] },   // jitter seed 3 is the pre-pass's
-                { fs: "rtMix", in: src, in2: "h1", out: out, p: [aoMix] });
+                { fs: "rtMix", in: src, in2: "h1", in3: prev, in4: "scene", out: out, p: [aoMix, n ? 1 : 0] });   // p[1]: ray-traced track reflections (lighting modes)
             prev = out;
         }
         c = { id: base.id, name: base.name, dir: base.dir || SUN_DIR, fixedUV: base.fixedUV, failed: false, base: base,
@@ -979,7 +996,7 @@
         if (!g.getShaderParameter(sh, gl.COMPILE_STATUS)) { var log = g.getShaderInfoLog(sh); g.deleteShader(sh); throw new Error(log); }
         return sh;
     }
-    var UNIFORMS = ["uTex", "uTex2", "uTex3", "uDepth", "uRes", "uTexel", "uTime", "uHue", "uSpeed", "uAmount", "uReflSteps", "uTrack", "uLine", "uCamPos", "uP", "uQ", "uCam", "uRot", "uLight", "uLightUV"];
+    var UNIFORMS = ["uTex", "uTex2", "uTex3", "uTex4", "uDepth", "uRes", "uTexel", "uTime", "uHue", "uSpeed", "uAmount", "uReflSteps", "uTrack", "uLine", "uCamPos", "uP", "uQ", "uCam", "uRot", "uLight", "uLightUV"];
     function program(fsName) {
         var p = res.programs[fsName];
         if (p !== undefined) return p;
@@ -1126,7 +1143,7 @@
     // ======================================================================
     // Presenting a frame
     // ======================================================================
-    var TEX_UNITS = 4, maxAttribs = 0;
+    var TEX_UNITS = 5, maxAttribs = 0;
     function saveState() {
         var s = {};
         s.program = g.getParameter(gl.CURRENT_PROGRAM);
@@ -1274,6 +1291,7 @@
                 var src = pass.in === "scene" ? sceneBuf : (res.buffers[pass.in] || sceneBuf);
                 var src2 = pass.in2 ? (pass.in2 === "scene" ? sceneBuf : res.buffers[pass.in2]) : src;
                 var src3 = pass.in3 ? (pass.in3 === "scene" ? sceneBuf : res.buffers[pass.in3]) : src2;
+                var src4 = pass.in4 ? (pass.in4 === "scene" ? sceneBuf : res.buffers[pass.in4]) : src3;
                 var dst = pass.out === "screen" ? null : res.buffers[pass.out];
                 g.bindFramebuffer(gl.FRAMEBUFFER, dst ? dst.fbo : null);
                 var ow = dst ? dst.w : w, oh = dst ? dst.h : h;
@@ -1283,6 +1301,7 @@
                 g.activeTexture(gl.TEXTURE1); g.bindTexture(gl.TEXTURE_2D, src2.tex);
                 g.activeTexture(gl.TEXTURE2); g.bindTexture(gl.TEXTURE_2D, src3.tex);
                 g.activeTexture(gl.TEXTURE3); g.bindTexture(gl.TEXTURE_2D, sceneBuf.depth || src.tex);
+                g.activeTexture(gl.TEXTURE4); g.bindTexture(gl.TEXTURE_2D, src4.tex); if (p.u.uTex4) g.uniform1i(p.u.uTex4, 4);
                 if (p.u.uTex) g.uniform1i(p.u.uTex, 0); if (p.u.uTex2) g.uniform1i(p.u.uTex2, 1); if (p.u.uTex3) g.uniform1i(p.u.uTex3, 2); if (p.u.uDepth) g.uniform1i(p.u.uDepth, 3);
                 if (p.u.uRes) g.uniform2f(p.u.uRes, ow, oh); if (p.u.uTexel) g.uniform2f(p.u.uTexel, 1 / src.w, 1 / src.h);
                 if (p.u.uTime) g.uniform1f(p.u.uTime, t); if (p.u.uHue) g.uniform1f(p.u.uHue, hue); if (p.u.uSpeed) g.uniform1f(p.u.uSpeed, speed); if (p.u.uAmount) g.uniform1f(p.u.uAmount, intensity); if (p.u.uReflSteps) g.uniform1f(p.u.uReflSteps, reflSteps); if (p.u.uTrack) g.uniform1f(p.u.uTrack, trackColor === "white" ? 1 : 0); if (p.u.uLine) g.uniform1f(p.u.uLine, lineDull); if (p.u.uCamPos) g.uniform3f(p.u.uCamPos, cam.pos[0], cam.pos[1], cam.pos[2]);
@@ -1412,7 +1431,7 @@
     }
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wireHud); else wireHud();
 
-    function passList(list) { return list.map(function (p) { return { fs: p.fs, in: p.in, in2: p.in2, in3: p.in3, out: p.out, p: p.p, q: p.q }; }); }
+    function passList(list) { return list.map(function (p) { return { fs: p.fs, in: p.in, in2: p.in2, in3: p.in3, in4: p.in4, out: p.out, p: p.p, q: p.q }; }); }
     window.SlopeShaders = {
         styles: function () { return ORDER.map(function (id) { return { id: id, name: STYLES[id].name, failed: STYLES[id].failed }; }); },
         style: function () { return styleId; },

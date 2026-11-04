@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: The sliders are now working as intended, but now when using ",
-  "notes": "Made with the in-game dev mode (job bc76334df2b6).",
+  "title": "Dev edit: When ray tracing is enabled, are the track reflections ray t",
+  "notes": "Made with the in-game dev mode (job 5b0d1be4ed63).",
   "date": "2026-11-04"
  },
  "versions": [
@@ -1106,6 +1106,13 @@
    "notes": "The root as it was before the dev-mode edit 'The sliders are now working as intended, but now when using the night and sunset shaders the track i'. Last commit: Dev edit: What I meant was make it so that when ray tracing is enabled",
    "date": "2026-11-04",
    "commit": "4186669"
+  },
+  {
+   "tag": "v145-dev-5b0d1b",
+   "title": "Before dev edit 5b0d1b",
+   "notes": "The root as it was before the dev-mode edit 'When ray tracing is enabled, are the track reflections ray traced or drawn using the non ray tracing'. Last commit: Dev edit: The sliders are now working as intended, but now when using",
+   "date": "2026-11-04",
+   "commit": "6c922a5"
   }
  ]
 }
