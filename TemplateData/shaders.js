@@ -205,6 +205,23 @@
         "  float a = mix(mix(hash3(i), hash3(i + vec3(1.0, 0.0, 0.0)), f.x), mix(hash3(i + vec3(0.0, 1.0, 0.0)), hash3(i + vec3(1.0, 1.0, 0.0)), f.x), f.y);",
         "  float b = mix(mix(hash3(i + vec3(0.0, 0.0, 1.0)), hash3(i + vec3(1.0, 0.0, 1.0)), f.x), mix(hash3(i + vec3(0.0, 1.0, 1.0)), hash3(i + vec3(1.0, 1.0, 1.0)), f.x), f.y);",
         "  return mix(a, b, f.z); }",
+        // ---- Ray Tracing (Experimental) helpers. uQ.w = 1 on a lighting pass when ray tracing is on: its shadows
+        // come from rtShadow (uTex2, full size) and its ambient occlusion from rtTrace (uTex3, half size, r)
+        // instead of its own shadow ray and SSAO, so only the ray-traced versions are in the frame.
+        "float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }",   // interleaved gradient noise: even, blur-friendly
+        "vec3 cosDir(vec3 N, vec2 r) {",
+        "  vec3 T = normalize(abs(N.y) < 0.9 ? cross(N, vec3(0.0, 1.0, 0.0)) : cross(N, vec3(1.0, 0.0, 0.0))); vec3 B = cross(N, T);",
+        "  float a = 6.2831853 * r.x, s = sqrt(r.y); return normalize(T * cos(a) * s + B * sin(a) * s + N * sqrt(1.0 - r.y));",
+        "}",
+        "bool rtMode() { return uQ.w > 0.5 && uLight.w > 0.5; }",
+        "float rtFilter(sampler2D t, vec2 uv, float stride) {",   // depth-aware 3x3 average of a ray-traced term (channel r)
+        "  float lz = linZ(depthAt(uv)); float s = 0.0, ws = 0.0;",
+        "  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 q = uv + vec2(float(x), float(y)) * stride * uTexel;",
+        "    float w = 1.0 / (1.0 + abs(linZ(depthAt(q)) - lz) / max(0.01 * lz, 0.02)); s += texture2D(t, q).r * w; ws += w; }",
+        "  return s / ws;",
+        "}",
+        "float rtShadowAt(vec2 uv) { return rtFilter(uTex2, uv, 1.0); }",
+        "float rtAoAt(vec2 uv) { return 1.0 - 0.8 * rtFilter(uTex3, uv, 2.0); }",
         // screen-space ambient occlusion: 10 samples in the normal's hemisphere, occluded where the depth buffer is in front of them
         "float ssao(vec2 uv, vec3 P, vec3 N) {",
         "  float r = clamp(0.035 * -P.z, 0.35, 2.5); float occ = 0.0; float ang = hash(floor(uv * uRes)) * 6.2832;",
@@ -226,7 +243,7 @@
         "  float a = 0.80 + 0.12 * (blot - 0.5) + near * (0.07 * grain - 0.12 * smoothstep(0.80, 0.88, sp) + 0.05 * smoothstep(0.2, 0.12, sp));",
         "  return vec3(a) * vec3(1.0, 0.985, 0.955) * tint * (0.52 * ao + 0.48 * lit * (0.6 + 0.4 * ao));",
         "}",
-        "vec3 concrete(vec2 uv, vec3 P, vec3 N, float lit, vec3 tint) { return concreteAo(P, lit, tint, ssao(uv, P, N)); }"
+        "vec3 concrete(vec2 uv, vec3 P, vec3 N, float lit, vec3 tint) { return concreteAo(P, lit, tint, rtMode() ? rtAoAt(uv) : ssao(uv, P, N)); }"
     ].join("\n");
 
     var FRAG = {
@@ -235,12 +252,32 @@
         // 16 steps and refining its hit with a binary search: r = occlusion, gba = the light the rays hit.
         // rtMix blurs that with a 5x5 depth/plane-aware filter and lights the frame with it. The chain runs
         // trace + mix three times, each bounce gathering from the previous bounce's lit frame (uP.x = bounce).
+        // rtShadow (full size): 4 jittered rays toward the light (a small cone, for soft edges), 24 steps each; r = lit.
+        rtShadow: [
+            "void main() {",
+            "  float d = depthAt(vUv);",
+            "  if (uLight.w < 0.5 || isSky(d)) { gl_FragColor = vec4(1.0); return; }",
+            "  float lz = linZ(d); vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P); vec3 L = normalize(uLight.xyz);",
+            "  if (dot(N, L) <= 0.0) { gl_FragColor = vec4(1.0); return; }",   // facing away: unlit by Lambert anyway
+            "  vec3 T = normalize(cross(L, abs(L.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0))); vec3 B = cross(L, T);",
+            "  float j = ign(floor(gl_FragCoord.xy)), j2 = ign(floor(gl_FragCoord.yx) + 31.0); float lit = 0.0;",
+            "  for (int r = 0; r < 4; r++) {",
+            "    float a = 6.2831853 * (j + float(r) * 0.25), rad = 0.035 * sqrt(fract(j2 + float(r) * 0.618034));",
+            "    vec3 D = normalize(L + (T * cos(a) + B * sin(a)) * rad);",
+            "    float stp = max(0.05, 0.015 * lz); vec3 p = P + N * stp * 1.5 + D * stp * j2; float hit = 0.0;",
+            "    for (int i = 0; i < 24; i++) {",
+            "      p += D * stp; if (p.z > -uCam.z) break;",
+            "      vec3 q = proj(p); if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) break;",
+            "      float diff = q.z - linZ(depthAt(q.xy));",
+            "      if (diff > max(stp * 0.5, 0.015 * q.z) && diff < stp * 8.0) { hit = 1.0; break; }",
+            "      stp *= 1.12;",
+            "    }",
+            "    lit += 1.0 - hit;",
+            "  }",
+            "  gl_FragColor = vec4(vec3(lit / 4.0), 1.0);",
+            "}"
+        ].join("\n"),
         rtTrace: [
-            "vec3 cosDir(vec3 N, vec2 r) {",
-            "  vec3 T = normalize(abs(N.y) < 0.9 ? cross(N, vec3(0.0, 1.0, 0.0)) : cross(N, vec3(1.0, 0.0, 0.0))); vec3 B = cross(N, T);",
-            "  float a = 6.2831853 * r.x, s = sqrt(r.y); return normalize(T * cos(a) * s + B * sin(a) * s + N * sqrt(1.0 - r.y));",
-            "}",
-            "float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }",   // interleaved gradient noise: even, blur-friendly
             "void main() {",
             "  float d = depthAt(vUv);",
             "  if (uLight.w < 0.5 || isSky(d)) { gl_FragColor = vec4(0.0); return; }",
@@ -282,7 +319,7 @@
             "  }",
             "  acc /= max(wsum, 1e-4);",
             "  float glow = smoothstep(0.55, 0.95, max(c.r, max(c.g, c.b)));",   // emissive neon is not darkened
-            "  vec3 o = c * mix(1.0 - 0.75 * acc.r, 1.0, glow) + acc.gba * (0.3 + 0.55 * c);",
+            "  vec3 o = c * mix(1.0 - uP.x * acc.r, 1.0, glow) + acc.gba * (0.3 + 0.55 * c);",   // uP.x: AO strength (0 when the lighting pass already took the ray-traced AO)
             "  gl_FragColor = vec4(o, 1.0);",
             "}"
         ].join("\n"),
@@ -461,9 +498,9 @@
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
             "    float gl = whiteLine(c, emis); emis -= gl;",   // white track: grid lines are dull joints, not neon
-            "    float sh = (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
+            "    float sh = rtMode() ? rtShadowAt(vUv) : (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
             "    float upN = dot(uRot * N, SKY_UP);",
-            "    vec3 amb = mix(horizon, zenith, 0.5 + 0.5 * upN) * 0.36;",
+            "    vec3 amb = mix(horizon, zenith, 0.5 + 0.5 * upN) * 0.36 * (rtMode() ? rtAoAt(vUv) : 1.0);",
             "    vec3 direct = sunCol * 1.35 * ndl * sh;",
             "    vec3 surf = vec3(0.15, 0.15, 0.16) * (amb + direct);",   // matte dark albedo so the black track reads as black
             "    if (uTrack > 0.5) surf = dullLine(concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.98, 0.95)), c, gl);",   // white track: white concrete with AO, shadowed, tinted by the light
@@ -514,9 +551,9 @@
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
             "    float gl = whiteLine(c, emis); emis -= gl;",   // white track: grid lines are dull joints, not neon
-            "    float sh = (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 2.0) : 1.0;",
+            "    float sh = rtMode() ? rtShadowAt(vUv) : (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 2.0) : 1.0;",
             "    bgBlack = smoothstep(10.0, 22.0, lz) * (1.0 - emis);",   // background buildings/towers: plain black, as in Sunny
-            "    vec3 amb = vec3(0.05, 0.065, 0.13);",
+            "    vec3 amb = vec3(0.05, 0.065, 0.13) * (rtMode() ? rtAoAt(vUv) : 1.0);",
             "    vec3 direct = moonCol * 0.55 * ndl * sh;",
             "    vec3 surf = vec3(0.32, 0.33, 0.38) * (amb + direct);",
             "    if (uTrack > 0.5) surf = dullLine(concrete(vUv, P, N, ndl * sh, vec3(0.55, 0.6, 0.78)), c, gl);",   // white track: white concrete with AO, shadowed, tinted by the light
@@ -564,9 +601,9 @@
             "  if (hasDepth) {",
             "    float lz = linZ(d); dist = lz; vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "    float ndl = max(dot(N, L), 0.0);",
-            "    float sh = (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
+            "    float sh = rtMode() ? rtShadowAt(vUv) : (emis < 1.0 && ndl > 0.0 && uLightUV.w > 0.5) ? shadowRay(P, N, L, 3.0) : 1.0;",
             "    float gl = whiteLine(c, emis); emis -= gl;",   // white track: grid lines are dull joints, not neon
-            "    vec3 amb = vec3(0.07, 0.06, 0.12);",
+            "    vec3 amb = vec3(0.07, 0.06, 0.12) * (rtMode() ? rtAoAt(vUv) : 1.0);",
             "    vec3 direct = sunCol * 2.6 * ndl * sh;",
             "    vec3 surf = vec3(0.26, 0.26, 0.29) * (amb + direct);",
             "    if (uTrack > 0.5) surf = dullLine(concrete(vUv, P, N, ndl * sh, vec3(1.0, 0.82, 0.72)), c, gl);",   // white track: white concrete with AO, shadowed, tinted by the light
@@ -598,7 +635,7 @@
             "  float lz = linZ(d); vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P); vec3 L = uLight.xyz;",
             "  float ndl = max(dot(N, L), 0.0);",
             "  float gl = whiteLine(c, emis); emis -= gl;",   // grid lines are dull joints, not neon
-            "  vec3 surf = dullLine(concreteAo(P, ndl, vec3(1.0), 1.0), c, gl);",   // lighting Off: no shadows and no ambient occlusion, only the face shading
+            "  vec3 surf = rtMode() ? dullLine(concreteAo(P, ndl * rtShadowAt(vUv), vec3(1.0), rtAoAt(vUv)), c, gl) : dullLine(concreteAo(P, ndl, vec3(1.0), 1.0), c, gl);",   // lighting Off: no shadows and no ambient occlusion, only the face shading
             "  surf = mix(surf, WHITE_BG, whiteFar(lz, emis));",
             "  gl_FragColor = vec4(mix(surf, c, emis), 0.0);",
             "}"
@@ -751,13 +788,27 @@
         var key = (base === WHITE_OFF ? "white-" : "") + base.id;
         var c = rtCache[key];
         if (c && c.base === base) return c;
-        var lp = base.passes.map(function (p, i) { return i === base.passes.length - 1 ? Object.assign({}, p, { out: "b" }) : p; });
-        var src = lp.length ? "b" : "scene";
+        // With a lighting mode, rtShadow and rtTrace run first and the lighting pass takes its shadows and AO from
+        // them (q.w = 1) instead of its own shadow ray and SSAO; sky, neon glow, light shafts and bloom are kept.
+        var n = base.passes.length, pre = [], lp = [], src = "scene", aoMix = 0.75;
+        if (n) {
+            pre = [{ fs: "rtShadow", in: "scene", out: "b" }, { fs: "rtTrace", in: "scene", out: "h1", p: [3] }];
+            src = n === 1 ? "a" : "b";
+            lp = base.passes.map(function (p, i) {
+                var o = Object.assign({}, p);
+                if (i === 0) { o.in2 = "b"; o.in3 = "h1"; o.q = [0, 0, 0, 1]; }
+                if (i === n - 1) o.out = src;
+                return o;
+            });
+            aoMix = 0;
+        }
+        var mid = src === "a" ? "b" : "a";
         c = { id: base.id, name: base.name, dir: base.dir || SUN_DIR, fixedUV: base.fixedUV, failed: false, base: base,
-            passes: lp.concat([   // three bounces: each traces the previous bounce's lit frame and relights the base frame with it
-                { fs: "rtTrace", in: src, out: "h1", p: [0] }, { fs: "rtMix", in: src, in2: "h1", out: "lit" },
-                { fs: "rtTrace", in: "lit", out: "h1", p: [1] }, { fs: "rtMix", in: src, in2: "h1", out: "a" },
-                { fs: "rtTrace", in: "a", out: "h1", p: [2] }, { fs: "rtMix", in: src, in2: "h1", out: "lit" }]) };
+            passes: pre.concat(lp, [   // three bounces: each traces the previous bounce's lit frame and relights the base frame with it
+                { fs: "rtTrace", in: src, out: "h1", p: [0] }, { fs: "rtMix", in: src, in2: "h1", out: "lit", p: [aoMix] },
+                { fs: "rtTrace", in: "lit", out: "h1", p: [1] }, { fs: "rtMix", in: src, in2: "h1", out: mid, p: [aoMix] },
+                { fs: "rtTrace", in: mid, out: "h1", p: [2] }, { fs: "rtMix", in: src, in2: "h1", out: "lit", p: [aoMix] }]) };
+        var bad = validChain(c.passes); if (bad) { warn("ray tracing chain rejected: " + bad); c.failed = true; }
         rtCache[key] = c;
         return c;
     }

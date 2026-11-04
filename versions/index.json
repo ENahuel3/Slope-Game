@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Make the ray tracing as clean as possible and make it trace ",
-  "notes": "Made with the in-game dev mode (job 4076a8be6711).",
+  "title": "Dev edit: Make sure that when ray tracing is enabled and shaders are s",
+  "notes": "Made with the in-game dev mode (job b908e18d7719).",
   "date": "2026-11-04"
  },
  "versions": [
@@ -1071,6 +1071,13 @@
    "notes": "The root as it was before the dev-mode edit 'Make the ray tracing as clean as possible and make it trace at least 3 steps.'. Last commit: Dev edit: Make it, and add it as a toggle in settings that is labelled",
    "date": "2026-11-04",
    "commit": "04f10c3"
+  },
+  {
+   "tag": "v140-dev-b908e1",
+   "title": "Before dev edit b908e1",
+   "notes": "The root as it was before the dev-mode edit 'Make sure that when ray tracing is enabled and shaders are selected in the shaders drop-down, the ga'. Last commit: Dev edit: Make the ray tracing as clean as possible and make it trace",
+   "date": "2026-11-04",
+   "commit": "1beb5e5"
   }
  ]
 }
