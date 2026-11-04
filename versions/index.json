@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Make it, and add it as a toggle in settings that is labelled",
-  "notes": "Made with the in-game dev mode (job ee0b88546bdd).",
+  "title": "Dev edit: Make the ray tracing as clean as possible and make it trace ",
+  "notes": "Made with the in-game dev mode (job 4076a8be6711).",
   "date": "2026-11-04"
  },
  "versions": [
@@ -1064,6 +1064,13 @@
    "notes": "The root as it was before the dev-mode edit 'Make it, and add it as a toggle in settings that is labelled \"Ray Tracing (Experimental)\".'. Last commit: Harnesses serve without reverse DNS; launchd job runs at interactive QoS",
    "date": "2026-11-03",
    "commit": "0510244"
+  },
+  {
+   "tag": "v139-dev-4076a8",
+   "title": "Before dev edit 4076a8",
+   "notes": "The root as it was before the dev-mode edit 'Make the ray tracing as clean as possible and make it trace at least 3 steps.'. Last commit: Dev edit: Make it, and add it as a toggle in settings that is labelled",
+   "date": "2026-11-04",
+   "commit": "04f10c3"
   }
  ]
 }

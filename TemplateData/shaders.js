@@ -230,48 +230,59 @@
     ].join("\n");
 
     var FRAG = {
-        // Ray Tracing (Experimental): screen-space ray-traced ambient occlusion and one-bounce diffuse light.
-        // rtTrace (half size) casts 6 cosine-weighted rays per pixel through the depth buffer: r = occlusion,
-        // gba = the colour the rays hit. rtMix blurs that with depth-aware weights and lights the frame with it.
+        // Ray Tracing (Experimental): screen-space ray-traced ambient occlusion and three bounces of diffuse light.
+        // rtTrace (half size) casts 8 cosine-weighted rays per pixel through the depth buffer, each marching up to
+        // 16 steps and refining its hit with a binary search: r = occlusion, gba = the light the rays hit.
+        // rtMix blurs that with a 5x5 depth/plane-aware filter and lights the frame with it. The chain runs
+        // trace + mix three times, each bounce gathering from the previous bounce's lit frame (uP.x = bounce).
         rtTrace: [
             "vec3 cosDir(vec3 N, vec2 r) {",
             "  vec3 T = normalize(abs(N.y) < 0.9 ? cross(N, vec3(0.0, 1.0, 0.0)) : cross(N, vec3(1.0, 0.0, 0.0))); vec3 B = cross(N, T);",
             "  float a = 6.2831853 * r.x, s = sqrt(r.y); return normalize(T * cos(a) * s + B * sin(a) * s + N * sqrt(1.0 - r.y));",
             "}",
+            "float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }",   // interleaved gradient noise: even, blur-friendly
             "void main() {",
             "  float d = depthAt(vUv);",
             "  if (uLight.w < 0.5 || isSky(d)) { gl_FragColor = vec4(0.0); return; }",
             "  float lz = linZ(d); vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
             "  float occ = 0.0; vec3 bounce = vec3(0.0);",
-            "  float jit = hash(floor(gl_FragCoord.xy));",
-            "  for (int r = 0; r < 6; r++) {",
-            "    vec2 rr = vec2(fract(jit + float(r) * 0.618034), fract(hash(gl_FragCoord.yx + float(r) * 7.13)));",
-            "    vec3 D = cosDir(N, rr); float stp = max(0.05, 0.012 * lz); vec3 p = P + N * stp;",
-            "    for (int i = 0; i < 10; i++) {",
+            "  vec2 fc = floor(gl_FragCoord.xy) + uP.x * vec2(17.0, 31.0);",
+            "  float j1 = ign(fc), j2 = ign(fc.yx + 47.0), j3 = ign(fc + 113.0);",
+            "  for (int r = 0; r < 8; r++) {",
+            "    vec2 rr = vec2(fract(j1 + float(r) * 0.618034), fract((float(r) + j2) / 8.0));",   // stratified over the hemisphere
+            "    vec3 D = cosDir(N, rr); float stp = max(0.04, 0.008 * lz); vec3 p = P + N * stp + D * stp * j3;",
+            "    for (int i = 0; i < 16; i++) {",
             "      p += D * stp; if (p.z > -uCam.z) break;",
             "      vec3 q = proj(p); if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) break;",
             "      float diff = q.z - linZ(depthAt(q.xy));",
-            "      if (diff > 0.002 * q.z && diff < stp * 4.0) { float f = 1.0 - float(i) / 10.0; occ += f; bounce += texture2D(uTex, q.xy).rgb * f; break; }",
-            "      stp *= 1.35;",
+            "      if (diff > 0.002 * q.z && diff < stp * 4.0) {",
+            "        vec3 lo = p - D * stp, hi = p;",
+            "        for (int k = 0; k < 4; k++) { vec3 m = 0.5 * (lo + hi); vec3 qm = proj(m); if (qm.z - linZ(depthAt(qm.xy)) > 0.0) hi = m; else lo = m; }",
+            "        vec3 qh = proj(hi); float f = 1.0 - smoothstep(0.0, 1.0, length(hi - P) / max(0.6, 0.12 * lz));",
+            "        occ += f; bounce += texture2D(uTex, clamp(qh.xy, 0.0, 1.0)).rgb * (0.4 + 0.6 * f); break;",
+            "      }",
+            "      stp *= 1.22;",
             "    }",
             "  }",
             "  float fade = 1.0 - smoothstep(0.6 * uCam.w, 0.95 * uCam.w, lz);",
-            "  gl_FragColor = vec4(occ / 6.0 * fade, min(bounce / 6.0, vec3(1.0)) * fade);",
+            "  gl_FragColor = vec4(occ / 8.0 * fade, min(bounce / 8.0, vec3(1.0)) * fade);",
             "}"
         ].join("\n"),
         rtMix: [
             "void main() {",
             "  vec3 c = texture2D(uTex, vUv).rgb; float d = depthAt(vUv);",
             "  if (uLight.w < 0.5 || isSky(d)) { gl_FragColor = vec4(c, 1.0); return; }",
-            "  float lz = linZ(d); vec4 acc = vec4(0.0); float wsum = 0.0;",
-            "  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {",
-            "    vec2 uv = vUv + vec2(float(x), float(y)) * 2.0 * uTexel;",
-            "    float w = 1.0 / (1.0 + abs(linZ(depthAt(uv)) - lz) / max(0.02 * lz, 0.02));",
+            "  float lz = linZ(d); vec3 P = viewPos(vUv, lz); vec3 N = normalAt(vUv, P);",
+            "  vec4 acc = vec4(0.0); float wsum = 0.0; float tol = max(0.015 * lz, 0.02);",
+            "  for (int y = -2; y <= 2; y++) for (int x = -2; x <= 2; x++) {",
+            "    vec2 o = vec2(float(x), float(y)); vec2 uv = vUv + o * 2.0 * uTexel;",
+            "    vec3 Pt = viewPos(uv, linZ(depthAt(uv)));",
+            "    float w = exp(-dot(o, o) / 4.5) * exp(-abs(dot(Pt - P, N)) / tol);",   // same plane as this pixel: no halos across edges
             "    acc += texture2D(uTex2, uv) * w; wsum += w;",
             "  }",
-            "  acc /= wsum;",
+            "  acc /= max(wsum, 1e-4);",
             "  float glow = smoothstep(0.55, 0.95, max(c.r, max(c.g, c.b)));",   // emissive neon is not darkened
-            "  vec3 o = c * mix(1.0 - 0.75 * acc.r, 1.0, glow) + acc.gba * (0.35 + 0.6 * c);",
+            "  vec3 o = c * mix(1.0 - 0.75 * acc.r, 1.0, glow) + acc.gba * (0.3 + 0.55 * c);",
             "  gl_FragColor = vec4(o, 1.0);",
             "}"
         ].join("\n"),
@@ -735,7 +746,7 @@
     var enabled = true;
     var rtOn = lsGet("slope.rt") === "1";   // Ray Tracing (Experimental)
     var rtCache = {};
-    // The light with the ray-traced passes appended: its last pass writes "b", rtTrace fills "h1", rtMix writes "lit".
+    // The light with the ray-traced passes appended: its last pass writes "b", then three trace/mix bounces end in "lit".
     function rtLight(base) {
         var key = (base === WHITE_OFF ? "white-" : "") + base.id;
         var c = rtCache[key];
@@ -743,7 +754,10 @@
         var lp = base.passes.map(function (p, i) { return i === base.passes.length - 1 ? Object.assign({}, p, { out: "b" }) : p; });
         var src = lp.length ? "b" : "scene";
         c = { id: base.id, name: base.name, dir: base.dir || SUN_DIR, fixedUV: base.fixedUV, failed: false, base: base,
-            passes: lp.concat([{ fs: "rtTrace", in: src, out: "h1" }, { fs: "rtMix", in: src, in2: "h1", out: "lit" }]) };
+            passes: lp.concat([   // three bounces: each traces the previous bounce's lit frame and relights the base frame with it
+                { fs: "rtTrace", in: src, out: "h1", p: [0] }, { fs: "rtMix", in: src, in2: "h1", out: "lit" },
+                { fs: "rtTrace", in: "lit", out: "h1", p: [1] }, { fs: "rtMix", in: src, in2: "h1", out: "a" },
+                { fs: "rtTrace", in: "a", out: "h1", p: [2] }, { fs: "rtMix", in: src, in2: "h1", out: "lit" }]) };
         rtCache[key] = c;
         return c;
     }
