@@ -1050,6 +1050,13 @@
    "notes": "The root as it was before the dev-mode edit 'When the player uses high render distances, the background models stick to the position of the botto'. Last commit: Dev edit: In game, if you mash left and right buttons, usually one get",
    "date": "2026-11-03",
    "commit": "a44032a"
+  },
+  {
+   "tag": "v137-before-mac-move",
+   "title": "Before dev mode moved to the Mac mini",
+   "notes": "The root as it was before the dev-mode service moved from the Raspberry Pi to the Mac mini. Last commit: f48cdad (dev edit: background models at high render distance).",
+   "date": "2026-11-03",
+   "commit": "f48cdad"
   }
  ]
 }

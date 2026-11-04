@@ -2,7 +2,7 @@
 
 Type `devmode` on the game page and a password box appears. With the dev-mode
 password, you can ask Claude Code to change the page. The request goes to this
-small Node service on the owner's Raspberry Pi, which runs Claude Code headlessly
+small Node service on the owner's Mac mini (until November 2026 a Raspberry Pi), which runs Claude Code headlessly
 on a sandboxed clone of this repository, validates the result, freezes the version
 being replaced in the Version list, and pushes the new root to the `mod` branch.
 GitHub Pages serves it to everyone about a minute later.
@@ -10,7 +10,7 @@ GitHub Pages serves it to everyone about a minute later.
 ## Why the password cannot be mined from the repository
 
 The page is open source, so nothing on the page or in git can hold the secret.
-The password itself is never stored anywhere: the Pi's root-owned env file holds
+The password itself is never stored anywhere: the server's root-owned env file holds
 an scrypt hash (`SLOPE_EDIT_PASSWORD_HASH`, N=2^15, 16-byte salt, made with
 `node server.js --hash`), the browser sends the password over HTTPS once, the
 server verifies it in constant time and answers with a random 12-hour session
@@ -20,11 +20,15 @@ design. Every other endpoint requires the token.
 
 ## Containment
 
-1. **systemd**: runs as the unprivileged `slopeedit` user with `ProtectSystem=strict`,
+1. **Host** (on the Pi, `slope-edit.service`): runs as the unprivileged `slopeedit` user with `ProtectSystem=strict`,
    `ProtectHome=yes`, private /tmp and devices, no capabilities, a system-call
    filter, memory/CPU limits. Only `/srv/slope-edit/{repo,data,home}` are writable;
    the rest of the Pi (other users' homes, the game server, system files) is not
-   reachable from the service or from Claude Code.
+   reachable from the service or from Claude Code. On the Mac mini (`setup-mac.sh`,
+   launchd job `com.slope-edit`, base `/opt/slope-edit`) there is no systemd sandbox:
+   the service runs as a hidden non-admin `slopeedit` user with no shell, which can
+   write only its own `/opt/slope-edit/{repo,data,home,log}` and cannot enter other
+   users' homes; the Claude Code rules, validation and version freeze below are the same.
 2. **Claude Code permissions** (`claude-settings.json` + CLI flags): headless
    `--permission-mode default` denies every tool that is not pre-approved;
    approved are Read/Glob/Grep inside the clone and Edit/Write on `index.html`,
@@ -83,7 +87,22 @@ design. Every other endpoint requires the token.
    login ends. `SLOPE_EDIT_DAILY_TOKENS=0`, `SLOPE_EDIT_DAILY_USD=0` and
    `SLOPE_EDIT_MONTHLY_USD=0` turn those caps off (the per-job cap stays).
 
-## Install on the Pi
+## Install on the Mac mini (current host)
+
+```
+git clone --branch mod https://github.com/ENahuel3/Slope-Game.git && cd Slope-Game
+DEPLOY_KEY=/path/to/existing/id_ed25519 bash edit-server/setup-mac.sh   # DEPLOY_KEY optional: reuse a registered key
+printf '%s\n' 'the password' | node /opt/slope-edit/app/server.js --hash   # -> SLOPE_EDIT_PASSWORD_HASH in /opt/slope-edit/env
+claude setup-token                                                        # -> CLAUDE_CODE_OAUTH_TOKEN in /opt/slope-edit/env
+sudo launchctl kickstart -k system/com.slope-edit
+/Applications/Tailscale.app/Contents/MacOS/Tailscale funnel --bg 8787
+```
+
+The old Pi URL is kept working for frozen versions: the Pi's Funnel forwards to the Mac
+(`tailscale funnel --bg https://nahuelquirs-mac-mini.tailbff9ef.ts.net`), and the Mac's
+env lists the Pi in `SLOPE_EDIT_TRUSTED_PROXIES` so visitors keep their own rate limits.
+
+## Install on a Pi (previous host)
 
 ```
 git clone --branch mod https://github.com/ENahuel3/Slope-Game.git && cd Slope-Game

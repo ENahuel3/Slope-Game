@@ -59,10 +59,11 @@ const CFG = {
     perJobUsd: +env("SLOPE_EDIT_JOB_USD", 1.5),
     dailyUsd: +env("SLOPE_EDIT_DAILY_USD", 5),                             // 0 = no cap (subscription logins report notional cost only)
     monthlyUsd: +env("SLOPE_EDIT_MONTHLY_USD", 40),                         // 0 = no cap
-    jobTimeoutMs: +env("SLOPE_EDIT_TIMEOUT_MS", 25 * 60 * 1000),            // a headless run of the game on the Pi takes minutes
+    jobTimeoutMs: +env("SLOPE_EDIT_TIMEOUT_MS", 25 * 60 * 1000),            // a headless run of the game takes ~20 s on the Mac mini (minutes on a Pi)
     perIpPerHour: +env("SLOPE_EDIT_IP_PER_HOUR", 30),
     maxQueue: +env("SLOPE_EDIT_MAX_QUEUE", 12),
     maxPrompt: +env("SLOPE_EDIT_MAX_PROMPT", 1200),
+    trustedProxies: env("SLOPE_EDIT_TRUSTED_PROXIES", "").split(",").map(s => s.trim()).filter(Boolean),   // forwarding proxies whose X-Forwarded-For entry is trusted (see clientIp)
     allowOrigins: env("SLOPE_EDIT_ORIGINS", "https://enahuel3.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",").map(s => s.trim()).filter(Boolean),
     editable: env("SLOPE_EDIT_FILES", "index.html,README.md,TemplateData/,Build/,tools/").split(",").map(s => s.trim()).filter(Boolean),   // files, or folders with a trailing slash
     smokePython: env("SLOPE_EDIT_SMOKE_PYTHON", ""),                         // a Python with Playwright + Chromium: the page is loaded and played before every publish
@@ -342,7 +343,7 @@ const SYSTEM_RULES = `You are editing a small browser game mod (a Unity WebGL pa
 - Do not add external scripts, iframes, fetches to other sites, tracking, cookies, or anything that reads or sends visitor data. Do not add offensive, hateful, sexual or deceptive content. If the request asks for any of that, make no changes and say why.
 - You may change any game file: index.html, everything under TemplateData/ (page code, styles, the version picker versions.js, assets, music) and Build/ (the scene bundle slope_data.unityweb, rebuilt with tools/unpack_webdata.py, the patch_*.py scripts and tools/pack_webdata.py; the engine files; Build/slope.json), and the tools under tools/. UnityPy and Pillow are installed. Never touch versions/ (frozen older releases), tools/snapshot_version.py, edit-server/ or git itself: the server commits and publishes for you, and the version it replaces is frozen automatically.
 - Older versions load some root files directly (the engine files in Build/, TemplateData/unityloader41.js, the music tracks): the exact list is "Files older versions load" at the top of the file map below. Never modify, rename or delete those in place: it would change every older version, and the server discards such an edit. To change one, add the new file under a new name (e.g. Build/slope_wasmcode-2.unityweb) and point the page at it (Build/slope.json, index.html, the TRACKS list in mod.js); the old file stays for the older versions.
-- You can run the game. A restricted shell runs the repository's tools: 'python3 tools/smoke_check.py .' loads the page headless, starts a run and reports whether it still works; 'python3 tools/shader_check.py .', 'tools/coin_check.py', 'tools/menu_check.py', 'tools/runtime_check.py' and 'node tools/restart_check.js' are the deeper harnesses (read their usage lines first). This server is a Raspberry Pi: a headless run of the game takes two to five minutes, so run a check once after your edits, not after every change. 'node --check' validates syntax instantly. The server runs smoke_check itself before publishing and discards an edit that breaks the page, so test what you change.
+- You can run the game. A restricted shell runs the repository's tools: 'python3 tools/smoke_check.py .' loads the page headless, starts a run and reports whether it still works; 'python3 tools/shader_check.py .', 'tools/coin_check.py', 'tools/menu_check.py', 'tools/runtime_check.py' and 'node tools/restart_check.js' are the deeper harnesses (read their usage lines first). This server is a Mac mini: smoke_check takes about 20 seconds and the deeper harnesses a few minutes, so run a check once after your edits, not after every change. 'node --check' validates syntax instantly. The server runs smoke_check itself before publishing and discards an edit that breaks the page, so test what you change.
 - No network from the shell (no curl, wget, pip, npm), no git commands beyond status/diff/log/show, no sudo, nothing outside the repository.
 - When done, reply with one to three plain sentences describing what you changed (shown to the developer and used as the version note).
 - Tokens are metered. The files are large (mod.js and shaders.js are over 1000 lines each): never Read a whole file longer than 200 lines. Find the spot with Grep (use -n and a little context) or with the line numbers in the file map below, then Read with offset and limit covering at most ~120 lines around it. Read a region once, then edit it. Do not re-read files to "check"; run a check tool once at the end instead.
@@ -597,10 +598,16 @@ function send(res, code, body, origin) {
 }
 function clientIp(req) {
     // behind the Funnel/serve proxy (which connects from loopback) the LAST entry is the one the proxy appended;
-    // a visitor can put anything in the earlier entries, so never trust those
+    // a visitor can put anything in the earlier entries, so never trust those. Exception: when that last entry is
+    // one of our own forwarding proxies (SLOPE_EDIT_TRUSTED_PROXIES, e.g. the old host's Funnel relaying to this
+    // one), the entry before it was appended by that proxy and is the visitor.
     const xf = req.headers["x-forwarded-for"], remote = req.socket.remoteAddress || "?";
     const loopback = /^(::1|127\.|::ffff:127\.)/.test(remote);
-    if (xf && loopback) { const parts = String(xf).split(",").map(x => x.trim()).filter(Boolean); if (parts.length) return parts[parts.length - 1]; }
+    if (xf && loopback) {
+        const parts = String(xf).split(",").map(x => x.trim()).filter(Boolean);
+        while (parts.length > 1 && CFG.trustedProxies.includes(parts[parts.length - 1])) parts.pop();
+        if (parts.length) return parts[parts.length - 1];
+    }
     return remote;
 }
 function readJson(req, cb) {
