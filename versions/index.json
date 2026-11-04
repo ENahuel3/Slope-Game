@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Make sure that when ray tracing is enabled and shaders are s",
-  "notes": "Made with the in-game dev mode (job b908e18d7719).",
+  "title": "Dev edit: In settings, under the ray tracing toggle, add a slider labe",
+  "notes": "Made with the in-game dev mode (job 842a62077d28).",
   "date": "2026-11-04"
  },
  "versions": [
@@ -1078,6 +1078,13 @@
    "notes": "The root as it was before the dev-mode edit 'Make sure that when ray tracing is enabled and shaders are selected in the shaders drop-down, the ga'. Last commit: Dev edit: Make the ray tracing as clean as possible and make it trace",
    "date": "2026-11-04",
    "commit": "1beb5e5"
+  },
+  {
+   "tag": "v141-dev-842a62",
+   "title": "Before dev edit 842a62",
+   "notes": "The root as it was before the dev-mode edit 'In settings, under the ray tracing toggle, add a slider labelled \"Ray Traced Steps\" that controls th'. Last commit: Dev edit: Make sure that when ray tracing is enabled and shaders are s",
+   "date": "2026-11-04",
+   "commit": "93c3251"
   }
  ]
 }

@@ -783,11 +783,18 @@
     var enabled = true;
     var rtOn = lsGet("slope.rt") === "1";   // Ray Tracing (Experimental)
     var rtCache = {};
+    var rtSteps = (function () { var v = parseInt(lsGet("slope.rtSteps"), 10); return v >= 1 && v <= 10 ? v : 3; })();   // Ray Traced Steps slider
+    function setRtSteps(v) {
+        v = parseInt(v, 10); if (!(v >= 1)) v = 1; if (v > 10) v = 10;
+        rtSteps = v; lsSet("slope.rtSteps", v);
+        var r = document.getElementById("hud-rt-steps"), t = document.getElementById("hud-rt-steps-val");
+        if (r && +r.value !== v) r.value = v; if (t) t.textContent = v;
+    }
     // The light with the ray-traced passes appended: its last pass writes "b", then three trace/mix bounces end in "lit".
     function rtLight(base) {
         var key = (base === WHITE_OFF ? "white-" : "") + base.id;
         var c = rtCache[key];
-        if (c && c.base === base) return c;
+        if (c && c.base === base && c.steps === rtSteps) return c;
         // With a lighting mode, rtShadow and rtTrace run first and the lighting pass takes its shadows and AO from
         // them (q.w = 1) instead of its own shadow ray and SSAO; sky, neon glow, light shafts and bloom are kept.
         var n = base.passes.length, pre = [], lp = [], src = "scene", aoMix = 0.75;
@@ -803,11 +810,17 @@
             aoMix = 0;
         }
         var mid = src === "a" ? "b" : "a";
+        // rtSteps bounces (Ray Traced Steps slider): each traces the previous bounce's lit frame and relights the
+        // base frame with it; outputs alternate between "lit" and mid so the last one lands in "lit".
+        var bounces = [], prev = src;
+        for (var i = 0; i < rtSteps; i++) {
+            var out = (rtSteps - 1 - i) % 2 === 0 ? "lit" : mid;
+            bounces.push({ fs: "rtTrace", in: prev, out: "h1", p: [i >= 3 ? i + 1 : i] },   // jitter seed 3 is the pre-pass's
+                { fs: "rtMix", in: src, in2: "h1", out: out, p: [aoMix] });
+            prev = out;
+        }
         c = { id: base.id, name: base.name, dir: base.dir || SUN_DIR, fixedUV: base.fixedUV, failed: false, base: base,
-            passes: pre.concat(lp, [   // three bounces: each traces the previous bounce's lit frame and relights the base frame with it
-                { fs: "rtTrace", in: src, out: "h1", p: [0] }, { fs: "rtMix", in: src, in2: "h1", out: "lit", p: [aoMix] },
-                { fs: "rtTrace", in: "lit", out: "h1", p: [1] }, { fs: "rtMix", in: src, in2: "h1", out: mid, p: [aoMix] },
-                { fs: "rtTrace", in: mid, out: "h1", p: [2] }, { fs: "rtMix", in: src, in2: "h1", out: "lit", p: [aoMix] }]) };
+            steps: rtSteps, passes: pre.concat(lp, bounces) };
         var bad = validChain(c.passes); if (bad) { warn("ray tracing chain rejected: " + bad); c.failed = true; }
         rtCache[key] = c;
         return c;
@@ -1373,6 +1386,12 @@
             rtBox.checked = rtOn;
             rtBox.addEventListener("change", function () { setRayTracing(rtBox.checked); rtBox.blur(); });
         }
+        var rtRange = document.getElementById("hud-rt-steps");
+        if (rtRange) {
+            setRtSteps(rtSteps);
+            rtRange.addEventListener("input", function () { setRtSteps(rtRange.value); });
+            rtRange.addEventListener("change", function () { rtRange.blur(); });
+        }
         var stepsRange = document.getElementById("hud-refl-steps"), stepsVal = document.getElementById("hud-refl-steps-val");
         if (stepsRange) {
             stepsRange.value = reflSteps; if (stepsVal) stepsVal.textContent = reflSteps;
@@ -1415,6 +1434,8 @@
         offScene: function (fn) { var i = sceneHooks.indexOf(fn); if (i >= 0) sceneHooks.splice(i, 1); },
         rayTracing: function () { return rtOn; },
         setRayTracing: function (on) { setRayTracing(on); return rtOn; },
+        rtSteps: function () { return rtSteps; },
+        setRtSteps: function (v) { setRtSteps(v); return rtSteps; },
         reset: function () { dropResources(); rtCache = {}; Object.keys(STYLES).forEach(function (k) { STYLES[k].failed = false; }); Object.keys(LIGHTS).forEach(function (k) { LIGHTS[k].failed = false; }); },
         stats: function () {
             return { enabled: enabled, style: styleId, light: lightId, intensity: intensity, glVersion: gl ? (isGL2 ? 2 : 1) : 0, width: res ? res.w : 0, height: res ? res.h : 0,

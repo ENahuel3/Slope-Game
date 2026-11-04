@@ -67,6 +67,8 @@ Slope game itself is by Y8 Games / IDnet, not by this fork.
         <label class="hud-label" for="hud-light"title="Lighting: Sunny and Night ray-march the scene's depth for a sky, sun/moon shadows, light shafts and (at night) neon reflections (L cycles)">Shaders</label>
         <select id="hud-light" class="hud-input hud-select" title="Lighting (L cycles, Shift+L backwards)"></select>
         <label class="hud-label" for="hud-rt" title="Experimental: traces rays through the scene's depth for soft ambient occlusion and neon light bouncing onto nearby surfaces (slower)">Ray Tracing (Experimental)</label><input id="hud-rt" type="checkbox">
+        <label class="hud-label" for="hud-rt-steps" title="Ray Tracing: how many bounces of light are traced (more = brighter, softer bounce light, slower)">Ray Traced Steps <span id="hud-rt-steps-val">3</span></label>
+        <input id="hud-rt-steps" class="hud-range" type="range" min="1" max="10" step="1" value="3" title="Ray traced steps (light bounces)">
         <label class="hud-label" for="hud-track" title="Black is the game's own track; White makes the track and background models light grey with the same neon lines, with shadows but no reflections">Track color</label>
         <select id="hud-track" class="hud-input hud-select" title="Track color"><option value="black">Black</option><option value="white">White</option></select>
         <label class="hud-label" for="hud-lines" title="White track: how visible the grid lines are. Left = a darker shade of green, middle = plain green joints, right = lighter, back to the original glowing neon lines">Grid lines</label>
