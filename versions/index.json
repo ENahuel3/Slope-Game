@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Make it so that the reflection steps slider in settings does",
-  "notes": "Made with the in-game dev mode (job d7e54d77838a).",
+  "title": "Dev edit: What I meant was make it so that when ray tracing is enabled",
+  "notes": "Made with the in-game dev mode (job acaa63bbd9c4).",
   "date": "2026-11-04"
  },
  "versions": [
@@ -1092,6 +1092,13 @@
    "notes": "The root as it was before the dev-mode edit 'Make it so that the reflection steps slider in settings doesn't affect lighting when ray tracing is '. Last commit: Dev edit: In settings, under the ray tracing toggle, add a slider labe",
    "date": "2026-11-04",
    "commit": "0d96597"
+  },
+  {
+   "tag": "v143-dev-acaa63",
+   "title": "Before dev edit acaa63",
+   "notes": "The root as it was before the dev-mode edit 'What I meant was make it so that when ray tracing is enabled the normal reflection steps slider has '. Last commit: Dev edit: Make it so that the reflection steps slider in settings does",
+   "date": "2026-11-04",
+   "commit": "d8595c8"
   }
  ]
 }
