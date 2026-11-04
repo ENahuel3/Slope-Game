@@ -1,7 +1,7 @@
 """Verify adaptive Unity resolution, pointer/keyboard input and state restoration.
 Usage: python tools/performance_browser_check.py . [--webgl1]
 """
-import argparse,pathlib,subprocess,sys,time
+import argparse,os,pathlib,subprocess,sys,time
 from PIL import Image
 from playwright.sync_api import sync_playwright
 ap=argparse.ArgumentParser();ap.add_argument('repo',nargs='?',default='.');ap.add_argument('--webgl1',action='store_true');A=ap.parse_args()
@@ -9,7 +9,7 @@ root=pathlib.Path(A.repo).resolve();failures=[]
 def check(label,condition,detail=''):
  print(('PASS ' if condition else 'FAIL ')+label+' '+str(detail),flush=True)
  if not condition:failures.append(label)
-srv=subprocess.Popen([sys.executable,'-m','http.server','8781','--bind','127.0.0.1','--directory',str(root)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+srv=subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'),'8781','--bind','127.0.0.1','--directory',str(root)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 try:
  time.sleep(.4)
  with sync_playwright() as p:

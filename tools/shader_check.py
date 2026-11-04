@@ -13,7 +13,7 @@ ap.add_argument('--width', type=int, default=960); ap.add_argument('--height', t
 out = A.out or os.path.join(tempfile.gettempdir(), 'shader-check'); os.makedirs(out, exist_ok=True)
 srv = None
 if not A.url:
-    srv = subprocess.Popen([sys.executable, '-m', 'http.server', str(A.port), '--bind', '127.0.0.1', '--directory', A.repo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'), str(A.port), '--bind', '127.0.0.1', '--directory', A.repo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.6)
     if srv.poll() is not None: sys.exit('could not start the local server on port %d (in use?)' % A.port)
 base = A.url.rstrip('/') if A.url else 'http://127.0.0.1:%d' % A.port

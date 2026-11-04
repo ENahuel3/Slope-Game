@@ -12,7 +12,7 @@ ap.add_argument('--seconds', type=float, default=40); ap.add_argument('--watch',
 ap.add_argument('--width', type=int, default=960); ap.add_argument('--height', type=int, default=600); ap.add_argument('--webgl1', action='store_true'); ap.add_argument('--gpu', action='store_true', help='real GPU through ANGLE instead of SwiftShader')
 A = ap.parse_args()
 out = A.out or os.path.join(tempfile.gettempdir(), 'coin-check'); os.makedirs(out, exist_ok=True)
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', str(A.port), '--bind', '127.0.0.1', '--directory', A.repo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(0.6)
+srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'), str(A.port), '--bind', '127.0.0.1', '--directory', A.repo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(0.6)
 if srv.poll() is not None: sys.exit('could not start the local server on port %d (in use?)' % A.port)
 ok = fail = 0
 def check(label, good, detail=''):

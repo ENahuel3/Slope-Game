@@ -6,7 +6,7 @@ import argparse, json, os, subprocess, sys, time
 from playwright.sync_api import sync_playwright
 ap = argparse.ArgumentParser(); ap.add_argument('repo'); ap.add_argument('--port', type=int, default=8777); ap.add_argument('--seconds', type=float, default=8); ap.add_argument('--timeout', type=float, default=180)
 A = ap.parse_args(); REPO = os.path.abspath(A.repo)
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', str(A.port), '--bind', '127.0.0.1', '--directory', REPO], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'), str(A.port), '--bind', '127.0.0.1', '--directory', REPO], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(1)
 if srv.poll() is not None: print('FAIL could not serve the repository on port %d' % A.port); sys.exit(1)
 def fail(msg): print('FAIL ' + msg, flush=True); srv.terminate(); sys.exit(1)

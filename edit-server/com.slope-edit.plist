@@ -12,6 +12,9 @@
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><true/>
     <key>ThrottleInterval</key><integer>5</integer>
+    <!-- Interactive: without it launchd clamps the daemon to background QoS and the headless game
+         runs at 10-17 fps instead of 60 (smoke_check measured in the launchd context) -->
+    <key>ProcessType</key><string>Interactive</string>
     <key>Nice</key><integer>5</integer>
     <key>Umask</key><integer>63</integer>
     <key>StandardOutPath</key><string>/opt/slope-edit/log/server.log</string>

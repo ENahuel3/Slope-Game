@@ -13,7 +13,7 @@ ap.add_argument('--port', type=int, default=8800); ap.add_argument('--mode', def
 def free(p):
     with socket.socket() as s: return s.connect_ex(('127.0.0.1', p)) != 0
 while not free(A.port): A.port += 1
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', str(A.port), '--bind', '127.0.0.1', '--directory', A.site], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(0.6)
+srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'), str(A.port), '--bind', '127.0.0.1', '--directory', A.site], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(0.6)
 W, Hh = [int(x) for x in A.vp.split('x')]
 PROBE = """() => { var st = SlopeMod.stats(), tr = SlopeMod.track(); return { frame: SlopeMod.frame(), st: st, pos: tr.pos, s: tr.s, spawn: tr.spawnPos, log: SlopeMod.log(), t: performance.now(), dt: SlopeMod.frameDt(), draws: SlopeMod.courseBatches(), vis: document.visibilityState }; }"""
 try:

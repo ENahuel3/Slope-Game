@@ -12,7 +12,7 @@ ap = argparse.ArgumentParser(); ap.add_argument('repo'); ap.add_argument('--tags
 ap.add_argument('--port', type=int, default=8773); ap.add_argument('--out', default=None); ap.add_argument('--no-both', action='store_true'); A = ap.parse_args()
 REPO = os.path.abspath(A.repo); man = json.load(open(os.path.join(REPO, 'versions', 'index.json')))
 tags = A.tags.split(',') if A.tags else ['latest'] + [v['tag'] for v in man['versions']]
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', str(A.port), '--bind', '127.0.0.1', '--directory', REPO], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'), str(A.port), '--bind', '127.0.0.1', '--directory', REPO], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(1)
 if srv.poll() is not None: sys.exit('could not start the local server on port %d' % A.port)
 report = {}

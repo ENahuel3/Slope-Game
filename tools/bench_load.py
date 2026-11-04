@@ -8,7 +8,7 @@ ap = argparse.ArgumentParser(); ap.add_argument('repo'); ap.add_argument('--path
 ap.add_argument('--runs', type=int, default=1); ap.add_argument('--profile', default=None); ap.add_argument('--port', type=int, default=8765); ap.add_argument('--url', default=None, help='benchmark a live site instead of serving <repo> locally'); A = ap.parse_args()
 srv = None
 if not A.url:
-    srv = subprocess.Popen([sys.executable, '-m', 'http.server', str(A.port), '--bind', '127.0.0.1', '--directory', A.repo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'), str(A.port), '--bind', '127.0.0.1', '--directory', A.repo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.6)
     if srv.poll() is not None: sys.exit('could not start the local server on port %d (in use?)' % A.port)
 base = A.url.rstrip('/') if A.url else 'http://127.0.0.1:%d' % A.port

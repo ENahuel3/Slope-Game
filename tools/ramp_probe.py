@@ -5,7 +5,7 @@ import argparse, json, os, subprocess, sys, time
 from playwright.sync_api import sync_playwright
 ap = argparse.ArgumentParser(); ap.add_argument('repo'); ap.add_argument('--port', type=int, default=8779); ap.add_argument('--seconds', type=float, default=20)
 A = ap.parse_args(); REPO = os.path.abspath(A.repo)
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', str(A.port), '--bind', '127.0.0.1', '--directory', REPO], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'), str(A.port), '--bind', '127.0.0.1', '--directory', REPO], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(1)
 PROBE = """(function(){ var R = window.SlopeRamps; R.setEnabled(true); R.params.every = 1; R.params.minGap = 3; R.params.minS = 60; R.params.minAhead = 15;
   window.__rp = []; function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}

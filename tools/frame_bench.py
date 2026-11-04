@@ -5,7 +5,7 @@ Run one browser at a time, e.g. nice -n 19 taskset -c 0-5 python tools/frame_ben
 Software rendering is the default: use --gpu on the target device for FPS numbers.
 The 1% low is 1000 / mean(slowest ceil(N*.01) frame intervals).
 """
-import argparse, collections, json, math, pathlib, subprocess, sys, time
+import argparse, collections, json, math, os, pathlib, subprocess, sys, time
 from playwright.sync_api import sync_playwright
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('repo', nargs='?', default='.')
@@ -28,7 +28,7 @@ ap.add_argument('--screenshot')
 ap.add_argument('--profile', help='write Chrome CPU profile to this path')
 A = ap.parse_args(); root = pathlib.Path(A.repo).resolve()
 if A.seconds <= 0 or A.courses < 1: ap.error('seconds and courses must be positive')
-server = subprocess.Popen([sys.executable, '-m', 'http.server', str(A.port), '--bind', '127.0.0.1', '--directory', str(root)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+server = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'), str(A.port), '--bind', '127.0.0.1', '--directory', str(root)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 try:
     time.sleep(.5)
     if server.poll() is not None: raise RuntimeError('server failed to start')

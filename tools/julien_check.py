@@ -3,6 +3,7 @@ Usage: python tools/julien_check.py [repo] [--webgl1] [--port 8772]
 Requires Playwright Chromium. Screenshots go in /tmp/slope-julien-check-{1,2}.
 """
 import argparse
+import os
 import json
 from pathlib import Path
 import subprocess
@@ -18,7 +19,7 @@ ap.add_argument('--port', type=int, default=8772)
 a = ap.parse_args()
 out = Path(tempfile.gettempdir()) / ('slope-julien-check-1' if a.webgl1 else 'slope-julien-check-2')
 out.mkdir(exist_ok=True)
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', str(a.port), '--bind', '127.0.0.1', '--directory', a.repo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'), str(a.port), '--bind', '127.0.0.1', '--directory', a.repo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(.5)
 if srv.poll() is not None: sys.exit('Local HTTP server failed to start')
 checks = 0

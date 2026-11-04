@@ -5,7 +5,7 @@ import argparse, os, subprocess, sys, time
 from playwright.sync_api import sync_playwright
 ap = argparse.ArgumentParser(); ap.add_argument('repo'); ap.add_argument('--shot'); ap.add_argument('--port', type=int, default=8779)
 A = ap.parse_args()
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', str(A.port), '--bind', '127.0.0.1', '--directory', os.path.abspath(A.repo)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve.py'), str(A.port), '--bind', '127.0.0.1', '--directory', os.path.abspath(A.repo)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(1)
 ok = False
 try:
