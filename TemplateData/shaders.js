@@ -186,12 +186,12 @@
         "vec3 reflectRay(vec3 P, vec3 N, out float hitFade) {",
         "  hitFade = 0.0; vec3 R = reflect(normalize(P), N);",
         "  float stp = max(0.08, 0.03 * -P.z); vec3 p = P + N * stp * 0.5 + R * stp;",
-        "  if (uQ.w > 0.5 && uLight.w > 0.5) return vec3(0.0);",   // Ray Tracing on: no screen-space reflection on lighting passes, so light bounces come only from the ray tracer (Ray Traced Steps slider) and Reflection Steps has no effect
-        "  for (int i = 0; i < 96; i++) {",   // finer, longer march (was 24 steps growing 10%) so thin gaps do not show up as slits; uReflSteps (slider) sets the actual count
-        "    if (float(i) >= uReflSteps || p.z > -uCam.z) break;",
+        "  float nSteps = (uQ.w > 0.5 && uLight.w > 0.5) ? 96.0 : uReflSteps;",   // Ray Tracing on: the track stays as reflective as without it, but the mirror ray always marches the full 96 steps, so the Reflection Steps slider has no effect (bounces are set by Ray Traced Steps only)
+        "  for (int i = 0; i < 96; i++) {",   // finer, longer march (was 24 steps growing 10%) so thin gaps do not show up as slits; nSteps sets the actual count
+        "    if (float(i) >= nSteps || p.z > -uCam.z) break;",
         "    vec3 q = proj(p); if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) break;",
         "    float bz = linZ(depthAt(q.xy)); float diff = q.z - bz;",
-        "    if (diff > 0.0 && diff < stp * 2.0) { hitFade = (1.0 - float(i) / uReflSteps) * (1.0 - smoothstep(0.7, 1.0, max(abs(q.x - 0.5), abs(q.y - 0.5)) * 2.0));",
+        "    if (diff > 0.0 && diff < stp * 2.0) { hitFade = (1.0 - float(i) / nSteps) * (1.0 - smoothstep(0.7, 1.0, max(abs(q.x - 0.5), abs(q.y - 0.5)) * 2.0));",
         "      vec3 lo = p - R * stp, hi = p;",   // binary refinement: land on the actual surface instead of the quantised step, so the reflected ball is not cut into strips
         "      for (int k = 0; k < 8; k++) { vec3 m = 0.5 * (lo + hi); vec3 qm = proj(m); if (qm.z - linZ(depthAt(qm.xy)) > 0.0) hi = m; else lo = m; }",
         "      vec3 qh = proj(hi); if (qh.x < 0.0 || qh.x > 1.0 || qh.y < 0.0 || qh.y > 1.0) qh = q;",
