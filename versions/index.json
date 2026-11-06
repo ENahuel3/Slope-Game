@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: Add a toggle in settings labelled \"End Game on Fall\" which i",
-  "notes": "Made with the in-game dev mode (job 0fbe37986216).",
+  "title": "Dev edit: The end game on fall toggle works, but if you turn it off an",
+  "notes": "Made with the in-game dev mode (job 0748a2575fe5).",
   "date": "2026-11-06"
  },
  "versions": [
@@ -1120,6 +1120,13 @@
    "notes": "The root as it was before the dev-mode edit 'Add a toggle in settings labelled \"End Game on Fall\" which is on by default, but when off, it makes '. Last commit: Dev edit: When ray tracing is enabled, are the track reflections ray t",
    "date": "2026-11-04",
    "commit": "a3bcea5"
+  },
+  {
+   "tag": "v147-dev-0748a2",
+   "title": "Before dev edit 0748a2",
+   "notes": "The root as it was before the dev-mode edit 'The end game on fall toggle works, but if you turn it off and then reload the page, it gets turned b'. Last commit: Dev edit: Add a toggle in settings labelled \"End Game on Fall\" which i",
+   "date": "2026-11-06",
+   "commit": "ddb9bc0"
   }
  ]
 }

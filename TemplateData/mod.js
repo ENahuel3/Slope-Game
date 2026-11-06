@@ -1059,6 +1059,7 @@
     }
     function stepTrack(playing) {
         stepBoost();                       // always: a boost left running while the track was not ready blocked every later launch
+        applyEndOnFall();                  // always: the saved "End Game on Fall" setting must hold from the first run after a reload
         if (!trackReady()) return;
         if (playing) trackBall();
         var nowT = performance.now(); if (lastFrameT) frameDt = frameDt * 0.9 + Math.min(0.1, (nowT - lastFrameT) / 1000) * 0.1; lastFrameT = nowT;
@@ -1105,6 +1106,22 @@
         var f = heap32(); if (!f) return;
         if (H.kill < 0) return;                                            // found by discoverHeap (-2: not there)
         f[H.kill + 1] = park ? (endOnFall ? -5000 : -1e6) : -5.15;
+    }
+    // Every frame, in a plain (gravity off) game, keep the kill box where the saved setting wants it. This does not
+    // wait for trackReady(): a reload with the setting off used to leave the box in place until it was toggled.
+    // A kill box record that no longer looks like one (moved or freed) is looked up again, at most every 3 s.
+    var killRescanAt = 0, killRescans = 0;
+    function applyEndOnFall() {
+        if (gravityMode !== "off") return;                                 // track modes park it themselves
+        var f = heap32(); if (!f) return;
+        var a = H.kill, now = performance.now();
+        if (a >= 0 && (Math.abs(f[a] - 0.125) > 0.01 || Math.abs(f[a + 2] - 18.779) > 0.01)) { H.kill = a = -1; }
+        if (a < 0) {
+            if (!endOnFall && !discover && now > killRescanAt && killRescans < 40 && gameReadyAt) { killRescanAt = now + 3000; killRescans++; H.kill = -1; discoverHeap(); }
+            return;
+        }
+        var want = endOnFall ? -5.15 : -1e6;
+        if (Math.abs(f[a + 1] - want) > 0.01) f[a + 1] = want;
     }
     // "End Game on Fall" (settings): off keeps a run going after the ball leaves the track.
     function setEndOnFall(on) {
