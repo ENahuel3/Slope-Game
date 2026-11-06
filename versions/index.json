@@ -1,7 +1,7 @@
 {
  "latest": {
-  "title": "Dev edit: The end game on fall toggle works, but if you turn it off an",
-  "notes": "Made with the in-game dev mode (job 0748a2575fe5).",
+  "title": "Dev edit: Widen the settings menu so that it's a bigger window and you",
+  "notes": "Made with the in-game dev mode (job a59858450f52).",
   "date": "2026-11-06"
  },
  "versions": [
@@ -1127,6 +1127,13 @@
    "notes": "The root as it was before the dev-mode edit 'The end game on fall toggle works, but if you turn it off and then reload the page, it gets turned b'. Last commit: Dev edit: Add a toggle in settings labelled \"End Game on Fall\" which i",
    "date": "2026-11-06",
    "commit": "ddb9bc0"
+  },
+  {
+   "tag": "v148-dev-a59858",
+   "title": "Before dev edit a59858",
+   "notes": "The root as it was before the dev-mode edit 'Widen the settings menu so that it's a bigger window and you don't need to scroll to see all of the '. Last commit: Dev edit: The end game on fall toggle works, but if you turn it off an",
+   "date": "2026-11-06",
+   "commit": "0b10c1c"
   }
  ]
 }

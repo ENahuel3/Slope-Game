@@ -236,6 +236,11 @@ html, body {
 .mod-options .hud-input { box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; padding: 8px; }
 .mod-options .hud-range { display: block; width: 100%; }
 .mod-options input[type=checkbox] { width: 22px; height: 22px; margin: 0; accent-color: #00e676; cursor: pointer; }
+/* wide screens: a bigger window with the settings in two side-by-side columns, so no scrolling */
+@media (min-width: 760px) {
+    .mod-menu { width: min(960px, calc(100vw - 24px)); }
+    .mod-options { grid-template-columns: 130px minmax(0, 1fr) 130px minmax(0, 1fr); gap: 14px 16px; }
+}
 .mod-menu-note { font-size: 12px; line-height: 1.5; color: #bac2be; margin: 18px 0; }
 @media (max-width: 600px) { .hud { gap: 8px; padding: 8px; } .hud-hint { display: none; } }
 
