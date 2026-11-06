@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Dev edit: When ray tracing is enabled, are the track reflections ray t",
-  "notes": "Made with the in-game dev mode (job 5b0d1be4ed63).",
-  "date": "2026-11-04"
+  "title": "Dev edit: Add a toggle in settings labelled \"End Game on Fall\" which i",
+  "notes": "Made with the in-game dev mode (job 0fbe37986216).",
+  "date": "2026-11-06"
  },
  "versions": [
   {
@@ -1113,6 +1113,13 @@
    "notes": "The root as it was before the dev-mode edit 'When ray tracing is enabled, are the track reflections ray traced or drawn using the non ray tracing'. Last commit: Dev edit: The sliders are now working as intended, but now when using",
    "date": "2026-11-04",
    "commit": "6c922a5"
+  },
+  {
+   "tag": "v146-dev-0fbe37",
+   "title": "Before dev edit 0fbe37",
+   "notes": "The root as it was before the dev-mode edit 'Add a toggle in settings labelled \"End Game on Fall\" which is on by default, but when off, it makes '. Last commit: Dev edit: When ray tracing is enabled, are the track reflections ray t",
+   "date": "2026-11-04",
+   "commit": "a3bcea5"
   }
  ]
 }

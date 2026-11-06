@@ -64,6 +64,8 @@
     ];
     var GRAVITY_MODES = ["off", "curves", "twists", "both"];
     var gravityMode = (function () { var m = lsGet(KEY_GRAVITY); return GRAVITY_MODES.indexOf(m) >= 0 ? m : "off"; })();
+    var KEY_END_ON_FALL = "slope-mod.endOnFall";
+    var endOnFall = lsGet(KEY_END_ON_FALL) !== "false";   // on by default: off parks the kill box out of reach and skips the free-fall restart
     var musicId = (function () { var id = lsGet(KEY_MUSIC); return TRACKS.some(function (t) { return t.id === id; }) ? id : "original"; })();
 
     function themeSetting(name) { var saved = lsGet("slope-mod." + name); return saved === null ? musicId === "billie" : saved === "true"; }
@@ -463,6 +465,9 @@
         if (!gameRunning || build || restartSeq || now - lastRestartAt < STUCK_GRACE_MS || document.hidden || gap > STUCK_MAX_GAP_MS || (stackWanted() <= 1 && gravityMode === "off")) { stuck.pos = null; return; }
         trackBall(); var p = ballPos; if (!p) return;
         var sNow = vdot(p, FWD0);
+        // End Game on Fall off: a ball falling fast is not wedged, even though it makes no progress along the course
+        if (!endOnFall && stuck.last && gap > 0 && Math.hypot(p[0] - stuck.last[0], p[1] - stuck.last[1], p[2] - stuck.last[2]) * 1000 / gap > 15) { stuck.sRef = sNow; stuck.sSince = now; stuck.since = now; }
+        stuck.last = p.slice();
         if (!stuck.pos) { stuck.pos = p.slice(); stuck.since = now; stuck.sRef = sNow; stuck.sSince = now; return; }
         if (Math.abs(p[1] - stuck.pos[1]) > 0.05 || Math.abs(p[2] - stuck.pos[2]) > 0.05) { stuck.pos = p.slice(); stuck.since = now; }   // any forward or vertical movement resets; sideways alone does not
         if (sNow - stuck.sRef > CREEP_UNITS) { stuck.sRef = sNow; stuck.sSince = now; }
@@ -1067,7 +1072,7 @@
             if (playing && cameraFollowing) followCamera([0, 0, 0, 1]);
             if (gravWritten) writeGravity(0, G0, 0);
             if (autopilot && playing && gravityMode === "off") { trackBall(); if (ballPos) { var wantS = ballPos[0] > 5.6 ? "ArrowLeft" : ballPos[0] < 4.4 ? "ArrowRight" : null; if (wantS !== autoKey) { if (autoKey) keyEvent("keyup", autoKey, autoKey === "ArrowLeft" ? 37 : 39); if (wantS) keyEvent("keydown", wantS, wantS === "ArrowLeft" ? 37 : 39); autoKey = wantS; } } }   // test: straight-lane autopilot
-            if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0)); writeQuatVar("ModQ1", spawnQ(0)); writeBlockChoice(0); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (vlen(track.dApplied) > 0) { shiftSpawnBy(v3(track.dApplied, -1)); track.dApplied = [0, 0, 0]; } }
+            if (track && gravityMode === "off") { writeSpawnRot(spawnQ(0)); writeQuatVar("ModQ1", spawnQ(0)); writeBlockChoice(0); writeRigQ([0, 0, 0, 1]); parkKillZone(!endOnFall); if (vlen(track.dApplied) > 0) { shiftSpawnBy(v3(track.dApplied, -1)); track.dApplied = [0, 0, 0]; } }
             return;
         }
         trackBall(); watchSpawner();
@@ -1077,7 +1082,7 @@
         var sb = vdot(ballPos, FWD0), th = sectionRollAt(sb), fr = frameAxes(th);
         stepAutopilot(sb, fr);
         // fell off: moving fast along the frame's "down" for a while (the kill box is parked)
-        if (-vdot(ballVel, fr.n) > 70) { if (++track.fallFrames > 45 && !restartSeq && !build) { note("free fall at s=" + sb.toFixed(0) + ", restarting"); requestRestart(true); return; } } else track.fallFrames = 0;
+        if (-vdot(ballVel, fr.n) > 70) { if (++track.fallFrames > 45 && endOnFall && !restartSeq && !build) { note("free fall at s=" + sb.toFixed(0) + ", restarting"); requestRestart(true); return; } } else track.fallFrames = 0;
         // --- force compensation: the game pushes along world y / z / x; the frame rotates those axes
         var zf = fsmFloat("zforce"), yf = fsmFloat("yforce"), sL = fsmFloat("SteerForceLeft"), sR = fsmFloat("SteerForceRight");
         var steer = (keysHeld.left ? sL : 0) + (keysHeld.right ? sR : 0);
@@ -1099,13 +1104,19 @@
     function parkKillZone(park) {
         var f = heap32(); if (!f) return;
         if (H.kill < 0) return;                                            // found by discoverHeap (-2: not there)
-        f[H.kill + 1] = park ? -5000 : -5.15;
+        f[H.kill + 1] = park ? (endOnFall ? -5000 : -1e6) : -5.15;
+    }
+    // "End Game on Fall" (settings): off keeps a run going after the ball leaves the track.
+    function setEndOnFall(on) {
+        endOnFall = !!on; lsSet(KEY_END_ON_FALL, endOnFall);
+        parkKillZone(gravityMode !== "off" || !endOnFall);
+        var el = document.getElementById("hud-endfall"); if (el) el.checked = endOnFall;
     }
 
     function setGravityMode(m) {
         if (GRAVITY_MODES.indexOf(m) < 0) m = "off";
         gravityMode = m; lsSet(KEY_GRAVITY, m); refreshStackNote();
-        if (m === "off") { writeGravity(0, G0, 0); writeSpawnRot(spawnQ(0)); writeQuatVar("ModQ1", spawnQ(0)); writeBlockChoice(0); writeRigQ([0, 0, 0, 1]); parkKillZone(false); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
+        if (m === "off") { writeGravity(0, G0, 0); writeSpawnRot(spawnQ(0)); writeQuatVar("ModQ1", spawnQ(0)); writeBlockChoice(0); writeRigQ([0, 0, 0, 1]); parkKillZone(!endOnFall); if (gravBadge) { gravBadge.textContent = ""; gravBadge.classList.remove("on"); } }
     }
     ["keydown", "keyup"].forEach(function (type) {
         window.addEventListener(type, function (e) {
@@ -1578,7 +1589,7 @@
                 modMenu.addEventListener("close", function () { if (modMenu.open) return; menuButton.setAttribute("aria-expanded", "false"); menuButton.focus(); showHud(); });
                 modMenu.addEventListener("click", function (e) { if (e.target === modMenu) { var r = modMenu.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) modMenu.close(); } });
             }
-            [["hud-mort", mortEnabled, setMort], ["hud-julien", julienEnabled, setJulien]].forEach(function (item) {
+            [["hud-mort", mortEnabled, setMort], ["hud-julien", julienEnabled, setJulien], ["hud-endfall", endOnFall, setEndOnFall]].forEach(function (item) {
                 var el = document.getElementById(item[0]); if (!el) return;
                 el.checked = item[1]; el.addEventListener("change", function () { item[2](el.checked); });
             });
