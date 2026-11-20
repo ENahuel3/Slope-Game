@@ -1,8 +1,8 @@
 {
  "latest": {
-  "title": "Dev edit: Widen the settings menu so that it's a bigger window and you",
-  "notes": "Made with the in-game dev mode (job a59858450f52).",
-  "date": "2026-11-06"
+  "title": "Dev edit: Add a checkbox in settings that when toggled, the trail behi",
+  "notes": "Made with the in-game dev mode (job b77d51fa5ea3).",
+  "date": "2026-11-20"
  },
  "versions": [
   {
@@ -1134,6 +1134,13 @@
    "notes": "The root as it was before the dev-mode edit 'Widen the settings menu so that it's a bigger window and you don't need to scroll to see all of the '. Last commit: Dev edit: The end game on fall toggle works, but if you turn it off an",
    "date": "2026-11-06",
    "commit": "0b10c1c"
+  },
+  {
+   "tag": "v149-dev-b77d51",
+   "title": "Before dev edit b77d51",
+   "notes": "The root as it was before the dev-mode edit 'Add a checkbox in settings that when toggled, the trail behind the ball that appears when there is a'. Last commit: Dev edit: Widen the settings menu so that it's a bigger window and you",
+   "date": "2026-11-06",
+   "commit": "098c44b"
   }
  ]
 }

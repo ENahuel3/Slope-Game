@@ -1129,6 +1129,20 @@
         parkKillZone(gravityMode !== "off" || !endOnFall);
         var el = document.getElementById("hud-endfall"); if (el) el.checked = endOnFall;
     }
+    // "Always Show Speed Trail" (settings): tools/patch_trail.py gave the Sphere FSM a ModTrailAlways bool and
+    // states that keep the speed-up trail on. The FSM keeps the bool across restarts; it is sent only during a
+    // live run, since the menu's "start game" state holds the ball still and must not be left early.
+    var KEY_TRAIL = "slope-mod.alwaysTrail";
+    var alwaysTrail = lsGet(KEY_TRAIL) === "true", trailSent = false;
+    function syncTrail() {
+        if (alwaysTrail === trailSent || !gameRunning || build || restartSeq) return;
+        if (setState(SPHERE, alwaysTrail ? "Mod Trail Always On" : "Mod Trail Always Off")) trailSent = alwaysTrail;
+    }
+    function setAlwaysTrail(on) {
+        alwaysTrail = !!on; lsSet(KEY_TRAIL, alwaysTrail);
+        var el = document.getElementById("hud-trail"); if (el) el.checked = alwaysTrail;
+        syncTrail();
+    }
 
     function setGravityMode(m) {
         if (GRAVITY_MODES.indexOf(m) < 0) m = "off";
@@ -1606,7 +1620,7 @@
                 modMenu.addEventListener("close", function () { if (modMenu.open) return; menuButton.setAttribute("aria-expanded", "false"); menuButton.focus(); showHud(); });
                 modMenu.addEventListener("click", function (e) { if (e.target === modMenu) { var r = modMenu.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) modMenu.close(); } });
             }
-            [["hud-mort", mortEnabled, setMort], ["hud-julien", julienEnabled, setJulien], ["hud-endfall", endOnFall, setEndOnFall]].forEach(function (item) {
+            [["hud-mort", mortEnabled, setMort], ["hud-julien", julienEnabled, setJulien], ["hud-endfall", endOnFall, setEndOnFall], ["hud-trail", alwaysTrail, setAlwaysTrail]].forEach(function (item) {
                 var el = document.getElementById(item[0]); if (!el) return;
                 el.checked = item[1]; el.addEventListener("change", function () { item[2](el.checked); });
             });
@@ -1670,6 +1684,7 @@
             gameReadyAt = Date.now();
             startedAt = Date.now();
             setTimeout(discoverHeap, 300);
+            setInterval(syncTrail, 500);
             tickTimer();
             showHud();
         }
